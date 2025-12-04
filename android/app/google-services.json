@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "682278346224",
+    "project_id": "stayzone-88364",
+    "storage_bucket": "stayzone-88364.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:682278346224:android:e026cbc6fdc109398bd135",
+        "android_client_info": {
+          "package_name": "com.zonber.game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUN_P8Qs7kTMsaH3xPzhs4EEoJUJIBeCQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
