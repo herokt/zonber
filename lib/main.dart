@@ -5,31 +5,135 @@ import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/collisions.dart';
-import 'ranking_system.dart'; // 방금 만든 파일 import
+import 'ranking_system.dart';
+import 'editor_game.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // [수정] 웹 설정 다 빼고, 기기 설정 파일(google-services.json)만 읽어옵니다.
   await Firebase.initializeApp();
+  runApp(const ZonberApp());
+}
 
-  runApp(
-    MaterialApp(
-      home: Scaffold(
-        body: GameWidget(
+class ZonberApp extends StatefulWidget {
+  const ZonberApp({Key? key}) : super(key: key);
+
+  @override
+  State<ZonberApp> createState() => _ZonberAppState();
+}
+
+class _ZonberAppState extends State<ZonberApp> {
+  String _currentPage = 'Menu'; // Menu, Game, Editor
+
+  void _navigateTo(String page) {
+    setState(() {
+      _currentPage = page;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(home: Scaffold(body: _buildPage()));
+  }
+
+  Widget _buildPage() {
+    switch (_currentPage) {
+      case 'Game':
+        return GameWidget(
           game: ZonberGame(),
           overlayBuilderMap: {
-            'GameOverMenu': (BuildContext context, ZonberGame game) {
-              return GameOverWidget(game: game);
-            },
-            'LeaderboardMenu': (BuildContext context, ZonberGame game) {
-              return LeaderboardWidget(game: game);
-            },
+            'GameOverMenu': (context, ZonberGame game) =>
+                GameOverWidget(game: game),
+            'LeaderboardMenu': (context, ZonberGame game) =>
+                LeaderboardWidget(game: game),
           },
+        );
+      case 'Editor':
+        return GameWidget(
+          game: MapEditorGame(),
+          overlayBuilderMap: {
+            'EditorUI': (context, MapEditorGame game) =>
+                EditorUI(game: game, onExit: () => _navigateTo('Menu')),
+          },
+          initialActiveOverlays: const ['EditorUI'],
+        );
+      case 'Menu':
+      default:
+        return MainMenu(
+          onStartGame: () => _navigateTo('Game'),
+          onOpenEditor: () => _navigateTo('Editor'),
+        );
+    }
+  }
+}
+
+class MainMenu extends StatelessWidget {
+  final VoidCallback onStartGame;
+  final VoidCallback onOpenEditor;
+
+  const MainMenu({
+    Key? key,
+    required this.onStartGame,
+    required this.onOpenEditor,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF0B0C10),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              "ZONBER",
+              style: TextStyle(
+                color: Color(0xFF45A29E),
+                fontSize: 64,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 50),
+            _buildMenuButton(
+              "START GAME",
+              const Color(0xFFF21D1D),
+              onStartGame,
+            ),
+            const SizedBox(height: 20),
+            _buildMenuButton(
+              "MAP EDITOR",
+              const Color(0xFF45A29E),
+              onOpenEditor,
+            ),
+          ],
         ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildMenuButton(String text, Color color, VoidCallback onPressed) {
+    return SizedBox(
+      width: 200,
+      height: 60,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {

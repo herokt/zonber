@@ -35,8 +35,8 @@ Phase 2: 데이터 & 랭킹 - [완료]
 
 [x] 실기기 테스트 및 크래시 해결 완료
 
-Phase 3: 맵 에디터 (UGC) - [대기 중]
-[ ] 그리드 기반 맵 에디터 UI 개발
+Phase 3: 맵 에디터 (UGC) - [진행 중]
+[x] 그리드 기반 맵 에디터 UI 개발 (Main Menu & Editor Mode)
 
 [ ] 유저 커스텀 맵 저장/불러오기 (grid_data)
 
@@ -75,6 +75,8 @@ B. 주요 소스 코드 구조 (lib/)
 main.dart: 게임의 진입점. FlameGame 루프, 플레이어/탄막/UI 로직이 모두 포함됨. (웹 지원 코드는 안정성을 위해 제거됨)
 
 ranking_system.dart: Firebase Firestore와 통신하는 전담 파일. saveRecord()와 getTopRecords() 함수 포함.
+
+editor_game.dart: 맵 에디터 로직 (MapEditorGame) 및 UI (EditorUI).
 
 ⚠️ 3. 개발 환경 주의사항 (Troubleshooting)
 혹시 개발 PC를 옮기거나 포맷했을 때 발생하는 에러 대처법입니다.
