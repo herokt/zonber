@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Remove-Item -Path ''D:\\Mycrew'' -Recurse -Force\")",
+      "Bash(powershell -Command \"Remove-Item -Path ''D:\\Thecrew'' -Recurse -Force\")",
+      "Bash(powershell -Command \"Get-ChildItem ''D:\\Mycrew\\nul'' -Force | Remove-Item -Force; Remove-Item -Path ''\\?\\D:\\Mycrew'' -Recurse -Force\")",
+      "Bash(powershell -Command \"Get-ChildItem ''D:\\Thecrew\\nul'' -Force | Remove-Item -Force; Remove-Item -Path ''\\?\\D:\\Thecrew'' -Recurse -Force\")",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Path ''D:\\empty_temp'' -Force | Out-Null; robocopy ''D:\\empty_temp'' ''D:\\Mycrew'' /MIR /R:0 /W:0 | Out-Null; Remove-Item ''D:\\Mycrew'' -Force; Remove-Item ''D:\\empty_temp'' -Force\")",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Path ''D:\\empty_temp2'' -Force | Out-Null; robocopy ''D:\\empty_temp2'' ''D:\\Thecrew'' /MIR /R:0 /W:0 | Out-Null; Remove-Item ''D:\\Thecrew'' -Force; Remove-Item ''D:\\empty_temp2'' -Force\")",
+      "Bash(powershell -Command \"Test-Path ''D:\\Mycrew''; Test-Path ''D:\\Thecrew''\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

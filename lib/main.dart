@@ -7,6 +7,8 @@ import 'package:flame/events.dart';
 import 'package:flame/collisions.dart';
 import 'ranking_system.dart';
 import 'editor_game.dart';
+import 'user_profile.dart';
+import 'map_selection_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,11 +24,29 @@ class ZonberApp extends StatefulWidget {
 }
 
 class _ZonberAppState extends State<ZonberApp> {
-  String _currentPage = 'Menu'; // Menu, Game, Editor
+  String _currentPage =
+      'Loading'; // Menu, MapSelect, Game, Editor, Profile, Loading
+  String _currentMapId = 'zone_1_classic'; // Default Map
 
-  void _navigateTo(String page) {
+  @override
+  void initState() {
+    super.initState();
+    _checkProfile();
+  }
+
+  Future<void> _checkProfile() async {
+    bool hasProfile = await UserProfileManager.hasProfile();
+    setState(() {
+      _currentPage = hasProfile ? 'Menu' : 'Profile';
+    });
+  }
+
+  void _navigateTo(String page, {String? mapId}) {
     setState(() {
       _currentPage = page;
+      if (mapId != null) {
+        _currentMapId = mapId;
+      }
     });
   }
 
@@ -39,14 +59,24 @@ class _ZonberAppState extends State<ZonberApp> {
     switch (_currentPage) {
       case 'Game':
         return GameWidget(
-          game: ZonberGame(),
+          game: ZonberGame(
+            mapId: _currentMapId,
+            onExit: () => _navigateTo('Menu'),
+          ),
           overlayBuilderMap: {
             'GameOverMenu': (context, ZonberGame game) =>
                 GameOverWidget(game: game),
-            'LeaderboardMenu': (context, ZonberGame game) =>
-                LeaderboardWidget(game: game),
+            'LeaderboardMenu': (context, ZonberGame game) => LeaderboardWidget(
+              game: game,
+              highlightRecordId: game.lastRecordId,
+            ),
+            'GameUI': (context, ZonberGame game) =>
+                GameUI(game: game, onExit: () => _navigateTo('Menu')),
           },
+          initialActiveOverlays: const ['GameUI'],
         );
+      case 'Profile':
+        return UserProfilePage(onComplete: () => _navigateTo('Menu'));
       case 'Editor':
         return GameWidget(
           game: MapEditorGame(),
@@ -56,11 +86,17 @@ class _ZonberAppState extends State<ZonberApp> {
           },
           initialActiveOverlays: const ['EditorUI'],
         );
+      case 'MapSelect':
+        return MapSelectionPage(
+          onMapSelected: (mapId) => _navigateTo('Game', mapId: mapId),
+          onBack: () => _navigateTo('Menu'),
+        );
       case 'Menu':
       default:
         return MainMenu(
-          onStartGame: () => _navigateTo('Game'),
+          onStartGame: () => _navigateTo('MapSelect'),
           onOpenEditor: () => _navigateTo('Editor'),
+          onProfile: () => _navigateTo('Profile'),
         );
     }
   }
@@ -69,44 +105,58 @@ class _ZonberAppState extends State<ZonberApp> {
 class MainMenu extends StatelessWidget {
   final VoidCallback onStartGame;
   final VoidCallback onOpenEditor;
+  final VoidCallback onProfile;
 
   const MainMenu({
     Key? key,
     required this.onStartGame,
     required this.onOpenEditor,
+    required this.onProfile,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF0B0C10),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              "ZONBER",
-              style: TextStyle(
-                color: Color(0xFF45A29E),
-                fontSize: 64,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
-              ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: 40,
+            left: 20,
+            child: IconButton(
+              icon: const Icon(Icons.person, color: Colors.white, size: 30),
+              onPressed: onProfile,
             ),
-            const SizedBox(height: 50),
-            _buildMenuButton(
-              "START GAME",
-              const Color(0xFFF21D1D),
-              onStartGame,
+          ),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "ZONBER",
+                  style: TextStyle(
+                    color: Color(0xFF45A29E),
+                    fontSize: 64,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4,
+                  ),
+                ),
+                const SizedBox(height: 50),
+                _buildMenuButton(
+                  "START GAME",
+                  const Color(0xFFF21D1D),
+                  onStartGame,
+                ),
+                const SizedBox(height: 20),
+                _buildMenuButton(
+                  "MAP EDITOR",
+                  const Color(0xFF45A29E),
+                  onOpenEditor,
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            _buildMenuButton(
-              "MAP EDITOR",
-              const Color(0xFF45A29E),
-              onOpenEditor,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -137,39 +187,34 @@ class MainMenu extends StatelessWidget {
 }
 
 class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
-  static const double mapWidth = 2000.0;
-  static const double mapHeight = 2000.0;
+  final String mapId;
+  final VoidCallback onExit;
+  ZonberGame({required this.mapId, required this.onExit});
+
+  static const double mapWidth = 480.0;
+  static const double mapHeight = 800.0;
 
   late Player player;
   late BulletSpawner spawner;
+  late MapArea mapArea;
 
   // UI 컴포넌트
   late TextComponent timeText;
 
   double survivalTime = 0.0;
   bool isGameOver = false;
+  String? lastRecordId; // 마지막 저장된 기록 ID
 
   @override
   Color backgroundColor() => const Color(0xFF0B0C10);
 
   @override
   Future<void> onLoad() async {
-    // 플레이어
-    player = Player()
-      ..position = Vector2(mapWidth / 2, mapHeight / 2)
-      ..width = 32
-      ..height = 32
-      ..anchor = Anchor.center;
-    world.add(player);
-
-    // 카메라
     camera.viewfinder.anchor = Anchor.center;
-    camera.follow(player);
-
-    // 배경
     world.add(GridBackground());
+    mapArea = MapArea();
+    world.add(mapArea);
 
-    // 시간 표시 텍스트
     timeText = TextComponent(
       text: 'TIME: 0.00',
       position: Vector2(20, 40),
@@ -189,22 +234,48 @@ class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
   void startGame() {
     isGameOver = false;
     survivalTime = 0.0;
+    lastRecordId = null;
 
-    // 오버레이(UI) 끄기
     overlays.remove('GameOverMenu');
     overlays.remove('LeaderboardMenu');
+    overlays.add('GameUI');
 
-    // 게임 재개
+    mapArea.removeAll(mapArea.children);
+
+    player = Player()
+      ..position = Vector2(mapWidth / 2, mapHeight / 2)
+      ..width = 32
+      ..height = 32
+      ..anchor = Anchor.center;
+    mapArea.add(player);
+
+    camera.stop();
+    camera.viewfinder.visibleGameSize = Vector2(mapWidth, mapHeight);
+    camera.viewfinder.position = Vector2(mapWidth / 2, mapHeight / 2);
+    camera.viewfinder.anchor = Anchor.center;
+
+    spawner = BulletSpawner();
+    mapArea.add(spawner);
+
+    if (mapId == 'zone_3_obstacles') {
+      _spawnObstacles();
+    }
+
     resumeEngine();
+  }
 
-    // 초기화
-    world.children.whereType<Bullet>().forEach((b) => b.removeFromParent());
-    if (player.isRemoved) world.add(player);
-    player.position = Vector2(mapWidth / 2, mapHeight / 2);
+  void _spawnObstacles() {
+    final r = Random();
+    for (int i = 0; i < 5; i++) {
+      double w = 50 + r.nextDouble() * 100;
+      double h = 50 + r.nextDouble() * 100;
+      double x = r.nextDouble() * (mapWidth - w);
+      double y = r.nextDouble() * (mapHeight - h);
 
-    if (world.children.whereType<BulletSpawner>().isEmpty) {
-      spawner = BulletSpawner();
-      world.add(spawner);
+      if ((x - mapWidth / 2).abs() < 100 && (y - mapHeight / 2).abs() < 100)
+        continue;
+
+      mapArea.add(Obstacle(Vector2(x, y), Vector2(w, h)));
     }
   }
 
@@ -212,8 +283,8 @@ class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
     if (isGameOver) return;
     isGameOver = true;
 
-    // 게임 일시정지 후 UI(메뉴) 띄우기
     pauseEngine();
+    overlays.remove('GameUI');
     overlays.add('GameOverMenu');
   }
 
@@ -237,9 +308,68 @@ class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
   }
 }
 
-// ====================================================
-// [UI] 1. 게임 오버 위젯 (닉네임 입력)
-// ====================================================
+class GameUI extends StatelessWidget {
+  final ZonberGame game;
+  final VoidCallback onExit;
+  const GameUI({Key? key, required this.game, required this.onExit})
+    : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned(
+          top: 40,
+          right: 20,
+          child: IconButton(
+            icon: const Icon(Icons.exit_to_app, color: Colors.white, size: 30),
+            onPressed: () {
+              game.pauseEngine();
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => AlertDialog(
+                  backgroundColor: const Color(0xFF1F2833),
+                  title: const Text(
+                    "PAUSE",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  content: const Text(
+                    "게임을 종료하고 나가시겠습니까?",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  actions: [
+                    TextButton(
+                      child: const Text(
+                        "계속하기",
+                        style: TextStyle(color: Color(0xFF45A29E)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        game.resumeEngine();
+                      },
+                    ),
+                    TextButton(
+                      child: const Text(
+                        "나가기",
+                        style: TextStyle(color: Color(0xFFF21D1D)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        onExit();
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class GameOverWidget extends StatefulWidget {
   final ZonberGame game;
   const GameOverWidget({Key? key, required this.game}) : super(key: key);
@@ -249,22 +379,25 @@ class GameOverWidget extends StatefulWidget {
 }
 
 class _GameOverWidgetState extends State<GameOverWidget> {
-  final TextEditingController _nameController = TextEditingController();
   final RankingSystem _rankingSystem = RankingSystem();
   bool _isSaving = false;
 
   void _submitScore() async {
-    if (_nameController.text.isEmpty) return;
     setState(() => _isSaving = true);
 
-    // 파이어베이스에 저장
-    await _rankingSystem.saveRecord(
-      _nameController.text,
+    final profile = await UserProfileManager.getProfile();
+    final nickname = profile['nickname']!;
+    final flag = profile['flag']!;
+
+    String recordId = await _rankingSystem.saveRecord(
+      widget.game.mapId,
+      nickname,
+      flag,
       widget.game.survivalTime,
     );
+    widget.game.lastRecordId = recordId;
 
     if (!mounted) return;
-    // 저장 끝나면 랭킹판으로 이동
     widget.game.overlays.remove('GameOverMenu');
     widget.game.overlays.add('LeaderboardMenu');
   }
@@ -277,10 +410,7 @@ class _GameOverWidgetState extends State<GameOverWidget> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.8),
-          border: Border.all(
-            color: const Color(0xFFF21D1D),
-            width: 3,
-          ), // Neon Red
+          border: Border.all(color: const Color(0xFFF21D1D), width: 3),
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(
@@ -300,21 +430,7 @@ class _GameOverWidgetState extends State<GameOverWidget> {
               style: const TextStyle(color: Colors.white, fontSize: 20),
             ),
             const SizedBox(height: 20),
-            TextField(
-              controller: _nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: '이니셜 입력 (3글자)',
-                labelStyle: TextStyle(color: Colors.grey),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF45A29E)),
-                ),
-              ),
-              maxLength: 8,
-            ),
+            const Text("기록을 저장하시겠습니까?", style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 10),
             _isSaving
                 ? const CircularProgressIndicator(color: Color(0xFF45A29E))
@@ -335,6 +451,10 @@ class _GameOverWidgetState extends State<GameOverWidget> {
               onPressed: () => widget.game.startGame(),
               child: const Text("다시 하기", style: TextStyle(color: Colors.grey)),
             ),
+            TextButton(
+              onPressed: () => widget.game.onExit(),
+              child: const Text("나가기", style: TextStyle(color: Colors.grey)),
+            ),
           ],
         ),
       ),
@@ -342,12 +462,14 @@ class _GameOverWidgetState extends State<GameOverWidget> {
   }
 }
 
-// ====================================================
-// [UI] 2. 리더보드 위젯 (순위표)
-// ====================================================
 class LeaderboardWidget extends StatelessWidget {
   final ZonberGame game;
-  const LeaderboardWidget({Key? key, required this.game}) : super(key: key);
+  final String? highlightRecordId;
+  const LeaderboardWidget({
+    Key? key,
+    required this.game,
+    this.highlightRecordId,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -358,10 +480,7 @@ class LeaderboardWidget extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: const Color(0xFF0B0C10).withOpacity(0.9),
-          border: Border.all(
-            color: const Color(0xFF45A29E),
-            width: 3,
-          ), // Neon Cyan
+          border: Border.all(color: const Color(0xFF45A29E), width: 3),
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(
@@ -377,7 +496,7 @@ class LeaderboardWidget extends StatelessWidget {
             const Divider(color: Colors.grey),
             Expanded(
               child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: RankingSystem().getTopRecords(),
+                future: RankingSystem().getTopRecords(game.mapId),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData)
                     return const Center(
@@ -399,24 +518,45 @@ class LeaderboardWidget extends StatelessWidget {
                     itemCount: records.length,
                     itemBuilder: (context, index) {
                       var data = records[index];
-                      return ListTile(
-                        leading: Text(
-                          "#${index + 1}",
-                          style: const TextStyle(
-                            color: Color(0xFFF21D1D),
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                      bool isMine =
+                          highlightRecordId != null &&
+                          data['id'] == highlightRecordId;
+
+                      return Container(
+                        decoration: isMine
+                            ? BoxDecoration(
+                                color: const Color(0xFFF21D1D).withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              )
+                            : null,
+                        child: ListTile(
+                          leading: Text(
+                            "#${index + 1}",
+                            style: const TextStyle(
+                              color: Color(0xFFF21D1D),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        title: Text(
-                          data['nickname'] ?? 'Unknown',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        trailing: Text(
-                          "${data['survivalTime'].toStringAsFixed(2)}s",
-                          style: const TextStyle(
-                            color: Color(0xFF45A29E),
-                            fontWeight: FontWeight.bold,
+                          title: Row(
+                            children: [
+                              Text(
+                                data['flag'] ?? '🏳️',
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                data['nickname'] ?? 'Unknown',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ],
+                          ),
+                          trailing: Text(
+                            "${data['survivalTime'].toStringAsFixed(2)}s",
+                            style: const TextStyle(
+                              color: Color(0xFF45A29E),
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       );
@@ -426,18 +566,34 @@ class LeaderboardWidget extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF21D1D),
-              ),
-              onPressed: () => game.startGame(),
-              child: const Text(
-                "새 게임 시작",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF21D1D),
+                  ),
+                  onPressed: () => game.startGame(),
+                  child: const Text(
+                    "재시작",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1F2833),
+                  ),
+                  onPressed: () => game.onExit(),
+                  child: const Text(
+                    "나가기",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -446,15 +602,50 @@ class LeaderboardWidget extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 게임 오브젝트 (플레이어, 총알, 그리드) - 기존과 동일
-// ==========================================
+class MapArea extends PositionComponent {
+  MapArea() : super(size: Vector2(ZonberGame.mapWidth, ZonberGame.mapHeight));
+
+  @override
+  void render(Canvas canvas) {
+    canvas.clipRect(size.toRect());
+    super.render(canvas);
+  }
+}
+
+class Obstacle extends PositionComponent with CollisionCallbacks {
+  final Paint _paint = Paint()..color = Colors.amber;
+
+  Obstacle(Vector2 position, Vector2 size) {
+    this.position = position;
+    this.size = size;
+  }
+
+  @override
+  Future<void> onLoad() async {
+    add(RectangleHitbox());
+  }
+
+  @override
+  void render(Canvas canvas) {
+    canvas.drawRect(size.toRect(), _paint);
+  }
+}
+
 class GridBackground extends Component {
   final Paint _linePaint = Paint()
     ..color = const Color(0xFF1F2833).withOpacity(0.5)
     ..strokeWidth = 2;
+  final Paint _borderPaint = Paint()
+    ..color = const Color(0xFF45A29E)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 4;
+
   @override
   void render(Canvas canvas) {
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, ZonberGame.mapWidth, ZonberGame.mapHeight),
+      _borderPaint,
+    );
     for (double x = 0; x <= ZonberGame.mapWidth; x += 100) {
       canvas.drawLine(
         Offset(x, 0),
@@ -474,6 +665,7 @@ class Player extends PositionComponent
     ..color = const Color(0xFF45A29E).withOpacity(0.6)
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
   final Paint _corePaint = Paint()..color = const Color(0xFF45A29E);
+
   @override
   Future<void> onLoad() async {
     add(RectangleHitbox(position: Vector2(4, 4), size: Vector2(24, 24)));
@@ -496,16 +688,42 @@ class Player extends PositionComponent
       removeFromParent();
     }
   }
+
+  @override
+  void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
+    super.onCollision(intersectionPoints, other);
+    if (other is Obstacle) {
+      if (intersectionPoints.isNotEmpty) {
+        // 충돌 해결: 플레이어를 밀어냄 (장애물 안으로 진입 불가)
+        // 충돌 직전 위치로 되돌리거나, 깊이만큼 밀어내야 함.
+        // 여기선 간단하게 중심 차이 벡터 방향으로 밀어냄.
+
+        // final collisionPoint = intersectionPoints.first; // Unused
+        final center = absolutePosition + size / 2;
+        final otherCenter = other.absolutePosition + other.size / 2;
+
+        // AABB 충돌 면 판별 (간단 버전)
+        Vector2 diff = center - otherCenter;
+
+        // X, Y 중 어디가 더 깊게 겹쳤는지 확인 대신 단순히 방향 밀기
+        // (정교한 물리 엔진이 아니라서 단순 분리)
+        if (diff.isZero()) diff = Vector2(1, 0);
+        position += diff.normalized() * 5;
+      }
+    }
+  }
 }
 
-class Bullet extends PositionComponent with HasGameRef<ZonberGame> {
+class Bullet extends PositionComponent
+    with HasGameRef<ZonberGame>, CollisionCallbacks {
   Vector2 velocity = Vector2.zero();
-  final double speed = 500.0;
+  final double speed;
   static final Paint _bulletGlow = Paint()
     ..color = const Color(0xFFF21D1D).withOpacity(0.8)
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
   static final Paint _bulletCore = Paint()..color = const Color(0xFFF21D1D);
-  Bullet(Vector2 position, Vector2 targetPosition) {
+
+  Bullet(Vector2 position, Vector2 targetPosition, {this.speed = 200.0}) {
     this.position = position;
     size = Vector2(8, 8);
     anchor = Anchor.center;
@@ -534,17 +752,52 @@ class Bullet extends PositionComponent with HasGameRef<ZonberGame> {
     canvas.drawCircle(Offset(radius, radius), radius + 2, _bulletGlow);
     canvas.drawCircle(Offset(radius, radius), radius, _bulletCore);
   }
+
+  @override
+  void onCollisionStart(
+    Set<Vector2> intersectionPoints,
+    PositionComponent other,
+  ) {
+    super.onCollisionStart(intersectionPoints, other);
+    if (other is Obstacle) {
+      // 튕겨나가기 (Ricochet)
+      if (intersectionPoints.isNotEmpty) {
+        // 충돌 면 법선 벡터(Normal) 구하기
+        // AABB 기준: 중심 좌표 차이를 이용해 X축 충돌인지 Y축 충돌인지 판별
+        Vector2 myCenter = absolutePosition + size / 2;
+        Vector2 otherCenter = other.absolutePosition + other.size / 2;
+        Vector2 delta = myCenter - otherCenter;
+
+        // 상대 크기로 정규화하여 어느 축이 더 많이 겹쳤는지(충돌했는지) 판단
+        double dx = delta.x / (other.size.x / 2);
+        double dy = delta.y / (other.size.y / 2);
+
+        if (dx.abs() > dy.abs()) {
+          // X축(좌우) 충돌 -> X 속도 반전
+          velocity.x = -velocity.x;
+          // 충돌 깊이 해소 (살짝 밀어줌)
+          position.x += (dx > 0 ? 1 : -1) * 2;
+        } else {
+          // Y축(상하) 충돌 -> Y 속도 반전
+          velocity.y = -velocity.y;
+          position.y += (dy > 0 ? 1 : -1) * 2;
+        }
+      }
+    }
+  }
 }
 
 class BulletSpawner extends Component with HasGameRef<ZonberGame> {
   late Timer _timer;
   final Random _random = Random();
-  BulletSpawner() {
-    _timer = Timer(0.04, onTick: _spawnBullet, repeat: true);
-  }
+
   @override
   void onMount() {
     super.onMount();
+    double interval = gameRef.mapId == 'zone_2_hard' ? 0.05 : 0.08;
+    if (gameRef.mapId == 'zone_3_obstacles') interval = 0.07;
+
+    _timer = Timer(interval, onTick: _spawnBullet, repeat: true);
     _timer.start();
   }
 
@@ -555,8 +808,9 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
 
   void _spawnBullet() {
     if (gameRef.isGameOver) return;
-    if (gameRef.world.children.whereType<Player>().isEmpty) return;
+    if (gameRef.mapArea.children.whereType<Player>().isEmpty) return;
     Vector2 playerPos = gameRef.player.position;
+
     double range = 600.0;
     double angle = _random.nextDouble() * 2 * pi;
     Vector2 spawnPos = playerPos + Vector2(cos(angle), sin(angle)) * range;
@@ -566,6 +820,8 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
           (_random.nextDouble() - 0.5) * 100,
           (_random.nextDouble() - 0.5) * 100,
         );
-    gameRef.world.add(Bullet(spawnPos, targetPos));
+
+    double bulletSpeed = gameRef.mapId == 'zone_2_hard' ? 300.0 : 200.0;
+    gameRef.mapArea.add(Bullet(spawnPos, targetPos, speed: bulletSpeed));
   }
 }
