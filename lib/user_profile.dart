@@ -5,6 +5,7 @@ import 'package:country_picker/country_picker.dart';
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
   static const String _keyFlag = 'user_flag_code';
+  static const String _keyCountryName = 'user_country_name';
 
   static Future<bool> hasProfile() async {
     final prefs = await SharedPreferences.getInstance();
@@ -16,20 +17,26 @@ class UserProfileManager {
     return {
       'nickname': prefs.getString(_keyNickname) ?? 'Unknown',
       'flag': prefs.getString(_keyFlag) ?? '🏳️',
+      'countryName': prefs.getString(_keyCountryName) ?? 'Unknown Region',
     };
   }
 
-  static Future<void> saveProfile(String nickname, String flag) async {
+  static Future<void> saveProfile(
+    String nickname,
+    String flag,
+    String countryName,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyNickname, nickname);
     await prefs.setString(_keyFlag, flag);
+    await prefs.setString(_keyCountryName, countryName);
   }
 }
 
 class UserProfilePage extends StatefulWidget {
   final VoidCallback onComplete;
 
-  const UserProfilePage({Key? key, required this.onComplete}) : super(key: key);
+  const UserProfilePage({super.key, required this.onComplete});
 
   @override
   State<UserProfilePage> createState() => _UserProfilePageState();
@@ -76,6 +83,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     await UserProfileManager.saveProfile(
       _nicknameController.text.trim(),
       _selectedFlag,
+      _selectedCountryName,
     );
 
     widget.onComplete();
@@ -134,6 +142,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     showCountryPicker(
                       context: context,
                       showPhoneCode: false,
+                      favorite: ['KR'],
                       onSelect: (Country country) {
                         setState(() {
                           _selectedFlag = country.flagEmoji;

@@ -3,18 +3,21 @@ import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
+import 'map_service.dart';
+import 'user_profile.dart';
 
 class MapEditorGame extends FlameGame with PanDetector, TapDetector {
-  // Grid settings
-  static const int gridSize = 20;
-  static const double tileSize = 100.0;
-  static const double mapWidth = gridSize * tileSize;
-  static const double mapHeight = gridSize * tileSize;
+  // Grid settings (Matches Game Aspect Ratio 480:720 -> 12:18 blocks of 40px)
+  static const int gridSizeX = 12;
+  static const int gridSizeY = 18;
+  static const double tileSize = 40.0;
+  static const double mapWidth = gridSizeX * tileSize;
+  static const double mapHeight = gridSizeY * tileSize;
 
   // Map Data: 0 = Empty, 1 = Wall
   List<List<int>> mapData = List.generate(
-    gridSize,
-    (_) => List.filled(gridSize, 0),
+    gridSizeY,
+    (_) => List.filled(gridSizeX, 0),
   );
 
   // Camera control
@@ -42,7 +45,7 @@ class MapEditorGame extends FlameGame with PanDetector, TapDetector {
       int x = (localPos.x / tileSize).floor();
       int y = (localPos.y / tileSize).floor();
 
-      if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+      if (x >= 0 && x < gridSizeX && y >= 0 && y < gridSizeY) {
         // Toggle wall
         mapData[y][x] = mapData[y][x] == 0 ? 1 : 0;
       }
@@ -63,7 +66,7 @@ class MapEditorGame extends FlameGame with PanDetector, TapDetector {
 
   void clearMap() {
     for (var row in mapData) {
-      row.fillRange(0, gridSize, 0);
+      row.fillRange(0, gridSizeX, 0);
     }
   }
 }
@@ -81,8 +84,8 @@ class EditorGrid extends Component {
   @override
   void render(Canvas canvas) {
     // Draw Walls
-    for (int y = 0; y < MapEditorGame.gridSize; y++) {
-      for (int x = 0; x < MapEditorGame.gridSize; x++) {
+    for (int y = 0; y < MapEditorGame.gridSizeY; y++) {
+      for (int x = 0; x < MapEditorGame.gridSizeX; x++) {
         if (game.mapData[y][x] == 1) {
           canvas.drawRect(
             Rect.fromLTWH(
@@ -127,8 +130,7 @@ class EditorUI extends StatefulWidget {
   final MapEditorGame game;
   final VoidCallback onExit;
 
-  const EditorUI({Key? key, required this.game, required this.onExit})
-    : super(key: key);
+  const EditorUI({super.key, required this.game, required this.onExit});
 
   @override
   State<EditorUI> createState() => _EditorUIState();
@@ -166,6 +168,12 @@ class _EditorUIState extends State<EditorUI> {
                     widget.game.clearMap();
                   });
                 },
+              ),
+              const SizedBox(width: 10),
+              _buildButton(
+                text: "SAVE",
+                color: Colors.blueAccent,
+                onPressed: _showSaveDialog,
               ),
               const SizedBox(width: 10),
               _buildButton(
@@ -210,6 +218,71 @@ class _EditorUIState extends State<EditorUI> {
           color: Colors.white,
           fontWeight: FontWeight.bold,
         ),
+      ),
+    );
+  }
+
+  void _showSaveDialog() {
+    final TextEditingController nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2833),
+        title: const Text("SAVE MAP", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: nameController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: "Enter Map Name",
+            hintStyle: TextStyle(color: Colors.grey),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF45A29E)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text("CANCEL", style: TextStyle(color: Colors.grey)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          TextButton(
+            child: const Text(
+              "SAVE",
+              style: TextStyle(color: Color(0xFF45A29E)),
+            ),
+            onPressed: () async {
+              String name = nameController.text.trim();
+              if (name.isEmpty) return;
+
+              Navigator.pop(context); // Close dialog
+
+              // Get User Info
+              final profile = await UserProfileManager.getProfile();
+              String author = profile['nickname']!;
+
+              // Save Map
+              bool success = await MapService().saveCustomMap(
+                name: name,
+                author: author,
+                gridData: widget.game.mapData,
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success ? "Map Saved!" : "Failed to save map",
+                    ),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
       ),
     );
   }

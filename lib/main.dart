@@ -1,14 +1,20 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:country_picker/country_picker.dart';
 import 'package:firebase_core/firebase_core.dart'; // 파이어베이스 코어
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
-import 'package:flame/events.dart';
 import 'package:flame/collisions.dart';
+import 'package:flame/input.dart'; // Required for PanDetector
+import 'package:flame/events.dart'; // Required for DragStartInfo etc?
+
 import 'ranking_system.dart';
 import 'editor_game.dart';
 import 'user_profile.dart';
 import 'map_selection_page.dart';
+import 'leaderboard_widget.dart';
+import 'map_service.dart'; // Import MapService
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +23,7 @@ void main() async {
 }
 
 class ZonberApp extends StatefulWidget {
-  const ZonberApp({Key? key}) : super(key: key);
+  const ZonberApp({super.key});
 
   @override
   State<ZonberApp> createState() => _ZonberAppState();
@@ -25,8 +31,9 @@ class ZonberApp extends StatefulWidget {
 
 class _ZonberAppState extends State<ZonberApp> {
   String _currentPage =
-      'Loading'; // Menu, MapSelect, Game, Editor, Profile, Loading
+      'Loading'; // Menu, MapSelect, Game, Result, Editor, Profile, Loading
   String _currentMapId = 'zone_1_classic'; // Default Map
+  Map<String, dynamic>? _lastGameResult; // Store result data
 
   @override
   void initState() {
@@ -50,9 +57,32 @@ class _ZonberAppState extends State<ZonberApp> {
     });
   }
 
+  void _showRankingDialog(BuildContext dialogContext, String mapId) {
+    print("Showing ranking dialog for $mapId");
+    showDialog(
+      context: dialogContext,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: LeaderboardWidget(
+          mapId: mapId,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(home: Scaffold(body: _buildPage()));
+    return MaterialApp(
+      supportedLocales: const [Locale('en'), Locale('ko')],
+      localizationsDelegates: const [
+        CountryLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: Scaffold(body: _buildPage()),
+    );
   }
 
   Widget _buildPage() {
@@ -62,18 +92,25 @@ class _ZonberAppState extends State<ZonberApp> {
           game: ZonberGame(
             mapId: _currentMapId,
             onExit: () => _navigateTo('Menu'),
+            onGameOver: (result) {
+              setState(() {
+                _lastGameResult = result;
+                _currentPage = 'Result';
+              });
+            },
           ),
           overlayBuilderMap: {
-            'GameOverMenu': (context, ZonberGame game) =>
-                GameOverWidget(game: game),
-            'LeaderboardMenu': (context, ZonberGame game) => LeaderboardWidget(
-              game: game,
-              highlightRecordId: game.lastRecordId,
-            ),
             'GameUI': (context, ZonberGame game) =>
                 GameUI(game: game, onExit: () => _navigateTo('Menu')),
           },
           initialActiveOverlays: const ['GameUI'],
+        );
+      case 'Result':
+        return ResultPage(
+          mapId: _currentMapId,
+          result: _lastGameResult!,
+          onRestart: () => _navigateTo('Game'),
+          onExit: () => _navigateTo('Menu'),
         );
       case 'Profile':
         return UserProfilePage(onComplete: () => _navigateTo('Menu'));
@@ -89,6 +126,7 @@ class _ZonberAppState extends State<ZonberApp> {
       case 'MapSelect':
         return MapSelectionPage(
           onMapSelected: (mapId) => _navigateTo('Game', mapId: mapId),
+          onShowRanking: (ctx, mapId) => _showRankingDialog(ctx, mapId),
           onBack: () => _navigateTo('Menu'),
         );
       case 'Menu':
@@ -108,11 +146,11 @@ class MainMenu extends StatelessWidget {
   final VoidCallback onProfile;
 
   const MainMenu({
-    Key? key,
+    super.key,
     required this.onStartGame,
     required this.onOpenEditor,
     required this.onProfile,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -186,17 +224,34 @@ class MainMenu extends StatelessWidget {
   }
 }
 
-class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
+class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   final String mapId;
   final VoidCallback onExit;
-  ZonberGame({required this.mapId, required this.onExit});
+  final Function(Map<String, dynamic>) onGameOver; // Callback for game over
+
+  ZonberGame({
+    required this.mapId,
+    required this.onExit,
+    required this.onGameOver,
+  });
 
   static const double mapWidth = 480.0;
-  static const double mapHeight = 800.0;
+  static const double mapHeight = 720.0; // Playable area
+  static const double worldHeight = 800.0; // Total screen height
 
   late Player player;
   late BulletSpawner spawner;
   late MapArea mapArea;
+  // Joystick removed for touch-anywhere control
+
+  // Direct Drag Control State
+  Vector2 _dragDeltaAccumulator = Vector2.zero();
+
+  Vector2 consumeDragDelta() {
+    Vector2 delta = _dragDeltaAccumulator.clone();
+    _dragDeltaAccumulator.setZero();
+    return delta;
+  }
 
   // UI 컴포넌트
   late TextComponent timeText;
@@ -228,40 +283,79 @@ class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
     );
     camera.viewport.add(timeText);
 
-    startGame();
+    // Joystick removed
+
+    // Check if custom map
+    if (mapId.startsWith('custom_')) {
+      _loadCustomMap(mapId);
+    } else {
+      startGame();
+    }
   }
 
-  void startGame() {
+  Future<void> _loadCustomMap(String id) async {
+    final mapData = await MapService().getMap(id);
+    if (mapData != null) {
+      startGame(customMapData: mapData);
+    } else {
+      print("Failed to load custom map");
+      onExit(); // Exit if failed
+    }
+  }
+
+  void startGame({Map<String, dynamic>? customMapData}) {
     isGameOver = false;
     survivalTime = 0.0;
     lastRecordId = null;
 
     overlays.remove('GameOverMenu');
-    overlays.remove('LeaderboardMenu');
     overlays.add('GameUI');
 
     mapArea.removeAll(mapArea.children);
 
     player = Player()
       ..position = Vector2(mapWidth / 2, mapHeight / 2)
-      ..width = 32
-      ..height = 32
+      ..width = 24
+      ..height = 24
       ..anchor = Anchor.center;
     mapArea.add(player);
 
     camera.stop();
-    camera.viewfinder.visibleGameSize = Vector2(mapWidth, mapHeight);
-    camera.viewfinder.position = Vector2(mapWidth / 2, mapHeight / 2);
+    camera.viewfinder.visibleGameSize = Vector2(mapWidth, worldHeight);
+    camera.viewfinder.position = Vector2(mapWidth / 2, worldHeight / 2);
     camera.viewfinder.anchor = Anchor.center;
 
     spawner = BulletSpawner();
     mapArea.add(spawner);
 
-    if (mapId == 'zone_3_obstacles') {
+    if (customMapData != null) {
+      _spawnCustomObstacles(customMapData);
+    } else if (mapId == 'zone_3_obstacles') {
       _spawnObstacles();
     }
 
     resumeEngine();
+  }
+
+  void _spawnCustomObstacles(Map<String, dynamic> data) {
+    List<dynamic> grid = data['grid'];
+    int width = data['width'];
+    int height = data['height'];
+    double tileSize = 40.0; // Matching Editor Tile Size
+
+    for (int i = 0; i < grid.length; i++) {
+      if (grid[i] == 1) {
+        int x = i % width;
+        int y = (i / width).floor();
+
+        mapArea.add(
+          Obstacle(
+            Vector2(x * tileSize, y * tileSize),
+            Vector2(tileSize, tileSize),
+          ),
+        );
+      }
+    }
   }
 
   void _spawnObstacles() {
@@ -272,8 +366,9 @@ class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
       double x = r.nextDouble() * (mapWidth - w);
       double y = r.nextDouble() * (mapHeight - h);
 
-      if ((x - mapWidth / 2).abs() < 100 && (y - mapHeight / 2).abs() < 100)
+      if ((x - mapWidth / 2).abs() < 100 && (y - mapHeight / 2).abs() < 100) {
         continue;
+      }
 
       mapArea.add(Obstacle(Vector2(x, y), Vector2(w, h)));
     }
@@ -284,8 +379,9 @@ class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
     isGameOver = true;
 
     pauseEngine();
-    overlays.remove('GameUI');
-    overlays.add('GameOverMenu');
+
+    // Notify App
+    onGameOver({'survivalTime': survivalTime, 'mapId': mapId});
   }
 
   @override
@@ -293,26 +389,27 @@ class ZonberGame extends FlameGame with PanDetector, HasCollisionDetection {
     super.update(dt);
     if (!isGameOver) {
       survivalTime += dt;
-      timeText.text = 'TIME: ${survivalTime.toStringAsFixed(2)}';
+      timeText.text = 'TIME: ${survivalTime.toStringAsFixed(3)}';
     }
   }
 
   @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    // Joystick positioning removed
+  }
+
+  // PanDetector Implementation for Direct Touch Control
+  @override
   void onPanUpdate(DragUpdateInfo info) {
-    if (!isGameOver) {
-      Vector2 newPos = player.position + info.delta.global;
-      newPos.x = newPos.x.clamp(0, mapWidth);
-      newPos.y = newPos.y.clamp(0, mapHeight);
-      player.position = newPos;
-    }
+    _dragDeltaAccumulator += info.delta.global;
   }
 }
 
 class GameUI extends StatelessWidget {
   final ZonberGame game;
   final VoidCallback onExit;
-  const GameUI({Key? key, required this.game, required this.onExit})
-    : super(key: key);
+  const GameUI({super.key, required this.game, required this.onExit});
 
   @override
   Widget build(BuildContext context) {
@@ -370,237 +467,183 @@ class GameUI extends StatelessWidget {
   }
 }
 
-class GameOverWidget extends StatefulWidget {
-  final ZonberGame game;
-  const GameOverWidget({Key? key, required this.game}) : super(key: key);
+class ResultPage extends StatefulWidget {
+  final String mapId;
+  final Map<String, dynamic> result;
+  final VoidCallback onRestart;
+  final VoidCallback onExit;
+
+  const ResultPage({
+    super.key,
+    required this.mapId,
+    required this.result,
+    required this.onRestart,
+    required this.onExit,
+  });
 
   @override
-  State<GameOverWidget> createState() => _GameOverWidgetState();
+  State<ResultPage> createState() => _ResultPageState();
 }
 
-class _GameOverWidgetState extends State<GameOverWidget> {
+class _ResultPageState extends State<ResultPage> {
   final RankingSystem _rankingSystem = RankingSystem();
   bool _isSaving = false;
+  bool _showLeaderboard = false;
+  String? _savedRecordId;
 
   void _submitScore() async {
     setState(() => _isSaving = true);
 
-    final profile = await UserProfileManager.getProfile();
-    final nickname = profile['nickname']!;
-    final flag = profile['flag']!;
+    try {
+      final profile = await UserProfileManager.getProfile();
+      final nickname = profile['nickname']!;
+      final flag = profile['flag']!;
 
-    String recordId = await _rankingSystem.saveRecord(
-      widget.game.mapId,
-      nickname,
-      flag,
-      widget.game.survivalTime,
-    );
-    widget.game.lastRecordId = recordId;
+      String recordId = await _rankingSystem.saveRecord(
+        widget.mapId,
+        nickname,
+        flag,
+        widget.result['survivalTime'],
+      );
 
-    if (!mounted) return;
-    widget.game.overlays.remove('GameOverMenu');
-    widget.game.overlays.add('LeaderboardMenu');
+      if (mounted) {
+        setState(() {
+          _savedRecordId = recordId;
+          _showLeaderboard = true;
+          _isSaving = false;
+        });
+      }
+    } catch (e) {
+      print("Score submit failed: $e");
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 300,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.8),
-          border: Border.all(color: const Color(0xFFF21D1D), width: 3),
-          borderRadius: BorderRadius.circular(15),
+    if (_showLeaderboard) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0B0C10),
+        body: Center(
+          child: LeaderboardWidget(
+            mapId: widget.mapId,
+            highlightRecordId: _savedRecordId,
+            onRestart: widget.onRestart,
+            onClose: widget.onExit,
+          ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "GAME OVER",
-              style: TextStyle(
-                color: Color(0xFFF21D1D),
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B0C10),
+      body: Center(
+        child: Container(
+          width: 350,
+          padding: const EdgeInsets.all(30),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2833),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF45A29E), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "기록: ${widget.game.survivalTime.toStringAsFixed(2)}초",
-              style: const TextStyle(color: Colors.white, fontSize: 20),
-            ),
-            const SizedBox(height: 20),
-            const Text("기록을 저장하시겠습니까?", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 10),
-            _isSaving
-                ? const CircularProgressIndicator(color: Color(0xFF45A29E))
-                : ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF45A29E),
-                    ),
-                    onPressed: _submitScore,
-                    child: const Text(
-                      "랭킹 등록",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-            TextButton(
-              onPressed: () => widget.game.startGame(),
-              child: const Text("다시 하기", style: TextStyle(color: Colors.grey)),
-            ),
-            TextButton(
-              onPressed: () => widget.game.onExit(),
-              child: const Text("나가기", style: TextStyle(color: Colors.grey)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class LeaderboardWidget extends StatelessWidget {
-  final ZonberGame game;
-  final String? highlightRecordId;
-  const LeaderboardWidget({
-    Key? key,
-    required this.game,
-    this.highlightRecordId,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 320,
-        height: 500,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0B0C10).withOpacity(0.9),
-          border: Border.all(color: const Color(0xFF45A29E), width: 3),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Column(
-          children: [
-            const Text(
-              "TOP 10 RANKING",
-              style: TextStyle(
-                color: Color(0xFF45A29E),
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "GAME OVER",
+                style: TextStyle(
+                  color: Color(0xFFF21D1D),
+                  fontSize: 40,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
               ),
-            ),
-            const Divider(color: Colors.grey),
-            Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: RankingSystem().getTopRecords(game.mapId),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData)
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF45A29E),
-                      ),
-                    );
-                  var records = snapshot.data!;
-
-                  if (records.isEmpty)
-                    return const Center(
-                      child: Text(
-                        "아직 등록된 랭킹이 없습니다!",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    );
-
-                  return ListView.builder(
-                    itemCount: records.length,
-                    itemBuilder: (context, index) {
-                      var data = records[index];
-                      bool isMine =
-                          highlightRecordId != null &&
-                          data['id'] == highlightRecordId;
-
-                      return Container(
-                        decoration: isMine
-                            ? BoxDecoration(
-                                color: const Color(0xFFF21D1D).withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(8),
-                              )
-                            : null,
-                        child: ListTile(
-                          leading: Text(
-                            "#${index + 1}",
-                            style: const TextStyle(
-                              color: Color(0xFFF21D1D),
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+              const SizedBox(height: 30),
+              const Text(
+                "SURVIVAL TIME",
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 16,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "${widget.result['survivalTime'].toStringAsFixed(3)}s",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 40),
+              if (_isSaving)
+                const CircularProgressIndicator(color: Color(0xFF45A29E))
+              else
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF45A29E),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          title: Row(
-                            children: [
-                              Text(
-                                data['flag'] ?? '🏳️',
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                data['nickname'] ?? 'Unknown',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ],
+                        ),
+                        onPressed: _submitScore,
+                        child: const Text(
+                          "랭킹 등록",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
-                          trailing: Text(
-                            "${data['survivalTime'].toStringAsFixed(2)}s",
-                            style: const TextStyle(
-                              color: Color(0xFF45A29E),
-                              fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: widget.onRestart,
+                            child: const Text(
+                              "다시 하기",
+                              style: TextStyle(color: Colors.white70),
                             ),
                           ),
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF21D1D),
-                  ),
-                  onPressed: () => game.startGame(),
-                  child: const Text(
-                    "재시작",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: TextButton(
+                            onPressed: widget.onExit,
+                            child: const Text(
+                              "나가기",
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1F2833),
-                  ),
-                  onPressed: () => game.onExit(),
-                  child: const Text(
-                    "나가기",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+// LeaderboardWidget moved to leaderboard_widget.dart
 
 class MapArea extends PositionComponent {
   MapArea() : super(size: Vector2(ZonberGame.mapWidth, ZonberGame.mapHeight));
@@ -646,14 +689,24 @@ class GridBackground extends Component {
       Rect.fromLTWH(0, 0, ZonberGame.mapWidth, ZonberGame.mapHeight),
       _borderPaint,
     );
-    for (double x = 0; x <= ZonberGame.mapWidth; x += 100) {
+    // Draw UI background for the joystick area
+    canvas.drawRect(
+      Rect.fromLTWH(
+        0,
+        ZonberGame.mapHeight,
+        ZonberGame.mapWidth,
+        ZonberGame.worldHeight - ZonberGame.mapHeight,
+      ),
+      Paint()..color = const Color(0xFF0B0C10),
+    );
+    for (double x = 0; x <= ZonberGame.mapWidth; x += 80) {
       canvas.drawLine(
         Offset(x, 0),
         Offset(x, ZonberGame.mapHeight),
         _linePaint,
       );
     }
-    for (double y = 0; y <= ZonberGame.mapHeight; y += 100) {
+    for (double y = 0; y <= ZonberGame.mapHeight; y += 80) {
       canvas.drawLine(Offset(0, y), Offset(ZonberGame.mapWidth, y), _linePaint);
     }
   }
@@ -665,16 +718,31 @@ class Player extends PositionComponent
     ..color = const Color(0xFF45A29E).withOpacity(0.6)
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
   final Paint _corePaint = Paint()..color = const Color(0xFF45A29E);
+  final double speed = 500.0; // Optimized for high sensitivity + control
 
   @override
   Future<void> onLoad() async {
-    add(RectangleHitbox(position: Vector2(4, 4), size: Vector2(24, 24)));
+    add(RectangleHitbox(position: Vector2(2, 2), size: Vector2(20, 20)));
   }
 
   @override
   void render(Canvas canvas) {
     canvas.drawRect(size.toRect(), _glowPaint);
     canvas.drawRect(size.toRect(), _corePaint);
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    // Direct 1:1 Drag Control
+    // No speed multiplier, no acceleration.
+    // Position moves exactly as much as the finger moved.
+    Vector2 dragInput = gameRef.consumeDragDelta();
+    if (!dragInput.isZero()) {
+      position += dragInput;
+      position.x = position.x.clamp(0, ZonberGame.mapWidth);
+      position.y = position.y.clamp(0, ZonberGame.mapHeight);
+    }
   }
 
   @override
@@ -742,8 +810,9 @@ class Bullet extends PositionComponent
     if (position.x < -200 ||
         position.x > ZonberGame.mapWidth + 200 ||
         position.y < -200 ||
-        position.y > ZonberGame.mapHeight + 200)
+        position.y > ZonberGame.worldHeight + 200) {
       removeFromParent();
+    }
   }
 
   @override

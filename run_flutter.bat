@@ -1,0 +1,6 @@
+@echo off
+echo Checking Flutter...
+C:\flutter\bin\flutter.bat devices
+echo.
+echo Running app...
+C:\flutter\bin\flutter.bat run -d R3CN702H5AL
