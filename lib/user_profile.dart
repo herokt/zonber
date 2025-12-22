@@ -6,6 +6,7 @@ class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
   static const String _keyFlag = 'user_flag_code';
   static const String _keyCountryName = 'user_country_name';
+  static const String _keyCharacterId = 'user_character_id';
 
   static Future<bool> hasProfile() async {
     final prefs = await SharedPreferences.getInstance();
@@ -18,18 +19,23 @@ class UserProfileManager {
       'nickname': prefs.getString(_keyNickname) ?? 'Unknown',
       'flag': prefs.getString(_keyFlag) ?? '🏳️',
       'countryName': prefs.getString(_keyCountryName) ?? 'Unknown Region',
+      'characterId': prefs.getString(_keyCharacterId) ?? 'neon_green',
     };
   }
 
   static Future<void> saveProfile(
     String nickname,
     String flag,
-    String countryName,
-  ) async {
+    String countryName, {
+    String? characterId,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyNickname, nickname);
     await prefs.setString(_keyFlag, flag);
     await prefs.setString(_keyCountryName, countryName);
+    if (characterId != null) {
+      await prefs.setString(_keyCharacterId, characterId);
+    }
   }
 }
 

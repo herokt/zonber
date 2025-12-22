@@ -8,6 +8,7 @@ class MapService {
     required String name,
     required String author,
     required List<List<int>> gridData,
+    bool verified = false,
   }) async {
     try {
       // Flatten grid data to a simple list or string for storage efficiency if needed,
@@ -28,6 +29,7 @@ class MapService {
         'width': width,
         'height': height,
         'grid': flatGrid,
+        'verified': verified,
         'createdAt': FieldValue.serverTimestamp(),
       });
       return true;
@@ -72,6 +74,18 @@ class MapService {
     } catch (e) {
       print("Error fetching map details: $e");
       return null;
+    }
+  }
+
+  // Delete a map (Author check should be done on UI side or Security Rules)
+  Future<bool> deleteCustomMap(String mapId) async {
+    try {
+      String docId = mapId.replaceAll('custom_', '');
+      await _db.collection('custom_maps').doc(docId).delete();
+      return true;
+    } catch (e) {
+      print("Error deleting map: $e");
+      return false;
     }
   }
 }

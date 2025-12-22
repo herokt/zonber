@@ -342,19 +342,28 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
     );
   }
 
-  Widget _buildRankItem(int rank, Map<String, dynamic> data, bool isMine) {
+  Widget _buildRankItem(int rank, Map<String, dynamic> data, bool highlight) {
+    // highlight argument is now ignored/re-calculated for Granular control
+    bool isMe = data['nickname'] == _myNickname;
+    bool isCurrentRecord =
+        widget.highlightRecordId != null &&
+        data['id'] == widget.highlightRecordId;
+
     return Container(
       height: 56, // Reduced height
       margin: const EdgeInsets.symmetric(vertical: 2),
-      decoration: isMine
-          ? BoxDecoration(
-              color: const Color(0xFFF21D1D).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: const Color(0xFFF21D1D).withOpacity(0.5),
-              ),
-            )
-          : null,
+      decoration: BoxDecoration(
+        // Background: Orange tint if Me, else transparent
+        color: isMe ? Colors.orangeAccent.withOpacity(0.1) : null,
+        borderRadius: BorderRadius.circular(8),
+        // Border: Red if Current, else none
+        border: isCurrentRecord
+            ? Border.all(
+                color: const Color(0xFFF21D1D), // Red Border
+                width: 2,
+              )
+            : null,
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
@@ -364,9 +373,10 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
               child: Text(
                 "#$rank",
                 style: TextStyle(
-                  color: isMine ? const Color(0xFFF21D1D) : Colors.white,
+                  color: isMe ? Colors.orangeAccent : Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -377,7 +387,12 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
             Expanded(
               child: Text(
                 data['nickname'] ?? 'Unknown',
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(
+                  color: isMe ? Colors.orangeAccent : Colors.white,
+                  fontSize: 14,
+                  fontWeight: sizeForNick(data['nickname']),
+                  fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -393,5 +408,9 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
         ),
       ),
     );
+  }
+
+  FontWeight sizeForNick(String? nick) {
+    return (nick == _myNickname) ? FontWeight.bold : FontWeight.normal;
   }
 }
