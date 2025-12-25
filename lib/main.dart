@@ -389,7 +389,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   });
 
   static const double mapWidth = 480.0;
-  static const double mapHeight = 720.0; // Playable area
+  static const double mapHeight =
+      768.0; // Updated to 24x32 grid (fits aspect ratio)
   static const double worldHeight = 800.0; // Total screen height
 
   late Player player;
@@ -500,7 +501,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     List<dynamic> grid = data['grid'];
     int width = data['width'];
     int height = data['height'];
-    double tileSize = 40.0; // Matching Editor Tile Size
+    // Dynamic Tile Size: Fits any grid width (12 or 15) to the fixed MapWidth (480)
+    double tileSize = mapWidth / width;
 
     for (int i = 0; i < grid.length; i++) {
       if (grid[i] == 1) {
@@ -766,23 +768,38 @@ class _ResultPageState extends State<ResultPage> {
               if (_isSaving)
                 const CircularProgressIndicator(color: AppColors.primary)
               else ...[
-                NeonButton(text: "SUBMIT SCORE", onPressed: _submitScore),
+                SizedBox(
+                  width: double.infinity,
+                  child: NeonButton(
+                    text: "SUBMIT SCORE",
+                    onPressed: _submitScore,
+                    icon: Icons.emoji_events,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    NeonButton(
-                      text: "RETRY",
-                      onPressed: widget.onRestart,
-                      color: const Color(0xFF00FF88), // Green for retry
-                      isPrimary: false,
+                    Expanded(
+                      child: NeonButton(
+                        text: "RETRY",
+                        onPressed: widget.onRestart,
+                        color: const Color(0xFF00FF88), // Green
+                        isPrimary: false,
+                        icon: Icons.refresh,
+                        isCompact: true,
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    NeonButton(
-                      text: "MENU",
-                      onPressed: widget.onExit,
-                      color: AppColors.surface,
-                      isPrimary: false,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: NeonButton(
+                        text: "EXIT",
+                        onPressed: widget.onExit,
+                        color: AppColors.secondary, // Red for Exit
+                        isPrimary: false,
+                        icon: Icons.logout,
+                        isCompact: true,
+                      ),
                     ),
                   ],
                 ),

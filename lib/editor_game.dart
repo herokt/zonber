@@ -29,13 +29,27 @@ class MapEditorGame extends FlameGame with PanDetector, TapDetector {
   Future<void> onLoad() async {
     // Camera setup: Matches ZonberGame
     camera.viewfinder.visibleGameSize = Vector2(mapWidth, mapHeight);
-    // Shift map down to avoid overlap with Top UI (approx 120px)
-    // Decreasing Y moves the camera target UP, which moves the world DOWN.
-    camera.viewfinder.position = Vector2(mapWidth / 2, mapHeight / 2 - 120);
+    // Shift map down by 100px (Reduced from 120px to close gap)
+    camera.viewfinder.position = Vector2(mapWidth / 2, mapHeight / 2 - 100);
     camera.viewfinder.anchor = Anchor.center;
 
     // Add Grid Rendering
     world.add(EditorGrid(this));
+  }
+
+  @override
+  void onPanUpdate(DragUpdateInfo info) {
+    // Restrict to Vertical Scrolling (Y-axis only)
+    // Moving finger UP (negative delta) means Camera moves UP (negative Viewfinder delta)
+    // Wait. If I drag UP, I want to see content BELOW. So World moves UP.
+    // If World moves UP, Camera should move DOWN (Positive Y).
+    // info.delta.global is Screen Delta.
+    // Drag Up -> Delta Y is Negative.
+    // If Camera Pos -= Delta Y (-neg) = += Pos. Camera moves Down. World moves Up. Correct.
+    camera.viewfinder.position = Vector2(
+      camera.viewfinder.position.x,
+      camera.viewfinder.position.y - info.delta.global.y,
+    );
   }
 
   @override
@@ -251,19 +265,7 @@ class _EditorUIState extends State<EditorUI> {
             ),
           ),
 
-          const Spacer(),
-
-          // 3. Bottom Instructions
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            color: Colors.black54,
-            child: const Text(
-              "Tap grids to build walls. Long press to remove.", // Added hint
-              style: TextStyle(color: Colors.white, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-          ),
+          // Bottom Instructions removed
         ],
       ),
     );
