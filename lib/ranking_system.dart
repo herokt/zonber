@@ -1,17 +1,33 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RankingSystem {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseFirestore? _db;
 
-  // 1. 점수 저장하기 (Write) - 모든 기록 저장 (랭킹 필터링은 Read 시 수행)
+  RankingSystem() {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        _db = FirebaseFirestore.instance;
+      } catch (e) {
+        print("Firestore init failed (or not available): $e");
+      }
+    }
+  }
+
+  // 1. Save Score (Write) - Save all records (Filtering done on Read)
   Future<String> saveRecord(
     String mapId,
     String nickname,
     String flag,
     double time,
   ) async {
+    if (_db == null) {
+      print("Saving locally/mocking (No Firestore)");
+      return 'local_id_${DateTime.now().millisecondsSinceEpoch}';
+    }
     try {
-      DocumentReference docRef = await _db
+      DocumentReference docRef = await _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
@@ -23,17 +39,18 @@ class RankingSystem {
           });
       return docRef.id;
     } catch (e) {
-      print("점수 저장 실패: $e");
+      print("Save failed: $e");
       return '';
     }
   }
 
   // _maintainTop30 Removed as we save all records now.
 
-  // 2. 랭킹 10등까지 불러오기 (Read) - ID도 포함해서 반환
+  // 2. Fetch Top 30 (Read)
   Future<List<Map<String, dynamic>>> getTopRecords(String mapId) async {
+    if (_db == null) return [];
     try {
-      QuerySnapshot snapshot = await _db
+      QuerySnapshot snapshot = await _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
@@ -43,16 +60,16 @@ class RankingSystem {
 
       return snapshot.docs.map((doc) {
         var data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id; // 문서 ID 포함
+        data['id'] = doc.id;
         return data;
       }).toList();
     } catch (e) {
-      print("랭킹 로드 실패: $e");
+      print("Load failed: $e");
       return [];
     }
   }
 
-  // 3. 국가별 랭킹 30등 불러오기
+  // 3. Fetch National Top 30
   // Note: To avoid requiring a composite index (flag + survivalTime) in Firestore,
   // we will fetch records by flag and sort them in memory.
   // Ideally, create an index and use orderBy in the query for scalability.
@@ -60,8 +77,9 @@ class RankingSystem {
     String mapId,
     String flag,
   ) async {
+    if (_db == null) return [];
     try {
-      QuerySnapshot snapshot = await _db
+      QuerySnapshot snapshot = await _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
@@ -84,20 +102,21 @@ class RankingSystem {
 
       return records.take(30).toList();
     } catch (e) {
-      print("국가별 랭킹 로드 실패: $e");
+      print("National load failed: $e");
       return [];
     }
   }
 
-  // 4. 내 등수 및 기록 가져오기 (Aggregation Query)
+  // 4. Fetch My Rank and Record (Aggregation Query)
   Future<Map<String, dynamic>?> getMyRank(
     String mapId,
     String nickname, {
     String? flag,
   }) async {
+    if (_db == null) return null;
     try {
-      // 1. 내 기록 찾기
-      var query = _db
+      // 1. Find my record
+      var query = _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
@@ -107,37 +126,33 @@ class RankingSystem {
         query = query.where('flag', isEqualTo: flag);
       }
 
-      QuerySnapshot myRecordSnapshot = await query
-          .orderBy('survivalTime', descending: true) // 최고 기록 우선
-          .limit(1)
-          .get();
+      QuerySnapshot myRecordSnapshot = await query.get();
 
       if (myRecordSnapshot.docs.isEmpty) return null;
 
-      var myDoc = myRecordSnapshot.docs.first;
+      // In-memory sort to find best record
+      var docs = myRecordSnapshot.docs;
+      print("Found ${docs.length} records for $nickname");
+
+      docs.sort((a, b) {
+        var dataA = a.data() as Map<String, dynamic>;
+        var dataB = b.data() as Map<String, dynamic>;
+        double timeA = (dataA['survivalTime'] as num).toDouble();
+        double timeB = (dataB['survivalTime'] as num).toDouble();
+        return timeB.compareTo(timeA); // Descending
+      });
+
+      var myDoc = docs.first;
       var myData = myDoc.data() as Map<String, dynamic>;
       myData['id'] = myDoc.id;
-      double myScore = myData['survivalTime'];
 
-      // 2. 나보다 점수 높은 사람 수 세기 (Count Aggregation)
-      var countQuery = _db
-          .collection('maps')
-          .doc(mapId)
-          .collection('records')
-          .where('survivalTime', isGreaterThan: myScore);
-
-      if (flag != null) {
-        countQuery = countQuery.where('flag', isEqualTo: flag);
-      }
-
-      AggregateQuerySnapshot countSnapshot = await countQuery.count().get();
-
-      int rank = countSnapshot.count! + 1;
-      myData['rank'] = rank;
+      // 2. Rank calculation skipped (Cost and Efficiency)
+      // If not in Top 30, we return -1.
+      myData['rank'] = -1;
 
       return myData;
     } catch (e) {
-      print("내 랭킹 조회 실패: $e");
+      print("My rank load failed: $e");
       return null;
     }
   }

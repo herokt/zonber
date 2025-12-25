@@ -1,7 +1,19 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MapService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseFirestore? _db;
+
+  MapService() {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        _db = FirebaseFirestore.instance;
+      } catch (e) {
+        print("Firestore init failed (or not available): $e");
+      }
+    }
+  }
 
   // Save a custom map
   Future<bool> saveCustomMap({
@@ -10,6 +22,7 @@ class MapService {
     required List<List<int>> gridData,
     bool verified = false,
   }) async {
+    if (_db == null) return false;
     try {
       // Flatten grid data to a simple list or string for storage efficiency if needed,
       // but List<List> is supported as array of arrays (though Firestore prefers 1D).
@@ -23,7 +36,7 @@ class MapService {
         flatGrid.addAll(row);
       }
 
-      await _db.collection('custom_maps').add({
+      await _db!.collection('custom_maps').add({
         'name': name,
         'author': author,
         'width': width,
@@ -41,8 +54,9 @@ class MapService {
 
   // Fetch all custom maps (Metadata only ideally, but we fetch all for now)
   Future<List<Map<String, dynamic>>> getCustomMaps() async {
+    if (_db == null) return [];
     try {
-      QuerySnapshot snapshot = await _db
+      QuerySnapshot snapshot = await _db!
           .collection('custom_maps')
           .orderBy('createdAt', descending: true)
           .limit(50)
@@ -61,9 +75,10 @@ class MapService {
 
   // Fetch specific map details (if we separated list vs details, but currently we get all)
   Future<Map<String, dynamic>?> getMap(String mapId) async {
+    if (_db == null) return null;
     try {
       String docId = mapId.replaceAll('custom_', '');
-      DocumentSnapshot doc = await _db
+      DocumentSnapshot doc = await _db!
           .collection('custom_maps')
           .doc(docId)
           .get();
@@ -79,9 +94,10 @@ class MapService {
 
   // Delete a map (Author check should be done on UI side or Security Rules)
   Future<bool> deleteCustomMap(String mapId) async {
+    if (_db == null) return false;
     try {
       String docId = mapId.replaceAll('custom_', '');
-      await _db.collection('custom_maps').doc(docId).delete();
+      await _db!.collection('custom_maps').doc(docId).delete();
       return true;
     } catch (e) {
       print("Error deleting map: $e");

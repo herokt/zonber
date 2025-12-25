@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -24,6 +27,13 @@ android {
         getByName("main").java.srcDirs("src/main/kotlin")
     }
 
+    // [Added] Load keystore
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    }
+
     defaultConfig {
         applicationId = "com.zonber.game"
         // [중요] 파이어베이스 최소 요구 버전 21로 변경
@@ -35,9 +45,18 @@ android {
         multiDexEnabled = true 
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = file(keystoreProperties["storeFile"] as String)
+            storePassword = keystoreProperties["storePassword"] as String
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

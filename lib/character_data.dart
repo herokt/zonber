@@ -5,12 +5,14 @@ class Character {
   final String name;
   final Color color;
   final String description;
+  final String? imagePath; // Optional path for sprite
 
   const Character({
     required this.id,
     required this.name,
     required this.color,
     required this.description,
+    this.imagePath,
   });
 }
 
@@ -21,6 +23,7 @@ class CharacterData {
       name: 'Neon Green',
       color: Color(0xFF45A29E),
       description: 'The classic Zonber operator.',
+      imagePath: 'assets/images/characters/neon_green.png',
     ),
     Character(
       id: 'cyber_red',

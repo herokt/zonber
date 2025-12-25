@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-
 import 'map_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // For Date Formatting
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'ad_manager.dart';
+import 'package:intl/intl.dart';
+import 'design_system.dart';
 
 class MapSelectionPage extends StatefulWidget {
   final Function(String mapId) onMapSelected;
-  final Function(BuildContext context, String mapId)
-  onShowRanking; // Updated Callback
+  final Function(BuildContext context, String mapId) onShowRanking;
   final VoidCallback onBack;
 
   const MapSelectionPage({
@@ -24,90 +25,127 @@ class MapSelectionPage extends StatefulWidget {
 class _MapSelectionPageState extends State<MapSelectionPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  BannerAd? _bannerAd;
+  bool _isBannerAdReady = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _bannerAd = AdManager().loadBannerAd(() {
+      setState(() => _isBannerAdReady = true);
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _bannerAd?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0C10),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0B0C10),
-        title: const Text(
-          "SELECT ZONE",
-          style: TextStyle(
-            color: Color(0xFF66FCF1),
-            fontWeight: FontWeight.bold,
+    return NeonScaffold(
+      title: "SELECT ZONE",
+      showBackButton: true,
+      onBack: widget.onBack,
+      bannerAd: (_isBannerAdReady && _bannerAd != null)
+          ? AdWidget(ad: _bannerAd!)
+          : null,
+      body: Column(
+        children: [
+          // Banner Ad removed (moved to Scaffold)
+
+          // Custom Tabs
+          const SizedBox(height: 10), // Spacing from banner
+          Container(
+            height: 50,
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceGlass,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primaryDim.withOpacity(0.5)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary),
+              ),
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textDim,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent, // Remove default divider
+              tabs: const [
+                Tab(text: "OFFICIAL"),
+                Tab(text: "CUSTOM"),
+              ],
+            ),
           ),
-        ),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: widget.onBack,
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFF45A29E),
-          labelColor: const Color(0xFF66FCF1),
-          unselectedLabelColor: Colors.grey,
-          tabs: const [
-            Tab(text: "OFFICIAL"),
-            Tab(text: "CUSTOM"),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildOfficialMaps(), _buildCustomMaps()],
+          const SizedBox(height: 20),
+
+          // Content
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [_buildOfficialMaps(), _buildCustomMaps()],
+            ),
+          ),
+        ],
       ),
     );
   }
 
+  // ... (unchanged)
+
+  // In _buildNeonMapCard (implicit update via logic knowledge, but I need to target explicit lines)
+  // Wait, I cannot edit _buildNeonMapCard unless I include it in range.
+  // The replace call has EndLine 256.
+  // _buildNeonMapCard is further down.
+  // I will split into TWO checks or ONE large replace (if possible).
+  // _buildNeonMapCard starts at 190.
+  // Ranking Button is at 250.
+  // build method is at 48.
+  // This is too big.
+  // I will do two edits.
+  // First: Update build method (Banner Ad).
+  // Second: Update Ranking Button (NeonButton).
+
+  // Step 1: Update build method (lines 48-109).
+
   Widget _buildOfficialMaps() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildMapCard(
-              context,
-              "ZONE 1: CLASSIC",
-              "The beginning of the nightmare.",
-              "zone_1_classic",
-              Colors.cyan,
-            ),
-            const SizedBox(height: 20),
-            _buildMapCard(
-              context,
-              "ZONE 2: HARDCORE",
-              "Faster and more chaos.",
-              "zone_2_hard",
-              Colors.redAccent,
-              locked: false,
-            ),
-            const SizedBox(height: 20),
-            _buildMapCard(
-              context,
-              "ZONE 3: OBSTACLES",
-              "Watch your step!",
-              "zone_3_obstacles",
-              Colors.amber,
-              locked: false,
-            ),
-          ],
+    // Unified List View
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      children: [
+        _buildNeonMapCard(
+          title: "ZONE 1: CLASSIC",
+          description: "The beginning of the nightmare.",
+          mapId: "zone_1_classic",
+          color: Colors.cyan,
         ),
-      ),
+        const SizedBox(height: 20),
+        _buildNeonMapCard(
+          title: "ZONE 2: HARDCORE",
+          description: "Faster and more chaos.",
+          mapId: "zone_2_hard",
+          color: Colors.redAccent,
+        ),
+        const SizedBox(height: 20),
+        _buildNeonMapCard(
+          title: "ZONE 3: OBSTACLES",
+          description: "Watch your step!",
+          mapId: "zone_3_obstacles",
+          color: Colors.amber,
+        ),
+        const SizedBox(height: 20), // Bottom padding
+      ],
     );
   }
 
@@ -117,228 +155,131 @@ class _MapSelectionPageState extends State<MapSelectionPage>
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF45A29E)),
+            child: CircularProgressIndicator(color: AppColors.primary),
           );
         }
         if (snapshot.hasError) {
           return Center(
             child: Text(
               "Error loading maps",
-              style: const TextStyle(color: Colors.red),
+              style: AppTextStyles.body.copyWith(color: AppColors.secondary),
             ),
           );
         }
         final maps = snapshot.data ?? [];
         if (maps.isEmpty) {
           return const Center(
-            child: Text(
-              "No custom maps found.",
-              style: TextStyle(color: Colors.white),
-            ),
+            child: Text("No custom maps found.", style: AppTextStyles.body),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(20),
+        // Use standard ListView builder for consistency
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           itemCount: maps.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 20),
           itemBuilder: (context, index) {
             final map = maps[index];
             DateTime? date;
             if (map['createdAt'] != null) {
               date = (map['createdAt'] as Timestamp).toDate();
             }
-
-            return _buildCustomMapCard(map, date);
+            return _buildNeonMapCard(
+              title: map['name'] ?? 'Untitled',
+              description:
+                  "By ${map['author'] ?? 'Unknown'} • ${date != null ? DateFormat('MM/dd').format(date) : ''}",
+              mapId: map['id'],
+              color: const Color(0xFFD91DF2), // Purple for custom
+              isCustom: true,
+            );
           },
         );
       },
     );
   }
 
-  Widget _buildCustomMapCard(Map<String, dynamic> map, DateTime? date) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2833),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF45A29E), width: 1),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(15),
-        leading: const Icon(Icons.map, color: Color(0xFF45A29E), size: 40),
-        title: Text(
-          map['name'] ?? 'Untitled',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "By ${map['author'] ?? 'Unknown'}",
-              style: const TextStyle(color: Colors.grey, fontSize: 14),
-            ),
-            if (date != null)
-              Text(
-                DateFormat('yyyy-MM-dd HH:mm').format(date),
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-          ],
-        ),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF45A29E),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
-          onPressed: () => widget.onMapSelected(map['id']),
-          child: const Text(
-            "PLAY",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMapCard(
-    BuildContext context,
-    String title,
-    String description,
-    String mapId,
-    Color color, {
-    bool locked = false,
+  Widget _buildNeonMapCard({
+    required String title,
+    required String description,
+    required String mapId,
+    required Color color,
+    bool isCustom = false,
   }) {
-    return Container(
-      height: 140,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: locked
-            ? []
-            : [
-                BoxShadow(
-                  color: color.withOpacity(0.4),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-      ),
-      child: Stack(
+    return NeonCard(
+      borderColor: color,
+      padding: const EdgeInsets.all(16), // Unified padding
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Base Card + InkWell (Main Click)
-          Positioned.fill(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: locked ? null : () => widget.onMapSelected(mapId),
-                borderRadius: BorderRadius.circular(20),
-                child: Ink(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: locked
-                          ? [Colors.grey[800]!, Colors.grey[900]!]
-                          : [const Color(0xFF1F2833), const Color(0xFF0B0C10)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: locked ? Colors.grey : color.withOpacity(0.5),
-                      width: 2,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: locked
-                                ? Colors.grey.withOpacity(0.2)
-                                : color.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            locked ? Icons.lock : Icons.public,
-                            color: locked ? Colors.grey : color,
-                            size: 40,
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                title,
-                                style: TextStyle(
-                                  color: locked ? Colors.grey : Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                description,
-                                style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: color.withOpacity(0.6)),
                 ),
-              ),
-            ),
-          ),
-
-          // 2. Play Icon (Visual Only, passes touches to InkWell below is tricky,
-          // so we keep it purely visual inside the stack, but behind the InkWell?
-          // No, InkWell is opaque to touches.
-          // The Play Icon was just visual. We can leave it inside the Ink's child or on top ignoring pointer.
-          if (!locked)
-            Positioned(
-              bottom: 15,
-              right: 20,
-              child: IgnorePointer(
                 child: Icon(
-                  Icons.play_circle_fill,
-                  color: color.withOpacity(0.8),
-                  size: 30,
+                  isCustom ? Icons.public : Icons.token,
+                  color: color,
+                  size: 28,
                 ),
               ),
-            ),
-
-          // 3. Ranking Button (Discrete Clickable Area)
-          if (!locked)
-            Positioned(
-              top: 5,
-              right: 5,
-              child: Material(
-                color: Colors.transparent,
-                child: IconButton(
-                  icon: const Icon(Icons.emoji_events),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.subHeader.copyWith(color: color),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textDim,
+                        fontSize: 12,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Buttons Row
+          Row(
+            children: [
+              // Ranking Button
+              Expanded(
+                flex: 1,
+                child: NeonButton(
+                  text: "RANK",
+                  icon: Icons.emoji_events,
+                  isCompact: true,
                   color: Colors.amber,
-                  iconSize: 30,
-                  onPressed: () {
-                    print("Ranking button clicked for $mapId");
-                    widget.onShowRanking(context, mapId);
-                  },
-                  tooltip: "View Ranking",
+                  onPressed: () => widget.onShowRanking(context, mapId),
+                  isPrimary: false,
                 ),
               ),
-            ),
+              const SizedBox(width: 12),
+              // Play Button (Bigger)
+              Expanded(
+                flex: 2,
+                child: NeonButton(
+                  text: "PLAY",
+                  isCompact: false, // Standard size
+                  color: AppColors.primary,
+                  onPressed: () => widget.onMapSelected(mapId),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

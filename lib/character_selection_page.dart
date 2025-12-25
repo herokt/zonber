@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'character_data.dart';
 import 'user_profile.dart';
+import 'design_system.dart';
 
 class CharacterSelectionPage extends StatefulWidget {
   final VoidCallback onBack;
@@ -44,109 +45,99 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0C10),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1F2833),
-        title: const Text(
-          'SELECT CHARACTER',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: widget.onBack,
-        ),
-      ),
-      body: Padding(
+    return NeonScaffold(
+      title: "SELECT CHARACTER",
+      showBackButton: true,
+      onBack: widget.onBack,
+      body: GridView.builder(
         padding: const EdgeInsets.all(20),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 20,
-            mainAxisSpacing: 20,
-            childAspectRatio: 0.8,
-          ),
-          itemCount: CharacterData.availableCharacters.length,
-          itemBuilder: (context, index) {
-            final char = CharacterData.availableCharacters[index];
-            final isSelected = char.id == _selectedId;
-
-            return GestureDetector(
-              onTap: () => _selectCharacter(char.id),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1F2833),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF66FCF1)
-                        : Colors.transparent,
-                    width: isSelected ? 3 : 1,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: const Color(0xFF66FCF1).withOpacity(0.4),
-                            blurRadius: 15,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                      : [],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Preview
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: char.color,
-                        boxShadow: [
-                          BoxShadow(
-                            color: char.color.withOpacity(0.6),
-                            blurRadius: 20,
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          color: char.color.withOpacity(0.5), // Inner core
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      char.name,
-                      style: TextStyle(
-                        color: isSelected
-                            ? const Color(0xFF66FCF1)
-                            : Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Text(
-                        char.description,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 20,
+          mainAxisSpacing: 20,
+          childAspectRatio: 0.75,
         ),
+        itemCount: CharacterData.availableCharacters.length,
+        itemBuilder: (context, index) {
+          final char = CharacterData.availableCharacters[index];
+          final isSelected = char.id == _selectedId;
+
+          return GestureDetector(
+            onTap: () => _selectCharacter(char.id),
+            child: NeonCard(
+              borderColor: isSelected ? AppColors.primary : Colors.transparent,
+              backgroundColor: isSelected
+                  ? AppColors.primary.withOpacity(0.1)
+                  : AppColors.surfaceGlass,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Preview
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      // color: char.color.withOpacity(0.2), // Removed background color
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: char.color.withOpacity(isSelected ? 0.8 : 0.4),
+                          blurRadius: isSelected ? 20 : 10,
+                        ),
+                      ],
+                      border: Border.all(
+                        color: char.color.withOpacity(0.8),
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: char.imagePath != null
+                          ? Image.asset(
+                              char.imagePath!,
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.contain,
+                              errorBuilder: (ctx, _, __) => Icon(
+                                Icons.rocket_launch,
+                                color: char.color,
+                                size: 40,
+                              ),
+                            )
+                          : Icon(
+                              Icons.rocket_launch,
+                              color: char.color,
+                              size: 40,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    char.name,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isSelected ? AppColors.primary : Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Text(
+                      char.description,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textDim,
+                        fontSize: 12,
+                      ),
+                      overflow: TextOverflow.fade,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

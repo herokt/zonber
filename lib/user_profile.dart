@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:country_picker/country_picker.dart';
+import 'design_system.dart';
 
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
@@ -67,7 +68,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (profile['flag'] != '🏳️') {
       setState(() {
         _selectedFlag = profile['flag']!;
-        _selectedCountryName = 'Selected'; // 간단히 처리
+        _selectedCountryName = 'Selected'; // Simplified
       });
     }
   }
@@ -97,139 +98,124 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B0C10),
+    return NeonScaffold(
+      title: "PROFILE SETUP",
       body: Center(
         child: SingleChildScrollView(
-          child: Container(
-            width: 320,
+          child: NeonCard(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F2833),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF45A29E), width: 2),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "PROFILE SETUP",
-                  style: TextStyle(
-                    color: Color(0xFF66FCF1),
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 30),
-                TextField(
-                  controller: _nicknameController,
-                  style: const TextStyle(color: Colors.white),
-                  maxLength: 8,
-                  decoration: const InputDecoration(
-                    labelText: "NICKNAME",
-                    labelStyle: TextStyle(color: Colors.grey),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF66FCF1)),
-                    ),
-                    counterStyle: TextStyle(color: Colors.grey),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  "SELECT COUNTRY",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-                const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: () {
-                    showCountryPicker(
-                      context: context,
-                      showPhoneCode: false,
-                      favorite: ['KR'],
-                      onSelect: (Country country) {
-                        setState(() {
-                          _selectedFlag = country.flagEmoji;
-                          _selectedCountryName = country.name;
-                        });
-                      },
-                      countryListTheme: CountryListThemeData(
-                        backgroundColor: const Color(0xFF1F2833),
-                        textStyle: const TextStyle(color: Colors.white),
-                        searchTextStyle: const TextStyle(color: Colors.white),
-                        bottomSheetHeight: 600,
-                        borderRadius: BorderRadius.circular(20),
-                        inputDecoration: const InputDecoration(
-                          hintText: 'Search country',
-                          hintStyle: TextStyle(color: Colors.grey),
-                          prefixIcon: Icon(Icons.search, color: Colors.grey),
-                          enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.grey),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Color(0xFF66FCF1)),
-                          ),
-                        ),
+            child: SizedBox(
+              width: 300,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header removed as NeonScaffold has it, but this is a card content so maybe "EDIT PROFILE"?
+                  // Or just keep the fields.
+                  TextField(
+                    controller: _nicknameController,
+                    style: AppTextStyles.body.copyWith(fontSize: 16),
+                    maxLength: 8,
+                    decoration: InputDecoration(
+                      labelText: "NICKNAME",
+                      labelStyle: TextStyle(color: AppColors.textDim),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: AppColors.textDim),
                       ),
-                    );
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 15,
-                      horizontal: 20,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _selectedFlag.isNotEmpty
-                            ? const Color(0xFF45A29E)
-                            : Colors.grey,
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: AppColors.primary),
                       ),
+                      counterStyle: TextStyle(color: AppColors.textDim),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            _selectedFlag.isEmpty
-                                ? "Tap to select"
-                                : "$_selectedFlag  $_selectedCountryName",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    "SELECT COUNTRY",
+                    style: TextStyle(color: AppColors.textDim, fontSize: 14),
+                  ),
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () {
+                      showCountryPicker(
+                        context: context,
+                        showPhoneCode: false,
+                        favorite: ['KR'],
+                        onSelect: (Country country) {
+                          setState(() {
+                            _selectedFlag = country.flagEmoji;
+                            _selectedCountryName = country.name;
+                          });
+                        },
+                        countryListTheme: CountryListThemeData(
+                          backgroundColor: AppColors.surface,
+                          textStyle: const TextStyle(color: Colors.white),
+                          searchTextStyle: const TextStyle(color: Colors.white),
+                          bottomSheetHeight: 600,
+                          borderRadius: BorderRadius.circular(20),
+                          inputDecoration: InputDecoration(
+                            hintText: 'Search country',
+                            hintStyle: TextStyle(color: AppColors.textDim),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: AppColors.textDim,
                             ),
-                            overflow: TextOverflow.ellipsis,
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.textDim),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: AppColors.primary),
+                            ),
                           ),
                         ),
-                        const Icon(Icons.arrow_drop_down, color: Colors.white),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF66FCF1),
-                    ),
-                    onPressed: _saveAndContinue,
-                    child: const Text(
-                      "START",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                      );
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 15,
+                        horizontal: 20,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _selectedFlag.isNotEmpty
+                              ? AppColors.primary
+                              : AppColors.textDim,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _selectedFlag.isEmpty
+                                  ? "Tap to select"
+                                  : "$_selectedFlag  $_selectedCountryName",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(
+                            Icons.arrow_drop_down,
+                            color: Colors.white,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    child: NeonButton(
+                      text: "START",
+                      onPressed: _saveAndContinue,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

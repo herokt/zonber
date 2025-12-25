@@ -20,10 +20,23 @@ import 'game_settings.dart';
 import 'character_selection_page.dart';
 import 'character_data.dart';
 import 'audio_manager.dart';
+import 'ad_manager.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // For BannerAd, AdWidget
+import 'design_system.dart';
+
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    await Firebase.initializeApp();
+    await AdManager().initialize(); // Initialize AdMob only on mobile
+  } else {
+    print("Skipping Firebase/AdMob init on desktop/web");
+  }
+
   await GameSettings().load(); // Load Settings
   await AudioManager().initialize(); // Preload Audio
   runApp(const ZonberApp());
@@ -85,7 +98,7 @@ class _ZonberAppState extends State<ZonberApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      supportedLocales: const [Locale('en'), Locale('ko')],
+      supportedLocales: const [Locale('en')],
       localizationsDelegates: const [
         CountryLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -102,11 +115,15 @@ class _ZonberAppState extends State<ZonberApp> {
         return GameWidget(
           game: ZonberGame(
             mapId: _currentMapId,
-            onExit: () => _navigateTo('Menu'),
+            onExit: () {
+              AdManager().showInterstitialIfReady();
+              _navigateTo('Menu');
+            },
             onGameOver: (result) {
               setState(() {
                 _lastGameResult = result;
                 _currentPage = 'Result';
+                AdManager().showInterstitialIfReady();
               });
             },
           ),
@@ -198,24 +215,15 @@ class _ZonberAppState extends State<ZonberApp> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1F2833),
-          title: const Text(
-            "VERIFICATION SUCCESS",
-            style: TextStyle(color: Colors.green),
-          ),
-          content: Text(
-            success
-                ? "Map '${_verifyingMapName!}' has been verified and uploaded!"
-                : "Verification passed, but upload failed.",
-            style: const TextStyle(color: Colors.white),
-          ),
+        builder: (context) => NeonDialog(
+          title: "VERIFICATION SUCCESS",
+          titleColor: const Color(0xFF00FF88),
+          message: success
+              ? "Map '${_verifyingMapName!}' has been verified and uploaded!"
+              : "Verification passed, but upload failed.",
           actions: [
-            TextButton(
-              child: const Text(
-                "OK",
-                style: TextStyle(color: Color(0xFF45A29E)),
-              ),
+            NeonButton(
+              text: "OK",
               onPressed: () {
                 Navigator.pop(context);
                 _navigateTo('Menu');
@@ -230,22 +238,15 @@ class _ZonberAppState extends State<ZonberApp> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1F2833),
-          title: const Text(
-            "VERIFICATION FAILED",
-            style: TextStyle(color: Colors.red),
-          ),
-          content: Text(
-            "You survived ${time.toStringAsFixed(2)}s.\nYou must survive at least 30s to upload.",
-            style: const TextStyle(color: Colors.white),
-          ),
+        builder: (context) => NeonDialog(
+          title: "VERIFICATION FAILED",
+          titleColor: AppColors.secondary,
+          message:
+              "You survived ${time.toStringAsFixed(2)}s.\nYou must survive at least 30s to upload.",
           actions: [
-            TextButton(
-              child: const Text(
-                "TRY AGAIN",
-                style: TextStyle(color: Color(0xFF45A29E)),
-              ),
+            NeonButton(
+              text: "TRY AGAIN",
+              color: AppColors.primary,
               onPressed: () {
                 Navigator.pop(context);
                 _navigateTo('Editor'); // Go back to editor
@@ -258,7 +259,7 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 }
 
-class MainMenu extends StatelessWidget {
+class MainMenu extends StatefulWidget {
   final VoidCallback onStartGame;
   final VoidCallback onOpenEditor;
   final VoidCallback onProfile;
@@ -273,78 +274,101 @@ class MainMenu extends StatelessWidget {
   });
 
   @override
+  State<MainMenu> createState() => _MainMenuState();
+}
+
+class _MainMenuState extends State<MainMenu> {
+  BannerAd? _bannerAd;
+  bool _isBannerAdReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bannerAd = AdManager().loadBannerAd(() {
+      setState(() {
+        _isBannerAdReady = true;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF0B0C10),
-      child: Stack(
+    return NeonScaffold(
+      bannerAd: (_isBannerAdReady && _bannerAd != null)
+          ? AdWidget(ad: _bannerAd!)
+          : null,
+      body: Stack(
         children: [
-          Positioned(
-            top: 40,
-            left: 20,
-            child: IconButton(
-              icon: const Icon(Icons.person, color: Colors.white, size: 30),
-              onPressed: onProfile,
+          // Background Elements
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.0,
+                  colors: [
+                    AppColors.primary.withOpacity(0.1),
+                    AppColors.background,
+                  ],
+                ),
+              ),
             ),
           ),
+
+          // Content
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
+                const Spacer(),
+                Text(
                   "ZONBER",
-                  style: TextStyle(
-                    color: Color(0xFF45A29E),
-                    fontSize: 64,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 4,
+                  style: AppTextStyles.header.copyWith(fontSize: 64),
+                ),
+                Text(
+                  "SURVIVE THE ZONE",
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.primaryDim,
+                    letterSpacing: 4.0,
                   ),
                 ),
-                const SizedBox(height: 50),
-                _buildMenuButton(
-                  "START GAME",
-                  const Color(0xFFF21D1D),
-                  onStartGame,
+                const SizedBox(height: 60),
+                NeonMenuButton(
+                  text: "START GAME",
+                  onPressed: widget.onStartGame,
+                  isPrimary: false,
+                  color: AppColors.secondary,
+                ),
+                NeonMenuButton(
+                  text: "CHARACTER",
+                  onPressed: widget.onCharacter,
+                  color: const Color(0xFFD91DF2),
+                ),
+                NeonMenuButton(
+                  text: "MAP EDITOR",
+                  onPressed: widget.onOpenEditor,
+                  isPrimary: true,
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(
+                    Icons.person,
+                    color: AppColors.primary,
+                    size: 32,
+                  ),
+                  onPressed: widget.onProfile,
                 ),
                 const SizedBox(height: 20),
-                _buildMenuButton(
-                  "CHARACTER", // New Button
-                  const Color(0xFFD91DF2),
-                  onCharacter,
-                ),
-                const SizedBox(height: 20),
-                _buildMenuButton(
-                  "MAP EDITOR",
-                  const Color(0xFF45A29E),
-                  onOpenEditor,
-                ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMenuButton(String text, Color color, VoidCallback onPressed) {
-    return SizedBox(
-      width: 200,
-      height: 60,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        onPressed: onPressed,
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
       ),
     );
   }
@@ -382,12 +406,12 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     return delta;
   }
 
-  // UI 컴포넌트
+  // UI Component
   late TextComponent timeText;
 
   double survivalTime = 0.0;
   bool isGameOver = false;
-  String? lastRecordId; // 마지막 저장된 기록 ID
+  String? lastRecordId; // Last saved record ID
 
   @override
   Color backgroundColor() => const Color(0xFF0B0C10);
@@ -594,41 +618,34 @@ class GameUI extends StatelessWidget {
           top: 40,
           right: 20,
           child: IconButton(
-            icon: const Icon(Icons.exit_to_app, color: Colors.white, size: 30),
+            icon: const Icon(
+              Icons.pause_circle_filled,
+              color: AppColors.primary,
+              size: 40,
+            ),
             onPressed: () {
               game.pauseEngine();
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (context) => AlertDialog(
-                  backgroundColor: const Color(0xFF1F2833),
-                  title: const Text(
-                    "PAUSE",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  content: const Text(
-                    "게임을 종료하고 나가시겠습니까?",
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                builder: (context) => NeonDialog(
+                  title: "PAUSED",
+                  message: "Game is paused. Resume?",
                   actions: [
-                    TextButton(
-                      child: const Text(
-                        "계속하기",
-                        style: TextStyle(color: Color(0xFF45A29E)),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        game.resumeEngine();
-                      },
-                    ),
-                    TextButton(
-                      child: const Text(
-                        "나가기",
-                        style: TextStyle(color: Color(0xFFF21D1D)),
-                      ),
+                    NeonButton(
+                      text: "EXIT",
+                      color: AppColors.secondary,
                       onPressed: () {
                         Navigator.pop(context);
                         onExit();
+                      },
+                      isPrimary: false,
+                    ),
+                    NeonButton(
+                      text: "RESUME",
+                      onPressed: () {
+                        Navigator.pop(context);
+                        game.resumeEngine();
                       },
                     ),
                   ],
@@ -698,7 +715,7 @@ class _ResultPageState extends State<ResultPage> {
   Widget build(BuildContext context) {
     if (_showLeaderboard) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0B0C10),
+        backgroundColor: AppColors.background,
         body: Center(
           child: LeaderboardWidget(
             mapId: widget.mapId,
@@ -711,105 +728,65 @@ class _ResultPageState extends State<ResultPage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0C10),
+      backgroundColor: AppColors.background,
       body: Center(
-        child: Container(
-          width: 350,
-          padding: const EdgeInsets.all(30),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1F2833),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF45A29E), width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
+        child: NeonCard(
+          padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "GAME OVER",
-                style: TextStyle(
-                  color: Color(0xFFF21D1D),
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 30),
-              const Text(
-                "SURVIVAL TIME",
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 16,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 10),
               Text(
-                "${widget.result['survivalTime'].toStringAsFixed(3)}s",
-                style: const TextStyle(
-                  color: Colors.white,
+                "GAME OVER",
+                style: AppTextStyles.header.copyWith(
+                  color: AppColors.secondary,
                   fontSize: 48,
-                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    const Shadow(color: AppColors.secondary, blurRadius: 15),
+                  ],
                 ),
               ),
               const SizedBox(height: 40),
+              Text(
+                "SURVIVAL TIME",
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textDim,
+                  fontSize: 16,
+                  letterSpacing: 2.0,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "${widget.result['survivalTime'].toStringAsFixed(3)}s",
+                style: AppTextStyles.header.copyWith(
+                  fontSize: 56,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 48),
               if (_isSaving)
-                const CircularProgressIndicator(color: Color(0xFF45A29E))
-              else
-                Column(
+                const CircularProgressIndicator(color: AppColors.primary)
+              else ...[
+                NeonButton(text: "SUBMIT SCORE", onPressed: _submitScore),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF45A29E),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: _submitScore,
-                        child: const Text(
-                          "랭킹 등록",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                    NeonButton(
+                      text: "RETRY",
+                      onPressed: widget.onRestart,
+                      color: const Color(0xFF00FF88), // Green for retry
+                      isPrimary: false,
                     ),
-                    const SizedBox(height: 15),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: widget.onRestart,
-                            child: const Text(
-                              "다시 하기",
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: TextButton(
-                            onPressed: widget.onExit,
-                            child: const Text(
-                              "나가기",
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 16),
+                    NeonButton(
+                      text: "MENU",
+                      onPressed: widget.onExit,
+                      color: AppColors.surface,
+                      isPrimary: false,
                     ),
                   ],
                 ),
+              ],
             ],
           ),
         ),
@@ -833,18 +810,23 @@ class MapArea extends PositionComponent {
 class Obstacle extends PositionComponent with CollisionCallbacks {
   // Neon Crate Style Paints
   static final Paint _borderPaint = Paint()
-    ..color =
-        const Color(0xFF00E5FF) // Cyan Neon
+    ..color = AppColors
+        .primary // Use AppColors.primary
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2
-    ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 5); // Glow effect
+    ..maskFilter = const MaskFilter.blur(
+      BlurStyle.solid,
+      3,
+    ); // Reduced blur (5->3)
 
   static final Paint _fillPaint = Paint()
-    ..color = const Color(0xFF00E5FF).withOpacity(0.15)
+    ..color = AppColors.primary
+        .withOpacity(0.1) // Reduced opacity (0.15->0.1)
     ..style = PaintingStyle.fill;
 
   static final Paint _detailPaint = Paint()
-    ..color = const Color(0xFF00E5FF).withOpacity(0.5)
+    ..color = AppColors.primary
+        .withOpacity(0.4) // Reduced opacity
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.5;
 
@@ -880,10 +862,12 @@ class Obstacle extends PositionComponent with CollisionCallbacks {
 
 class GridBackground extends Component {
   final Paint _linePaint = Paint()
-    ..color = const Color(0xFF1F2833).withOpacity(0.5)
+    ..color = const Color(0xFF1F2833)
+        .withOpacity(0.3) // Reduced opacity
     ..strokeWidth = 2;
   final Paint _borderPaint = Paint()
-    ..color = const Color(0xFF45A29E)
+    ..color = AppColors
+        .primaryDim // Use Primary Dim for less header glare
     ..style = PaintingStyle.stroke
     ..strokeWidth = 4;
 
@@ -901,7 +885,7 @@ class GridBackground extends Component {
         ZonberGame.mapWidth,
         ZonberGame.worldHeight - ZonberGame.mapHeight,
       ),
-      Paint()..color = const Color(0xFF0B0C10),
+      Paint()..color = AppColors.background,
     );
     for (double x = 0; x <= ZonberGame.mapWidth; x += 80) {
       canvas.drawLine(
@@ -919,9 +903,13 @@ class GridBackground extends Component {
 class Player extends PositionComponent
     with CollisionCallbacks, HasGameRef<ZonberGame> {
   final Paint _glowPaint = Paint()
-    ..color = const Color(0xFF45A29E).withOpacity(0.6)
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
-  final Paint _corePaint = Paint()..color = const Color(0xFF45A29E);
+    ..color = AppColors.primary
+        .withOpacity(0.4) // Reduced opacity & blur
+    ..maskFilter = const MaskFilter.blur(
+      BlurStyle.normal,
+      10,
+    ); // Reduced blur (15->10)
+  final Paint _corePaint = Paint()..color = AppColors.primary;
   final double speed = 500.0; // Optimized for high sensitivity + control
 
   // Track Character ID for rendering
@@ -938,7 +926,7 @@ class Player extends PositionComponent
     Character char = CharacterData.getCharacter(characterId);
 
     _corePaint.color = char.color;
-    _glowPaint.color = char.color.withOpacity(0.6);
+    _glowPaint.color = char.color.withOpacity(0.4); // Toned down glow
   }
 
   @override
@@ -1065,12 +1053,13 @@ class Bullet extends PositionComponent
 
   // FIXED: Removed MaskFilter to ensure visibility on all devices
   static final Paint _bulletGlow = Paint()
-    ..color = const Color(0xFFFF0000).withOpacity(0.8)
+    ..color = AppColors.secondary
+        .withOpacity(0.5) // Toned down Red
     ..style = PaintingStyle.fill;
 
   static final Paint _bulletCore = Paint()
-    ..color =
-        const Color(0xFFFF0000) // Red Core
+    ..color = AppColors
+        .secondary // Red Core
     ..style = PaintingStyle.fill;
 
   Bullet(Vector2 position, Vector2 targetPosition, {this.speed = 200.0}) {
