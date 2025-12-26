@@ -12,7 +12,16 @@
           "package_name": "com.zonber.game"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "682278346224-33i8r6hiormr2dkgrnu3ii467ip5h77c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zonber.game",
+            "certificate_hash": "28f0285440dc37400d810f2e06f4f82c8061f62e"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAUN_P8Qs7kTMsaH3xPzhs4EEoJUJIBeCQ"

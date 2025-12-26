@@ -1,5 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'login_page.dart'; // Added
+import 'package:firebase_auth/firebase_auth.dart'; // Added
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:country_picker/country_picker.dart';
@@ -23,6 +25,8 @@ import 'audio_manager.dart';
 import 'ad_manager.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // For BannerAd, AdWidget
 import 'design_system.dart';
+import 'shop_page.dart';
+import 'services/auth_service.dart';
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -51,7 +55,7 @@ class ZonberApp extends StatefulWidget {
 
 class _ZonberAppState extends State<ZonberApp> {
   String _currentPage =
-      'Loading'; // Menu, MapSelect, Game, Result, Editor, Profile, Loading
+      'Loading'; // Menu, MapSelect, Game, Result, Editor, Profile, Loading, Login
   String _currentMapId = 'zone_1_classic'; // Default Map
   Map<String, dynamic>? _lastGameResult; // Store result data
 
@@ -62,7 +66,19 @@ class _ZonberAppState extends State<ZonberApp> {
   @override
   void initState() {
     super.initState();
-    _checkProfile();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    // Wait for Firebase to initialize if needed (already done in main)
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+        setState(() {
+            _currentPage = 'Login';
+        });
+    } else {
+        _checkProfile();
+    }
   }
 
   Future<void> _checkProfile() async {
@@ -111,6 +127,12 @@ class _ZonberAppState extends State<ZonberApp> {
 
   Widget _buildPage() {
     switch (_currentPage) {
+      case 'Login':
+        return LoginPage(
+          onLoginSuccess: () {
+             _checkProfile();
+          },
+        );
       case 'Game':
         return GameWidget(
           game: ZonberGame(
@@ -160,6 +182,17 @@ class _ZonberAppState extends State<ZonberApp> {
         );
       case 'Profile':
         return UserProfilePage(onComplete: () => _navigateTo('Menu'));
+      case 'MyProfile':
+        return MyProfilePage(
+          onBack: () => _navigateTo('Menu'),
+          onOpenShop: () => _navigateTo('Shop'),
+          onLogout: () async {
+            await AuthService().signOut();
+            _navigateTo('Login');
+          },
+        );
+      case 'Shop':
+        return ShopPage(onBack: () => _navigateTo('MyProfile'));
       case 'Editor':
         return MapEditorPage(
           onVerify: _startVerification,
@@ -178,7 +211,7 @@ class _ZonberAppState extends State<ZonberApp> {
         return MainMenu(
           onStartGame: () => _navigateTo('MapSelect'),
           onOpenEditor: () => _navigateTo('Editor'),
-          onProfile: () => _navigateTo('Profile'),
+          onProfile: () => _navigateTo('MyProfile'),
           onCharacter: () => _navigateTo('CharacterSelect'),
         );
     }
