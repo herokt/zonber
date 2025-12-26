@@ -161,16 +161,9 @@ class _ZonberAppState extends State<ZonberApp> {
       case 'Profile':
         return UserProfilePage(onComplete: () => _navigateTo('Menu'));
       case 'Editor':
-        return GameWidget(
-          game: MapEditorGame(),
-          overlayBuilderMap: {
-            'EditorUI': (context, MapEditorGame game) => EditorUI(
-              game: game,
-              onVerify: _startVerification,
-              onExit: () => _navigateTo('Menu'),
-            ),
-          },
-          initialActiveOverlays: const ['EditorUI'],
+        return MapEditorPage(
+          onVerify: _startVerification,
+          onExit: () => _navigateTo('Menu'),
         );
       case 'MapSelect':
         return MapSelectionPage(

@@ -1,13 +1,12 @@
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
-import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 import 'map_service.dart';
 import 'user_profile.dart';
 import 'design_system.dart';
 
-class MapEditorGame extends FlameGame with PanDetector, TapDetector {
+class MapEditorGame extends FlameGame with TapCallbacks, DragCallbacks {
   // Grid settings (Matches Game Aspect Ratio 480:720 -> 15:24 blocks of 32px)
   static const int gridSizeX = 15; // Odd number for center alignment
   static const int gridSizeY = 24; // More grids
@@ -21,59 +20,127 @@ class MapEditorGame extends FlameGame with PanDetector, TapDetector {
     (_) => List.filled(gridSizeX, 0),
   );
 
+  // Screen size for scaling
+  Vector2? _screenSize;
+
+  // Drawing mode: true = add walls, false = erase walls
+  bool isDrawMode = true;
+
+  // Wall count callback for UI
+  Function(int)? onWallCountChanged;
+
+  int get wallCount {
+    int count = 0;
+    for (var row in mapData) {
+      for (var cell in row) {
+        if (cell == 1) count++;
+      }
+    }
+    return count;
+  }
+
   // Camera control
   @override
-  Color backgroundColor() => const Color(0xFF0B0C10);
+  Color backgroundColor() => const Color(0xFF0A0A0F);
+
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _screenSize = size;
+    _updateCamera();
+  }
+
+  void _updateCamera() {
+    if (_screenSize == null) return;
+    updateCameraForSize(_screenSize!.x, _screenSize!.y);
+  }
+
+  // Store the current visible size for coordinate calculations
+  Vector2 _visibleSize = Vector2(mapWidth, mapHeight);
+
+  /// Update camera to fit the map within given dimensions
+  void updateCameraForSize(double width, double height) {
+    if (width <= 0 || height <= 0) return;
+
+    // Calculate aspect ratios
+    final containerAspect = width / height;
+    final mapAspect = mapWidth / mapHeight;
+
+    double visibleWidth, visibleHeight;
+
+    if (containerAspect > mapAspect) {
+      // Container is wider than map - fit by height
+      visibleHeight = mapHeight;
+      visibleWidth = mapHeight * containerAspect;
+    } else {
+      // Container is taller than map - fit by width
+      visibleWidth = mapWidth;
+      visibleHeight = mapWidth / containerAspect;
+    }
+
+    _visibleSize = Vector2(visibleWidth, visibleHeight);
+
+    camera.viewfinder.visibleGameSize = _visibleSize;
+    camera.viewfinder.position = Vector2(mapWidth / 2, mapHeight / 2);
+    camera.viewfinder.anchor = Anchor.center;
+  }
+
+  /// Convert screen position to map grid position
+  Vector2 screenToMapPosition(Vector2 screenPos) {
+    // Get the viewport size
+    final viewportSize = camera.viewport.size;
+
+    // Calculate scale from screen to visible game world
+    final scaleX = _visibleSize.x / viewportSize.x;
+    final scaleY = _visibleSize.y / viewportSize.y;
+
+    // Convert screen position to visible world position (centered at camera position)
+    final worldX = (screenPos.x - viewportSize.x / 2) * scaleX + mapWidth / 2;
+    final worldY = (screenPos.y - viewportSize.y / 2) * scaleY + mapHeight / 2;
+
+    return Vector2(worldX, worldY);
+  }
 
   @override
   Future<void> onLoad() async {
-    // Camera setup: Matches ZonberGame
-    camera.viewfinder.visibleGameSize = Vector2(mapWidth, mapHeight);
-    // Shift map down by 100px (Reduced from 120px to close gap)
-    camera.viewfinder.position = Vector2(mapWidth / 2, mapHeight / 2 - 100);
-    camera.viewfinder.anchor = Anchor.center;
-
+    _updateCamera();
     // Add Grid Rendering
     world.add(EditorGrid(this));
   }
 
-  @override
-  void onPanUpdate(DragUpdateInfo info) {
-    // Restrict to Vertical Scrolling (Y-axis only)
-    // Moving finger UP (negative delta) means Camera moves UP (negative Viewfinder delta)
-    // Wait. If I drag UP, I want to see content BELOW. So World moves UP.
-    // If World moves UP, Camera should move DOWN (Positive Y).
-    // info.delta.global is Screen Delta.
-    // Drag Up -> Delta Y is Negative.
-    // If Camera Pos -= Delta Y (-neg) = += Pos. Camera moves Down. World moves Up. Correct.
-    camera.viewfinder.position = Vector2(
-      camera.viewfinder.position.x,
-      camera.viewfinder.position.y - info.delta.global.y,
-    );
-  }
-
-  @override
-  void onTapDown(TapDownInfo info) {
-    // Always Draw Mode
-    // Convert screen coordinates to world coordinates
-    final Vector2 localPos = camera.globalToLocal(info.eventPosition.global);
-
-    // Calculate grid index
-    int x = (localPos.x / tileSize).floor();
-    int y = (localPos.y / tileSize).floor();
+  void _handleTileAtWorld(Vector2 worldPosition) {
+    // Calculate grid index from world position
+    int x = (worldPosition.x / tileSize).floor();
+    int y = (worldPosition.y / tileSize).floor();
 
     if (x >= 0 && x < gridSizeX && y >= 0 && y < gridSizeY) {
       // Check Restriction
       if (isRestricted(x, y)) {
-        // Show visual feedback potentially, or just ignore
         return;
       }
-      // Toggle wall
-      mapData[y][x] = mapData[y][x] == 0 ? 1 : 0;
+
+      // Set wall based on current mode
+      int newValue = isDrawMode ? 1 : 0;
+      if (mapData[y][x] != newValue) {
+        mapData[y][x] = newValue;
+        onWallCountChanged?.call(wallCount);
+      }
     }
   }
 
-  // PanDetector removed (Fixed Camera)
+  @override
+  void onTapDown(TapDownEvent event) {
+    // Convert canvas position to world coordinates using camera
+    final worldPos = camera.globalToLocal(event.canvasPosition);
+    _handleTileAtWorld(worldPos);
+  }
+
+  @override
+  void onDragUpdate(DragUpdateEvent event) {
+    // Convert canvas position to world coordinates using camera
+    final worldPos = camera.globalToLocal(event.canvasEndPosition);
+    _handleTileAtWorld(worldPos);
+  }
 
   bool isRestricted(int x, int y) {
     // 1. Center Restriction (Spawn Area)
@@ -82,8 +149,9 @@ class MapEditorGame extends FlameGame with PanDetector, TapDetector {
     if (x >= 6 && x <= 8 && y >= 11 && y <= 13) return true;
 
     // 2. Outer Edge restriction
-    if (x == 0 || x == gridSizeX - 1 || y == 0 || y == gridSizeY - 1)
+    if (x == 0 || x == gridSizeX - 1 || y == 0 || y == gridSizeY - 1) {
       return true;
+    }
 
     return false;
   }
@@ -92,181 +160,410 @@ class MapEditorGame extends FlameGame with PanDetector, TapDetector {
     for (var row in mapData) {
       row.fillRange(0, gridSizeX, 0);
     }
+    onWallCountChanged?.call(0);
   }
 }
 
 class EditorGrid extends Component {
   final MapEditorGame game;
-  final Paint linePaint = Paint()
-    ..color = Colors.white.withOpacity(0.2)
+
+  // Grid line paints
+  final Paint gridLinePaint = Paint()
+    ..color = const Color(0xFF1A2030)
     ..strokeWidth = 1;
+
+  final Paint gridLineMajorPaint = Paint()
+    ..color = const Color(0xFF2A3545)
+    ..strokeWidth = 1.5;
+
+  // Map border paint
+  final Paint borderPaint = Paint()
+    ..color = AppColors.primary
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 3
+    ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2);
+
+  // Wall paints
+  final Paint wallFillPaint = Paint()
+    ..color = AppColors.primary.withOpacity(0.4)
+    ..style = PaintingStyle.fill;
+
   final Paint wallBorderPaint = Paint()
-    ..color = const Color(0xFF00E5FF)
+    ..color = AppColors.primary
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2;
 
-  final Paint wallFillPaint = Paint()
-    ..color = const Color(0xFF00E5FF).withOpacity(0.3)
+  // Restricted zone paints
+  final Paint restrictedFillPaint = Paint()
+    ..color = const Color(0xFFFF3366).withOpacity(0.15)
     ..style = PaintingStyle.fill;
+
+  final Paint restrictedBorderPaint = Paint()
+    ..color = const Color(0xFFFF3366).withOpacity(0.4)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1;
+
+  // Spawn area paint (center)
+  final Paint spawnFillPaint = Paint()
+    ..color = const Color(0xFF00FF88).withOpacity(0.1)
+    ..style = PaintingStyle.fill;
+
+  final Paint spawnBorderPaint = Paint()
+    ..color = const Color(0xFF00FF88).withOpacity(0.5)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2;
 
   EditorGrid(this.game);
 
-  final Paint restrictedPaint = Paint()
-    ..color = const Color(0xFFF21D1D)
-        .withOpacity(0.2) // Red tint for restricted
-    ..style = PaintingStyle.fill;
-
   @override
   void render(Canvas canvas) {
-    // Draw Restricted Zones
-    for (int y = 0; y < MapEditorGame.gridSizeY; y++) {
-      for (int x = 0; x < MapEditorGame.gridSizeX; x++) {
-        if (game.isRestricted(x, y)) {
-          canvas.drawRect(
-            Rect.fromLTWH(
-              x * MapEditorGame.tileSize,
-              y * MapEditorGame.tileSize,
-              MapEditorGame.tileSize,
-              MapEditorGame.tileSize,
-            ),
-            restrictedPaint,
+    final tileSize = MapEditorGame.tileSize;
+    final mapWidth = MapEditorGame.mapWidth;
+    final mapHeight = MapEditorGame.mapHeight;
+    final gridX = MapEditorGame.gridSizeX;
+    final gridY = MapEditorGame.gridSizeY;
+
+    // 1. Draw grid background
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, mapWidth, mapHeight),
+      Paint()..color = const Color(0xFF0D1015),
+    );
+
+    // 2. Draw grid lines
+    for (int i = 0; i <= gridX; i++) {
+      double x = i * tileSize;
+      bool isMajor = i % 5 == 0;
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, mapHeight),
+        isMajor ? gridLineMajorPaint : gridLinePaint,
+      );
+    }
+    for (int i = 0; i <= gridY; i++) {
+      double y = i * tileSize;
+      bool isMajor = i % 5 == 0;
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(mapWidth, y),
+        isMajor ? gridLineMajorPaint : gridLinePaint,
+      );
+    }
+
+    // 3. Draw outer edge restriction zone (border tiles)
+    for (int y = 0; y < gridY; y++) {
+      for (int x = 0; x < gridX; x++) {
+        if (x == 0 || x == gridX - 1 || y == 0 || y == gridY - 1) {
+          Rect rect = Rect.fromLTWH(
+            x * tileSize,
+            y * tileSize,
+            tileSize,
+            tileSize,
           );
+          canvas.drawRect(rect, restrictedFillPaint);
         }
       }
     }
 
-    // Draw Walls
-    for (int y = 0; y < MapEditorGame.gridSizeY; y++) {
-      for (int x = 0; x < MapEditorGame.gridSizeX; x++) {
+    // 4. Draw spawn area (center 3x3)
+    Rect spawnArea = Rect.fromLTWH(
+      6 * tileSize,
+      11 * tileSize,
+      3 * tileSize,
+      3 * tileSize,
+    );
+    canvas.drawRect(spawnArea, spawnFillPaint);
+    canvas.drawRect(spawnArea, spawnBorderPaint);
+
+    // Draw spawn icon (player silhouette)
+    final spawnCenter = Offset(7.5 * tileSize, 12.5 * tileSize);
+    canvas.drawCircle(
+      spawnCenter,
+      8,
+      Paint()..color = const Color(0xFF00FF88).withOpacity(0.6),
+    );
+
+    // 5. Draw walls
+    for (int y = 0; y < gridY; y++) {
+      for (int x = 0; x < gridX; x++) {
         if (game.mapData[y][x] == 1) {
           Rect rect = Rect.fromLTWH(
-            x * MapEditorGame.tileSize,
-            y * MapEditorGame.tileSize,
-            MapEditorGame.tileSize,
-            MapEditorGame.tileSize,
+            x * tileSize + 1,
+            y * tileSize + 1,
+            tileSize - 2,
+            tileSize - 2,
           );
 
-          canvas.drawRect(rect, wallFillPaint);
-          canvas.drawRect(rect, wallBorderPaint);
-          // Simple X for editor
-          canvas.drawLine(rect.topLeft, rect.bottomRight, wallBorderPaint);
-          canvas.drawLine(rect.topRight, rect.bottomLeft, wallBorderPaint);
+          // Fill
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+            wallFillPaint,
+          );
+
+          // Border
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+            wallBorderPaint,
+          );
+
+          // Inner cross pattern
+          Paint crossPaint = Paint()
+            ..color = AppColors.primary.withOpacity(0.5)
+            ..strokeWidth = 1;
+          canvas.drawLine(
+            rect.topLeft + const Offset(4, 4),
+            rect.bottomRight - const Offset(4, 4),
+            crossPaint,
+          );
+          canvas.drawLine(
+            rect.topRight + const Offset(-4, 4),
+            rect.bottomLeft + const Offset(4, -4),
+            crossPaint,
+          );
         }
       }
     }
 
-    // Draw Grid Lines
-    for (
-      double i = 0;
-      i <= MapEditorGame.mapWidth;
-      i += MapEditorGame.tileSize
-    ) {
-      canvas.drawLine(
-        Offset(i, 0),
-        Offset(i, MapEditorGame.mapHeight),
-        linePaint,
-      );
-    }
-    for (
-      double i = 0;
-      i <= MapEditorGame.mapHeight;
-      i += MapEditorGame.tileSize
-    ) {
-      canvas.drawLine(
-        Offset(0, i),
-        Offset(MapEditorGame.mapWidth, i),
-        linePaint,
-      );
-    }
+    // 6. Draw map border with glow
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, mapWidth, mapHeight),
+      borderPaint,
+    );
   }
 }
 
-class EditorUI extends StatefulWidget {
-  final MapEditorGame game;
+/// Full Map Editor Page that embeds the game properly
+class MapEditorPage extends StatefulWidget {
   final Function(List<List<int>> mapData, String mapName) onVerify;
   final VoidCallback onExit;
 
-  const EditorUI({
+  const MapEditorPage({
     super.key,
-    required this.game,
     required this.onVerify,
     required this.onExit,
   });
 
   @override
-  State<EditorUI> createState() => _EditorUIState();
+  State<MapEditorPage> createState() => _MapEditorPageState();
 }
 
-class _EditorUIState extends State<EditorUI> {
+class _MapEditorPageState extends State<MapEditorPage> {
+  late MapEditorGame _game;
+  int _wallCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _game = MapEditorGame();
+    _game.onWallCountChanged = (count) {
+      if (mounted) setState(() => _wallCount = count);
+    };
+  }
+
+  @override
+  void dispose() {
+    _game.onWallCountChanged = null;
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
+    return NeonScaffold(
+      title: "MAP EDITOR",
+      showBackButton: true,
+      onBack: widget.onExit,
+      body: Column(
         children: [
-          // 1. App Bar (Standardized)
-          NeonAppBar(
-            title: "MAP EDITOR",
-            showBackButton: true,
-            onBack: widget.onExit,
+          // Info Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              children: [
+                // Grid Size Info
+                _buildInfoChip(
+                  icon: Icons.grid_4x4,
+                  label: "${MapEditorGame.gridSizeX}x${MapEditorGame.gridSizeY}",
+                ),
+                const SizedBox(width: 12),
+                // Wall Count
+                _buildInfoChip(
+                  icon: Icons.widgets,
+                  label: "$_wallCount WALLS",
+                  color: AppColors.primary,
+                ),
+                const Spacer(),
+                // Draw/Erase Mode Toggle
+                _buildModeToggle(),
+              ],
+            ),
           ),
 
-          // 2. Toolbar (Tools & Actions)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.background.withOpacity(0.8),
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.primaryDim.withOpacity(0.3),
-                  width: 1,
+          // Map Area - Game Widget embedded here
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: AppColors.primaryDim.withOpacity(0.5),
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Update camera when layout changes
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _game.updateCameraForSize(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
+                    });
+                    return GameWidget(game: _game);
+                  },
                 ),
               ),
             ),
-            child: Row(
+          ),
+
+          // Bottom Toolbar
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
               children: [
-                Expanded(
-                  child: NeonButton(
-                    text: "CLEAR",
-                    isCompact: true,
-                    color: AppColors.textDim,
-                    onPressed: () => setState(() => widget.game.clearMap()),
-                    isPrimary: false,
-                  ),
+                // Action Buttons Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: NeonButton(
+                        text: "CLEAR",
+                        icon: Icons.refresh,
+                        isCompact: true,
+                        color: AppColors.textDim,
+                        isPrimary: false,
+                        onPressed: () {
+                          setState(() => _game.clearMap());
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: NeonButton(
+                        text: "LOAD",
+                        icon: Icons.folder_open,
+                        isCompact: true,
+                        color: Colors.orange,
+                        isPrimary: false,
+                        onPressed: _showLoadDialog,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: NeonButton(
+                        text: "SAVE",
+                        icon: Icons.save,
+                        isCompact: true,
+                        color: Colors.blueAccent,
+                        isPrimary: false,
+                        onPressed: _showSaveDialog,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
+                const SizedBox(height: 12),
+                // Verify Button - Full Width
+                SizedBox(
+                  width: double.infinity,
                   child: NeonButton(
-                    text: "LOAD",
-                    isCompact: true,
-                    color: Colors.orange,
-                    onPressed: _showLoadDialog,
-                    isPrimary: false,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NeonButton(
-                    text: "SAVE",
-                    isCompact: true,
-                    color: Colors.blueAccent,
-                    onPressed: _showSaveDialog,
-                    isPrimary: false,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NeonButton(
-                    text: "VERIFY",
-                    isCompact: true,
+                    text: "VERIFY & UPLOAD",
+                    icon: Icons.play_arrow,
                     onPressed: _showVerifyDialog,
                   ),
                 ),
               ],
             ),
           ),
-
-          // Bottom Instructions removed
         ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String label,
+    Color color = AppColors.textDim,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceGlass,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceGlass,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primaryDim.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildModeButton(
+            icon: Icons.brush,
+            isActive: _game.isDrawMode,
+            onTap: () => setState(() => _game.isDrawMode = true),
+            activeColor: AppColors.primary,
+          ),
+          _buildModeButton(
+            icon: Icons.delete_outline,
+            isActive: !_game.isDrawMode,
+            onTap: () => setState(() => _game.isDrawMode = false),
+            activeColor: AppColors.secondary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeButton({
+    required IconData icon,
+    required bool isActive,
+    required VoidCallback onTap,
+    required Color activeColor,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? activeColor.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          icon,
+          color: isActive ? activeColor : AppColors.textDim,
+          size: 20,
+        ),
       ),
     );
   }
@@ -306,7 +603,7 @@ class _EditorUIState extends State<EditorUI> {
               String name = nameController.text.trim();
               if (name.isEmpty) return;
               Navigator.pop(context); // Close dialog
-              widget.onVerify(widget.game.mapData, name);
+              widget.onVerify(_game.mapData, name);
             },
           ),
         ],
@@ -324,70 +621,152 @@ class _EditorUIState extends State<EditorUI> {
 
     if (!mounted) return;
 
+    String? selectedMapId;
+
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (context) {
-        // Use StatefulBuilder to allow refreshing list inside Dialog
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return Dialog(
               backgroundColor: Colors.transparent,
               child: NeonCard(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text("LOAD MAP", style: AppTextStyles.header),
+                    // Header
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.folder_open,
+                          color: Colors.orange,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          "LOAD MAP",
+                          style: AppTextStyles.header.copyWith(fontSize: 20),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.maxFinite,
-                      height: 300,
+
+                    // Map List
+                    Container(
+                      height: 320,
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.primaryDim.withOpacity(0.3),
+                        ),
+                      ),
                       child: maps.isEmpty
-                          ? const Center(
-                              child: Text(
-                                "No maps found",
-                                style: AppTextStyles.body,
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.map_outlined,
+                                    color: AppColors.textDim,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "No maps found",
+                                    style: AppTextStyles.body.copyWith(
+                                      color: AppColors.textDim,
+                                    ),
+                                  ),
+                                ],
                               ),
                             )
-                          : ListView.separated(
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(8),
                               itemCount: maps.length,
-                              separatorBuilder: (context, index) =>
-                                  const SizedBox(height: 10),
                               itemBuilder: (context, index) {
                                 final map = maps[index];
                                 bool isMine = map['author'] == currentNickname;
+                                bool isSelected = selectedMapId == map['id'];
 
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceGlass,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: isMine
-                                          ? AppColors.primary.withOpacity(0.3)
-                                          : Colors.transparent,
-                                    ),
-                                  ),
-                                  child: ListTile(
-                                    title: Text(
-                                      map['name'] ?? 'Untitled',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
+                                return GestureDetector(
+                                  onTap: () {
+                                    setStateDialog(() {
+                                      selectedMapId = map['id'];
+                                    });
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppColors.primary.withOpacity(0.15)
+                                          : AppColors.surfaceGlass,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : isMine
+                                                ? AppColors.primary.withOpacity(0.3)
+                                                : Colors.transparent,
+                                        width: isSelected ? 2 : 1,
                                       ),
                                     ),
-                                    subtitle: Text(
-                                      "by ${map['author'] ?? 'Unknown'}",
-                                      style: const TextStyle(
-                                        color: AppColors.textDim,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    trailing: isMine
-                                        ? IconButton(
-                                            icon: const Icon(
+                                    child: Row(
+                                      children: [
+                                        // Map Icon
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: (isMine ? AppColors.primary : Colors.purple)
+                                                .withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(
+                                            isMine ? Icons.person : Icons.public,
+                                            color: isMine ? AppColors.primary : Colors.purple,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        // Map Info
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                map['name'] ?? 'Untitled',
+                                                style: TextStyle(
+                                                  color: isSelected
+                                                      ? AppColors.primary
+                                                      : Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                "by ${map['author'] ?? 'Unknown'}",
+                                                style: TextStyle(
+                                                  color: AppColors.textDim,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        // Delete Button (only for own maps)
+                                        if (isMine)
+                                          IconButton(
+                                            icon: Icon(
                                               Icons.delete_outline,
                                               color: AppColors.secondary,
+                                              size: 20,
                                             ),
                                             onPressed: () => _confirmDelete(
                                               map['id'],
@@ -395,23 +774,48 @@ class _EditorUIState extends State<EditorUI> {
                                               maps,
                                               setStateDialog,
                                             ),
-                                          )
-                                        : null,
-                                    onTap: () async {
-                                      Navigator.pop(context);
-                                      _loadMapData(map['id']);
-                                    },
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               },
                             ),
                     ),
                     const SizedBox(height: 16),
-                    NeonButton(
-                      text: "CANCEL",
-                      color: AppColors.surface,
-                      isPrimary: false,
-                      onPressed: () => Navigator.pop(context),
+
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: NeonButton(
+                            text: "CANCEL",
+                            color: AppColors.textDim,
+                            isPrimary: false,
+                            isCompact: true,
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: NeonButton(
+                            text: "LOAD",
+                            icon: Icons.download,
+                            color: selectedMapId != null
+                                ? AppColors.primary
+                                : AppColors.textDim,
+                            isCompact: true,
+                            onPressed: selectedMapId != null
+                                ? () {
+                                    Navigator.pop(context);
+                                    _loadMapData(selectedMapId!);
+                                  }
+                                : null,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -473,16 +877,19 @@ class _EditorUIState extends State<EditorUI> {
     if (mapData != null) {
       List<dynamic> grid = mapData['grid'];
       int width = mapData['width'];
-      // int height = mapData['height'];
 
       // Restore to game.mapData
       for (int i = 0; i < grid.length; i++) {
         int x = i % width;
         int y = (i / width).floor();
         if (x < MapEditorGame.gridSizeX && y < MapEditorGame.gridSizeY) {
-          widget.game.mapData[y][x] = grid[i];
+          _game.mapData[y][x] = grid[i];
         }
       }
+
+      // Update wall count
+      setState(() => _wallCount = _game.wallCount);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Map Loaded!"),
@@ -536,7 +943,7 @@ class _EditorUIState extends State<EditorUI> {
               bool success = await MapService().saveCustomMap(
                 name: name,
                 author: author,
-                gridData: widget.game.mapData,
+                gridData: _game.mapData,
               );
 
               if (mounted) {

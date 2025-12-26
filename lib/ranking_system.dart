@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum RankingPeriod { daily, weekly, monthly, allTime }
+
 class RankingSystem {
   FirebaseFirestore? _db;
 
@@ -13,6 +15,52 @@ class RankingSystem {
         print("Firestore init failed (or not available): $e");
       }
     }
+  }
+
+  /// Get the start of period in UTC
+  DateTime _getPeriodStart(RankingPeriod period) {
+    final now = DateTime.now().toUtc();
+    final todayStart = DateTime.utc(now.year, now.month, now.day);
+
+    switch (period) {
+      case RankingPeriod.daily:
+        return todayStart;
+      case RankingPeriod.weekly:
+        // Monday as start of week (UTC 0:00)
+        final weekday = todayStart.weekday;
+        return todayStart.subtract(Duration(days: weekday - 1));
+      case RankingPeriod.monthly:
+        return DateTime.utc(now.year, now.month, 1);
+      case RankingPeriod.allTime:
+        return DateTime.utc(2020, 1, 1); // Far past date
+    }
+  }
+
+  /// Get period label for display
+  static String getPeriodLabel(RankingPeriod period) {
+    final now = DateTime.now().toUtc();
+    switch (period) {
+      case RankingPeriod.daily:
+        return "${now.month}/${now.day}";
+      case RankingPeriod.weekly:
+        return "Week ${_getWeekNumber(now)}";
+      case RankingPeriod.monthly:
+        return _getMonthName(now.month);
+      case RankingPeriod.allTime:
+        return "All Time";
+    }
+  }
+
+  static int _getWeekNumber(DateTime date) {
+    final firstDayOfYear = DateTime.utc(date.year, 1, 1);
+    final days = date.difference(firstDayOfYear).inDays;
+    return ((days + firstDayOfYear.weekday) / 7).ceil();
+  }
+
+  static String _getMonthName(int month) {
+    const months = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+                    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    return months[month];
   }
 
   // 1. Save Score (Write) - Save all records (Filtering done on Read)
@@ -46,46 +94,68 @@ class RankingSystem {
 
   // _maintainTop30 Removed as we save all records now.
 
-  // 2. Fetch Top 30 (Read)
-  Future<List<Map<String, dynamic>>> getTopRecords(String mapId) async {
+  // 2. Fetch Top 30 (Read) with period filter
+  Future<List<Map<String, dynamic>>> getTopRecords(
+    String mapId, {
+    RankingPeriod period = RankingPeriod.allTime,
+  }) async {
     if (_db == null) return [];
     try {
-      QuerySnapshot snapshot = await _db!
+      final periodStart = _getPeriodStart(period);
+
+      Query query = _db!
           .collection('maps')
           .doc(mapId)
-          .collection('records')
-          .orderBy('survivalTime', descending: true)
-          .limit(30) // Limit to 30
-          .get();
+          .collection('records');
 
-      return snapshot.docs.map((doc) {
+      if (period != RankingPeriod.allTime) {
+        query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart));
+      }
+
+      // Fetch more records and sort in memory to avoid composite index
+      QuerySnapshot snapshot = await query.limit(200).get();
+
+      List<Map<String, dynamic>> records = snapshot.docs.map((doc) {
         var data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
+
+      // Sort by survivalTime descending
+      records.sort((a, b) {
+        double timeA = (a['survivalTime'] as num).toDouble();
+        double timeB = (b['survivalTime'] as num).toDouble();
+        return timeB.compareTo(timeA);
+      });
+
+      return records.take(30).toList();
     } catch (e) {
       print("Load failed: $e");
       return [];
     }
   }
 
-  // 3. Fetch National Top 30
-  // Note: To avoid requiring a composite index (flag + survivalTime) in Firestore,
-  // we will fetch records by flag and sort them in memory.
-  // Ideally, create an index and use orderBy in the query for scalability.
+  // 3. Fetch National Top 30 with period filter
   Future<List<Map<String, dynamic>>> getNationalRankings(
     String mapId,
-    String flag,
-  ) async {
+    String flag, {
+    RankingPeriod period = RankingPeriod.allTime,
+  }) async {
     if (_db == null) return [];
     try {
-      QuerySnapshot snapshot = await _db!
+      final periodStart = _getPeriodStart(period);
+
+      Query query = _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
-          .where('flag', isEqualTo: flag)
-          .limit(100) // Fetch up to 100 records for this country
-          .get();
+          .where('flag', isEqualTo: flag);
+
+      if (period != RankingPeriod.allTime) {
+        query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart));
+      }
+
+      QuerySnapshot snapshot = await query.limit(200).get();
 
       List<Map<String, dynamic>> records = snapshot.docs.map((doc) {
         var data = doc.data() as Map<String, dynamic>;
@@ -95,9 +165,9 @@ class RankingSystem {
 
       // Sort in memory
       records.sort((a, b) {
-        double timeA = a['survivalTime'] as double;
-        double timeB = b['survivalTime'] as double;
-        return timeB.compareTo(timeA); // Descending
+        double timeA = (a['survivalTime'] as num).toDouble();
+        double timeB = (b['survivalTime'] as num).toDouble();
+        return timeB.compareTo(timeA);
       });
 
       return records.take(30).toList();
@@ -112,11 +182,14 @@ class RankingSystem {
     String mapId,
     String nickname, {
     String? flag,
+    RankingPeriod period = RankingPeriod.allTime,
   }) async {
     if (_db == null) return null;
     try {
-      // 1. Find my record
-      var query = _db!
+      final periodStart = _getPeriodStart(period);
+
+      // 1. Find my records
+      Query query = _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
@@ -126,12 +199,16 @@ class RankingSystem {
         query = query.where('flag', isEqualTo: flag);
       }
 
+      if (period != RankingPeriod.allTime) {
+        query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart));
+      }
+
       QuerySnapshot myRecordSnapshot = await query.get();
 
       if (myRecordSnapshot.docs.isEmpty) return null;
 
       // In-memory sort to find best record
-      var docs = myRecordSnapshot.docs;
+      var docs = myRecordSnapshot.docs.toList();
       print("Found ${docs.length} records for $nickname");
 
       docs.sort((a, b) {

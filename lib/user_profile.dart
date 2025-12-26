@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:country_picker/country_picker.dart';
 import 'design_system.dart';
+import 'game_settings.dart';
+import 'audio_manager.dart';
 
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
@@ -53,6 +55,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
   final TextEditingController _nicknameController = TextEditingController();
   String _selectedFlag = '';
   String _selectedCountryName = 'Select Country';
+  bool _soundEnabled = true;
+  bool _vibrationEnabled = true;
 
   @override
   void initState() {
@@ -68,9 +72,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (profile['flag'] != '🏳️') {
       setState(() {
         _selectedFlag = profile['flag']!;
-        _selectedCountryName = 'Selected'; // Simplified
+        _selectedCountryName = 'Selected';
       });
     }
+    // Load settings
+    setState(() {
+      _soundEnabled = GameSettings().soundEnabled;
+      _vibrationEnabled = GameSettings().vibrationEnabled;
+    });
   }
 
   Future<void> _saveAndContinue() async {
@@ -206,11 +215,58 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 24),
+                  // Settings Section
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.primaryDim.withOpacity(0.5),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "SETTINGS",
+                          style: TextStyle(
+                            color: AppColors.textDim,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildSettingRow(
+                          icon: Icons.volume_up,
+                          label: "Sound",
+                          value: _soundEnabled,
+                          onChanged: (value) async {
+                            setState(() => _soundEnabled = value);
+                            await GameSettings().setSound(value);
+                            AudioManager().refreshBgm();
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _buildSettingRow(
+                          icon: Icons.vibration,
+                          label: "Vibration",
+                          value: _vibrationEnabled,
+                          onChanged: (value) async {
+                            setState(() => _vibrationEnabled = value);
+                            await GameSettings().setVibration(value);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     child: NeonButton(
-                      text: "START",
+                      text: "SAVE",
                       onPressed: _saveAndContinue,
                     ),
                   ),
@@ -220,6 +276,40 @@ class _UserProfilePageState extends State<UserProfilePage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSettingRow({
+    required IconData icon,
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: AppColors.primary, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: AppColors.primary,
+          activeTrackColor: AppColors.primary.withOpacity(0.3),
+          inactiveThumbColor: AppColors.textDim,
+          inactiveTrackColor: AppColors.textDim.withOpacity(0.3),
+        ),
+      ],
     );
   }
 }

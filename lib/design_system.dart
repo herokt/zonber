@@ -120,7 +120,6 @@ class NeonAppBar extends StatelessWidget {
       child: Row(
         children: [
           if (showBackButton) ...[
-            // Neon Back Button (Icon Style)
             GestureDetector(
               onTap: onBack ?? () => Navigator.of(context).pop(),
               child: Container(
@@ -146,13 +145,17 @@ class NeonAppBar extends StatelessWidget {
             const SizedBox(width: 16),
           ],
           Expanded(
-            child: Text(
-              title.toUpperCase(),
-              style: AppTextStyles.header,
-              textAlign: showBackButton ? TextAlign.left : TextAlign.center,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: showBackButton ? Alignment.centerLeft : Alignment.center,
+              child: Text(
+                title.toUpperCase(),
+                style: AppTextStyles.header,
+                maxLines: 1,
+              ),
             ),
           ),
-          if (showBackButton) const SizedBox(width: 44), // Balance spacing
+          if (showBackButton) const SizedBox(width: 44),
         ],
       ),
     );
@@ -261,8 +264,8 @@ class _NeonButtonState extends State<NeonButton> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
         padding: widget.isCompact
-            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
-            : const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+            : const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
           color: _isPressed ? baseColor.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
@@ -293,24 +296,27 @@ class _NeonButtonState extends State<NeonButton> {
               Icon(
                 widget.icon,
                 color: baseColor,
-                size: widget.isCompact ? 18 : 24,
+                size: widget.isCompact ? 16 : 20,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
             ],
             Flexible(
-              child: Text(
-                widget.text,
-                style: TextStyle(
-                  color: baseColor,
-                  fontSize: widget.isCompact ? 14 : 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
-                  shadows: [
-                    Shadow(color: baseColor.withOpacity(0.3), blurRadius: 2),
-                  ],
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  widget.text,
+                  style: TextStyle(
+                    color: baseColor,
+                    fontSize: widget.isCompact ? 13 : 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    shadows: [
+                      Shadow(color: baseColor.withOpacity(0.3), blurRadius: 2),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
                 ),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -357,6 +363,7 @@ class NeonDialog extends StatelessWidget {
   final Widget? content;
   final List<Widget> actions;
   final Color? titleColor;
+  final bool barrierDismissible;
 
   const NeonDialog({
     super.key,
@@ -365,50 +372,106 @@ class NeonDialog extends StatelessWidget {
     this.content,
     required this.actions,
     this.titleColor,
+    this.barrierDismissible = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: NeonCard(
-        backgroundColor: AppColors.background.withOpacity(0.95),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: AppTextStyles.header.copyWith(
-                color: titleColor ?? AppColors.primary,
-                fontSize: 24,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            if (message != null) ...[
-              Text(
-                message!,
-                style: AppTextStyles.body.copyWith(fontSize: 16, height: 1.5),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-            ],
-            if (content != null) ...[content!, const SizedBox(height: 24)],
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: actions.map((action) {
-                return Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: action,
-                  ),
+    final screenSize = MediaQuery.of(context).size;
+
+    return GestureDetector(
+      onTap: barrierDismissible ? () => Navigator.of(context).pop() : null,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        color: Colors.black54,
+        child: Center(
+          child: GestureDetector(
+            onTap: () {}, // Prevent tap propagation to barrier
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 200),
+              tween: Tween(begin: 0.8, end: 1.0),
+              curve: Curves.easeOutBack,
+              builder: (context, scale, child) {
+                return Transform.scale(
+                  scale: scale,
+                  child: child,
                 );
-              }).toList(),
+              },
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: screenSize.width * 0.85,
+                  maxHeight: screenSize.height * 0.8,
+                ),
+                child: NeonCard(
+                  backgroundColor: AppColors.background,
+                  borderColor: AppColors.primary,
+                  padding: const EdgeInsets.all(24),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            title,
+                            style: AppTextStyles.header.copyWith(
+                              color: titleColor ?? AppColors.primary,
+                              fontSize: 22,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        if (message != null) ...[
+                          Text(
+                            message!,
+                            style: AppTextStyles.body.copyWith(fontSize: 15, height: 1.5),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                        if (content != null) ...[content!, const SizedBox(height: 20)],
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: actions,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// Helper function to show NeonDialog with proper settings
+Future<T?> showNeonDialog<T>({
+  required BuildContext context,
+  required String title,
+  String? message,
+  Widget? content,
+  required List<Widget> actions,
+  Color? titleColor,
+  bool barrierDismissible = true,
+}) {
+  return showDialog<T>(
+    context: context,
+    barrierDismissible: false, // We handle this ourselves
+    barrierColor: Colors.transparent,
+    builder: (context) => NeonDialog(
+      title: title,
+      message: message,
+      content: content,
+      actions: actions,
+      titleColor: titleColor,
+      barrierDismissible: barrierDismissible,
+    ),
+  );
 }

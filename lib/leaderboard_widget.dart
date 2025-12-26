@@ -24,8 +24,9 @@ class LeaderboardWidget extends StatefulWidget {
 
 class _LeaderboardWidgetState extends State<LeaderboardWidget> {
   bool _isNational = false; // false = Global, true = National
+  RankingPeriod _period = RankingPeriod.monthly; // Default to monthly
   List<Map<String, dynamic>> _records = [];
-  Map<String, dynamic>? _myRankData; // 내 등수 데이터
+  Map<String, dynamic>? _myRankData;
   bool _isLoading = true;
   final ScrollController _scrollController = ScrollController();
 
@@ -77,9 +78,13 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
         records = await RankingSystem().getNationalRankings(
           widget.mapId,
           currentFilterFlag,
+          period: _period,
         );
       } else {
-        records = await RankingSystem().getTopRecords(widget.mapId);
+        records = await RankingSystem().getTopRecords(
+          widget.mapId,
+          period: _period,
+        );
       }
 
       Map<String, dynamic>? myRank;
@@ -88,6 +93,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
           widget.mapId,
           _myNickname!,
           flag: _isNational ? currentFilterFlag : null,
+          period: _period,
         );
       }
 
@@ -133,43 +139,106 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
       showMyRank = !isInList;
     }
 
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = screenSize.width * 0.9 > 400 ? 400.0 : screenSize.width * 0.9;
+    final dialogHeight = screenSize.height * 0.8 > 600 ? 600.0 : screenSize.height * 0.8;
+
     return Center(
       child: SizedBox(
-        width: 360,
-        height: 640,
+        width: dialogWidth,
+        height: dialogHeight,
         child: NeonCard(
           padding: const EdgeInsets.all(0),
           child: Column(
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 20),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 child: Column(
                   children: [
-                    Text(
-                      "GLOBAL LEADERBOARD",
-                      style: AppTextStyles.header.copyWith(
-                        fontSize: 26,
-                        color: AppColors.primary,
-                        shadows: [
-                          const Shadow(
-                            blurRadius: 10,
-                            color: AppColors.primary,
-                          ),
-                        ],
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _isNational ? "NATIONAL RANKING" : "GLOBAL RANKING",
+                        style: AppTextStyles.header.copyWith(
+                          fontSize: 22,
+                          color: AppColors.primary,
+                          shadows: [
+                            const Shadow(
+                              blurRadius: 10,
+                              color: AppColors.primary,
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "WEEKLY CHALLENGE",
+                      RankingSystem.getPeriodLabel(_period).toUpperCase(),
                       style: AppTextStyles.body.copyWith(
-                        color: Colors.white70,
+                        color: Colors.orange,
                         letterSpacing: 1.2,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
               ),
+
+              // Filter Tabs
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Column(
+                  children: [
+                    // Region Filter
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildFilterChip(
+                            label: "🌍 GLOBAL",
+                            isSelected: !_isNational,
+                            onTap: () {
+                              if (_isNational) {
+                                setState(() => _isNational = false);
+                                _loadRecords();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildFilterChip(
+                            label: "${_myFlag ?? '🏳️'} NATIONAL",
+                            isSelected: _isNational,
+                            onTap: () {
+                              if (!_isNational) {
+                                setState(() => _isNational = true);
+                                _loadRecords();
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Period Filter
+                    Row(
+                      children: [
+                        _buildPeriodChip(RankingPeriod.daily, "DAY"),
+                        const SizedBox(width: 6),
+                        _buildPeriodChip(RankingPeriod.weekly, "WEEK"),
+                        const SizedBox(width: 6),
+                        _buildPeriodChip(RankingPeriod.monthly, "MONTH"),
+                        const SizedBox(width: 6),
+                        _buildPeriodChip(RankingPeriod.allTime, "ALL"),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
 
               // Content Area
               Expanded(
@@ -209,19 +278,22 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                               ),
                       ),
 
-                      // My Rank (if outside)
+                      // My Rank (if outside top list)
                       if (!_isLoading && showMyRank && _myRankData != null) ...[
                         const SizedBox(height: 8),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "MY RANK",
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "MY RANK",
+                              style: TextStyle(color: Colors.grey, fontSize: 11),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 4),
                         _buildListItem(
-                          _myRankData!['rank'],
+                          _myRankData!['rank'] ?? -1,
                           _myRankData!,
                           true,
                           isMyRankSection: true,
@@ -238,19 +310,21 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                               onPressed: widget.onClose,
                               isPrimary: false,
                               isCompact: true,
+                              color: AppColors.textDim,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: NeonButton(
                               text: "SHARE",
                               onPressed: () {},
                               isPrimary: false,
                               isCompact: true,
-                            ), // Placeholder share
+                              color: Colors.amber,
+                            ),
                           ),
                           if (widget.onRestart != null) ...[
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: NeonButton(
                                 text: "REPLAY",
@@ -280,14 +354,16 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
     bool isMe, {
     bool isMyRankSection = false,
   }) {
+    final String rankText = (rank <= 0) ? "-" : "$rank.";
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: isMe
             ? AppColors.primary.withOpacity(0.1)
-            : Colors.transparent, // Updated for Neon theme
-        borderRadius: BorderRadius.circular(12),
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isMe
               ? (isMyRankSection ? AppColors.primary : AppColors.primaryDim)
@@ -297,34 +373,105 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
       child: Row(
         children: [
           SizedBox(
-            width: 30,
+            width: 32,
             child: Text(
-              "$rank.",
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ),
-          Text(data['flag'] ?? '🏳️', style: const TextStyle(fontSize: 24)),
-          const SizedBox(width: 12),
-          // Country code removed as requested
-          Expanded(
-            child: Text(
-              data['nickname'] ?? 'Unknown', // Hyphen removed
+              rankText,
               style: TextStyle(
                 color: isMe ? AppColors.primary : Colors.white,
-                fontSize: 16,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Text(data['flag'] ?? '🏳️', style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              data['nickname'] ?? 'Unknown',
+              style: TextStyle(
+                color: isMe ? AppColors.primary : Colors.white,
+                fontSize: 14,
                 fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
               ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           Text(
-            "${data['survivalTime'].toStringAsFixed(1)}s",
+            "${data['survivalTime'].toStringAsFixed(3)}s",
             style: const TextStyle(
-              color: AppColors.textDim,
+              color: Colors.orange,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.primaryDim.withOpacity(0.5),
+            width: 1.5,
+          ),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? AppColors.primary : AppColors.textDim,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeriodChip(RankingPeriod period, String label) {
+    final isSelected = _period == period;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (_period != period) {
+            setState(() => _period = period);
+            _loadRecords();
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.orange.withOpacity(0.2) : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isSelected ? Colors.orange : AppColors.primaryDim.withOpacity(0.4),
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.orange : AppColors.textDim,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
