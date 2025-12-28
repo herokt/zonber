@@ -1,0 +1,233 @@
+const Map<String, Map<String, String>> appTranslations = {
+  'en': {
+    // Main Menu
+    'title': 'ZONBER',
+    'subtitle': 'SURVIVE THE ZONE',
+    'start_game': 'START GAME',
+    'character': 'CHARACTER',
+    'map_editor': 'MAP EDITOR',
+    'profile': 'PROFILE',
+
+    // Dialogs & Actions
+    'exit_game': 'EXIT GAME?',
+    'exit_game_message': 'Are you sure you want to quit?',
+    'cancel': 'CANCEL',
+    'quit': 'QUIT',
+    'confirm': 'CONFIRM',
+    'paused': 'PAUSED',
+    'resume': 'RESUME',
+    'retry': 'RETRY',
+    'submit_score': 'SUBMIT SCORE',
+    'exit': 'EXIT',
+
+    // Game Over
+    'game_over': 'GAME OVER',
+    'survival_time': 'SURVIVAL TIME',
+
+    // Map Selection
+    'select_zone': 'SELECT ZONE',
+    'official_maps': 'OFFICIAL',
+    'custom_maps': 'CUSTOM',
+
+    // Editor
+    'clear': 'CLEAR',
+    'test': 'TEST',
+    'save': 'SAVE',
+    'map_name_hint': 'Enter Map Name',
+    'invalid_map': 'Invalid Map',
+    'invalid_map_message': 'Map must have at least one obstacle.',
+
+    // Profile & Settings
+    'my_profile': 'MY PROFILE',
+    'account': 'ACCOUNT',
+    'settings': 'SETTINGS',
+    'language': 'Language',
+    'sound': 'Sound',
+    'vibration': 'Vibration',
+    'logout': 'LOGOUT',
+    'logout_confirm': 'Are you sure you want to logout?',
+    'nickname': 'Nickname',
+    'country': 'Country',
+    'edit': 'EDIT',
+    'visit_shop': 'VISIT SHOP',
+    'my_tickets': 'MY TICKETS',
+
+    // Initial Setup
+    'welcome': 'WELCOME',
+    'setup_profile': 'SET UP YOUR PROFILE',
+    'select_country': 'SELECT COUNTRY',
+    'start': 'START',
+    'setup_warning': 'This cannot be changed later\nwithout a change ticket',
+
+    // Character Select
+    'select_character': 'SELECT CHARACTER',
+
+    // Editor
+    'walls': 'WALLS',
+    'load': 'LOAD',
+    'verify_upload': 'VERIFY & UPLOAD',
+    'enter_map_name': 'Enter Map Name',
+    'verify_message': 'To upload a map, you must survive 30 seconds on it.',
+    'start_test': 'START TEST',
+    'load_map': 'LOAD MAP',
+    'no_maps': 'No maps found',
+    'delete_map': 'DELETE MAP',
+    'delete_confirm': 'Are you sure you want to delete this map?',
+    'delete': 'DELETE',
+    'untitled': 'Untitled',
+    'unknown': 'Unknown',
+    'by': 'by',
+    'exit_editor_title': 'EXIT EDITOR?',
+    'exit_editor_message': 'Unsaved changes will be lost.',
+    'leave': 'LEAVE',
+    'stay': 'STAY',
+
+    // Shop
+    'shop_title': 'SHOP',
+    'change_tickets': 'CHANGE TICKETS',
+    'ticket_nickname': 'Nickname Change Ticket',
+    'ticket_nickname_desc': 'Change your nickname once',
+    'ticket_country': 'Country Change Ticket',
+    'ticket_country_desc': 'Change your country flag once',
+    'ticket_info':
+        'Tickets are consumed when you change your profile. Each ticket allows one change.',
+    'purchase_success': 'PURCHASE SUCCESS',
+    'purchase_message': 'You have successfully purchased:\n',
+
+    // Verification
+    'verification_success': 'VERIFICATION SUCCESS',
+    'verification_failed': 'VERIFICATION FAILED',
+    'map_verified_message': 'Map verified and registered to Custom Maps!',
+    'verification_fail_message': 'You survived', // dynamic part handled in code
+    'must_survive_30s': 'You must survive at least 30s to upload.',
+    'try_again': 'TRY AGAIN',
+    'ok': 'OK',
+    'shop': 'SHOP',
+    'rank': 'RANK',
+    'play': 'PLAY',
+    'day': 'DAY',
+    'week': 'WEEK',
+    'month': 'MONTH',
+    'year': 'YEAR',
+    'no_records': 'No records yet',
+    'close': 'CLOSE',
+    'share': 'SHARE',
+    'replay': 'REPLAY',
+  },
+  'ko': {
+    // Main Menu
+    'title': 'ZONBER',
+    'subtitle': '\'존\'에서 \'버\'텨라',
+    'start_game': '게임 시작',
+    'character': '캐릭터',
+    'map_editor': '맵 에디터',
+    'profile': '프로필',
+
+    // Dialogs & Actions
+    'exit_game': '게임 종료?',
+    'exit_game_message': '정말 종료하시겠습니까?',
+    'cancel': '취소',
+    'quit': '종료',
+    'confirm': '확인',
+    'paused': '일시 정지',
+    'resume': '계속하기',
+    'retry': '다시 하기',
+    'submit_score': '점수 제출',
+    'exit': '나가기',
+
+    // Game Over
+    'game_over': '게임 오버',
+    'survival_time': '생존 시간',
+
+    // Map Selection
+    'select_zone': '맵 선택',
+    'official_maps': '공식 맵',
+    'custom_maps': '커스텀 맵',
+
+    // Editor
+    'clear': '지우기',
+    'test': '테스트',
+    'save': '저장',
+    'map_name_hint': '맵 이름 입력',
+    'invalid_map': '잘못된 맵',
+    'invalid_map_message': '최소 하나의 장애물이 있어야 합니다.',
+
+    // Profile & Settings
+    'my_profile': '내 프로필',
+    'account': '계정',
+    'settings': '설정',
+    'language': '언어',
+    'sound': '사운드',
+    'vibration': '진동',
+    'logout': '로그아웃',
+    'logout_confirm': '로그아웃 하시겠습니까?',
+    'nickname': '닉네임',
+    'country': '국가',
+    'edit': '수정',
+    'visit_shop': '상점 방문',
+    'my_tickets': '보유 티켓',
+
+    // Initial Setup
+    'welcome': '환영합니다',
+    'setup_profile': '프로필 설정',
+    'select_country': '국가 선택',
+    'start': '시작하기',
+    'setup_warning': '설정 후에는 변경 티켓이 필요합니다',
+
+    // Character Select
+    'select_character': '캐릭터 선택',
+
+    // Editor
+    'walls': '벽',
+    'load': '불러오기',
+    'verify_upload': '검증 및 업로드',
+    'enter_map_name': '맵 이름 입력',
+    'verify_message': '맵을 업로드하려면 30초 이상 생존해야 합니다.',
+    'start_test': '테스트 시작',
+    'load_map': '맵 불러오기',
+    'no_maps': '저장된 맵이 없습니다',
+    'delete_map': '맵 삭제',
+    'delete_confirm': '이 맵을 삭제하시겠습니까?',
+    'delete': '삭제',
+    'untitled': '제목 없음',
+    'unknown': '알 수 없음',
+    'by': '제작:',
+    'exit_editor_title': '에디터 종료?',
+    'exit_editor_message': '저장하지 않은 변경사항은 사라집니다.',
+    'leave': '나가기',
+    'stay': '계속하기',
+
+    // Shop
+    'shop_title': '상점',
+    'change_tickets': '변경 티켓',
+    'ticket_nickname': '닉네임 변경권',
+    'ticket_nickname_desc': '닉네임을 1회 변경할 수 있습니다',
+    'ticket_country': '국가 변경권',
+    'ticket_country_desc': '국가 국기를 1회 변경할 수 있습니다',
+    'ticket_info': '티켓은 프로필 변경 시 소모됩니다. 티켓 1장당 1회 변경 가능합니다.',
+    'purchase_success': '구매 성공',
+    'purchase_message': '성공적으로 구매하였습니다:\n',
+
+    // Verification
+    'verification_success': '검증 성공',
+    'verification_failed': '검증 실패',
+    'map_verified_message': '검증 성공! 커스텀 맵에 등록되었습니다.',
+    'verification_fail_message': '생존 시간',
+    'must_survive_30s': '업로드하려면 최소 30초 생존해야 합니다.',
+    'try_again': '다시 시도',
+    'ok': '확인',
+    'shop_coming_soon': '준비 중입니다!',
+    'shop': '상점',
+    'rank': '랭크',
+    'play': '플레이',
+    'day': '일간',
+    'week': '주간',
+    'month': '월간',
+    'year': '연간',
+    'no_records': '기록이 없습니다',
+    'close': '닫기',
+    'share': '공유',
+    'replay': '다시 보기',
+    'my_rank': '내 순위',
+  },
+};

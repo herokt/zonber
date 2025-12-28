@@ -32,7 +32,8 @@ class RankingSystem {
       case RankingPeriod.monthly:
         return DateTime.utc(now.year, now.month, 1);
       case RankingPeriod.allTime:
-        return DateTime.utc(2020, 1, 1); // Far past date
+        // Changed "All Time" to "Current Year" as requested
+        return DateTime.utc(now.year, 1, 1);
     }
   }
 
@@ -47,7 +48,7 @@ class RankingSystem {
       case RankingPeriod.monthly:
         return _getMonthName(now.month);
       case RankingPeriod.allTime:
-        return "All Time";
+        return "${now.year}"; // Display Current Year
     }
   }
 
@@ -58,8 +59,21 @@ class RankingSystem {
   }
 
   static String _getMonthName(int month) {
-    const months = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-                    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const months = [
+      '',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
     return months[month];
   }
 
@@ -103,13 +117,13 @@ class RankingSystem {
     try {
       final periodStart = _getPeriodStart(period);
 
-      Query query = _db!
-          .collection('maps')
-          .doc(mapId)
-          .collection('records');
+      Query query = _db!.collection('maps').doc(mapId).collection('records');
 
       if (period != RankingPeriod.allTime) {
-        query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart));
+        query = query.where(
+          'timestamp',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart),
+        );
       }
 
       // Fetch more records and sort in memory to avoid composite index
@@ -151,17 +165,30 @@ class RankingSystem {
           .collection('records')
           .where('flag', isEqualTo: flag);
 
+      // REMOVED TIMESTAMP FILTER TO AVOID COMPOSITE INDEX ISSUE
+      // Filtering will be done in memory below.
+      /*
       if (period != RankingPeriod.allTime) {
         query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart));
       }
+      */
 
       QuerySnapshot snapshot = await query.limit(200).get();
 
-      List<Map<String, dynamic>> records = snapshot.docs.map((doc) {
+      List<Map<String, dynamic>> records = [];
+      for (var doc in snapshot.docs) {
         var data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
-        return data;
-      }).toList();
+
+        // IN-MEMORY FILTER
+        if (period != RankingPeriod.allTime) {
+          Timestamp? ts = data['timestamp'] as Timestamp?;
+          if (ts != null && ts.toDate().isBefore(periodStart)) {
+            continue;
+          }
+        }
+        records.add(data);
+      }
 
       // Sort in memory
       records.sort((a, b) {
@@ -200,7 +227,10 @@ class RankingSystem {
       }
 
       if (period != RankingPeriod.allTime) {
-        query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart));
+        query = query.where(
+          'timestamp',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart),
+        );
       }
 
       QuerySnapshot myRecordSnapshot = await query.get();

@@ -27,6 +27,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart'; // For BannerAd, AdWi
 import 'design_system.dart';
 import 'shop_page.dart';
 import 'services/auth_service.dart';
+import 'package:provider/provider.dart'; // Added by instruction
+import 'language_manager.dart'; // Added by instruction
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -41,9 +43,19 @@ void main() async {
     print("Skipping Firebase/AdMob init on desktop/web");
   }
 
+  // Fix Status Bar (White Icons for Dark Background)
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+
   await GameSettings().load(); // Load Settings
   await AudioManager().initialize(); // Preload Audio
-  runApp(const ZonberApp());
+  await LanguageManager().init(); // Initialize Language
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => LanguageManager(),
+      child: const ZonberApp(),
+    ),
+  );
 }
 
 class ZonberApp extends StatefulWidget {
@@ -54,10 +66,13 @@ class ZonberApp extends StatefulWidget {
 }
 
 class _ZonberAppState extends State<ZonberApp> {
-  String _currentPage =
-      'Loading'; // Menu, MapSelect, Game, Result, Editor, Profile, Loading, Login
+  String _currentPage = 'Splash'; // Start with Splash to prevent Login flicker
   String _currentMapId = 'zone_1_classic'; // Default Map
   Map<String, dynamic>? _lastGameResult; // Store result data
+
+  // Global Banner Ad State
+  BannerAd? _bannerAd;
+  bool _isBannerAdReady = false;
 
   // Verification State
   List<List<int>>? _verifyingMapData;
@@ -67,17 +82,32 @@ class _ZonberAppState extends State<ZonberApp> {
   void initState() {
     super.initState();
     _checkAuth();
+    _loadGlobalBannerAd();
+  }
+
+  void _loadGlobalBannerAd() {
+    _bannerAd = AdManager().loadBannerAd(() {
+      setState(() {
+        _isBannerAdReady = true;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAuth() async {
     // Wait for Firebase to initialize if needed (already done in main)
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-        setState(() {
-            _currentPage = 'Login';
-        });
+      setState(() {
+        _currentPage = 'Login';
+      });
     } else {
-        _checkProfile();
+      _checkProfile();
     }
   }
 
@@ -111,6 +141,64 @@ class _ZonberAppState extends State<ZonberApp> {
     );
   }
 
+  /// Handles Android Back Button
+  void _handleBack() {
+    switch (_currentPage) {
+      case 'Login':
+      case 'Menu':
+        // Let AppScaffold trigger Exit Dialog
+        // Returning here allows onBack to be null, signalling AppScaffold to show quit dialog
+        return;
+
+      case 'Game':
+        // Game usually has its own pause menu, but if back is pressed:
+        // Trigger pause logic if possible, or just ignore and let game UI handle it.
+        // For now, simpler: Navigate to Menu? No, ask for confirmation.
+        // Actually, passing 'null' to onBack for Game might be tricky if we want a specific behavior.
+        // Let's make GameWidget handle the back internally or make _handleBack modify state.
+        // But AppScaffold needs a callback.
+
+        // If we want to pause:
+        // This is hard to trigger inside the FlameGame from here without a controller.
+        // So for Game, we might pass a specific handler?
+        // Or simply:
+        _navigateTo('Menu'); // Just go to menu for now as fallback
+        break;
+
+      case 'Result':
+      case 'MapSelect':
+      case 'Profile':
+      case 'Editor':
+      case 'CharacterSelect':
+      case 'EditorVerify':
+        _navigateTo('Menu');
+        break;
+
+      case 'MyProfile':
+        _navigateTo('Menu');
+        break;
+
+      case 'Shop':
+        _navigateTo('Menu');
+        break;
+
+      default:
+        _navigateTo('Menu');
+        break;
+    }
+  }
+
+  /// Returns the Back Callback based on current page.
+  /// Returns null if we represent the "Root" (to trigger exit dialog).
+  VoidCallback? _getBackHandler() {
+    if (_currentPage == 'Menu' || _currentPage == 'Login') {
+      return null; // Root -> Exit Dialog
+    }
+    // For Game, we might want to prevent accidental back?
+    // User requested "Andoird back button works as previous page".
+    return () => _handleBack();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -121,39 +209,124 @@ class _ZonberAppState extends State<ZonberApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: Scaffold(body: _buildPage()),
+      home: AppScaffold(
+        bannerAd: (_isBannerAdReady && _bannerAd != null)
+            ? AdWidget(ad: _bannerAd!)
+            : null,
+        showBanner: true, // Always show top banner
+        onBack: _getBackHandler(),
+        child: Builder(builder: (context) => _buildPage(context)),
+      ),
     );
   }
 
-  Widget _buildPage() {
+  Widget _buildPage(BuildContext context) {
     switch (_currentPage) {
+      case 'Splash':
+        return const Scaffold(
+          backgroundColor: AppColors.background,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "ZONBER",
+                  style: TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                    fontFamily: 'Orbitron',
+                    letterSpacing: 4.0,
+                    shadows: [Shadow(color: AppColors.primary, blurRadius: 20)],
+                  ),
+                ),
+                SizedBox(height: 32),
+                CircularProgressIndicator(color: AppColors.primary),
+              ],
+            ),
+          ),
+        );
       case 'Login':
         return LoginPage(
           onLoginSuccess: () {
-             _checkProfile();
+            _checkProfile();
           },
         );
       case 'Game':
-        return GameWidget(
-          game: ZonberGame(
-            mapId: _currentMapId,
-            onExit: () {
-              AdManager().showInterstitialIfReady();
-              _navigateTo('Menu');
-            },
-            onGameOver: (result) {
-              setState(() {
-                _lastGameResult = result;
-                _currentPage = 'Result';
-                AdManager().showInterstitialIfReady();
-              });
-            },
-          ),
-          overlayBuilderMap: {
-            'GameUI': (context, ZonberGame game) =>
-                GameUI(game: game, onExit: () => _navigateTo('Menu')),
+        final game = ZonberGame(
+          mapId: _currentMapId,
+          onExit: () {
+            AdManager().showInterstitialIfReady();
+            _navigateTo('Menu');
           },
-          initialActiveOverlays: const ['GameUI'],
+          onGameOver: (result) {
+            setState(() {
+              _lastGameResult = result;
+              _currentPage = 'Result';
+              AdManager().showInterstitialIfReady();
+            });
+          },
+        );
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (bool didPop, dynamic result) {
+            if (didPop) return;
+            _pauseGame(context, game);
+          },
+          child: Scaffold(
+            backgroundColor: const Color(0xFF0B0C10),
+            body: SafeArea(
+              child: Column(
+                children: [
+                  // Top Header Bar
+                  Container(
+                    height: 80, // Increased height for larger text
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    color: const Color(0xFF0B0C10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Back Button (Acts as Pause)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: AppColors.primary,
+                            size: 28,
+                          ),
+                          onPressed: () => _pauseGame(context, game),
+                        ),
+                        // Time Display
+                        ValueListenableBuilder<double>(
+                          valueListenable: game.survivalTimeNotifier,
+                          builder: (context, value, child) {
+                            return Text(
+                              'TIME: ${value.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 32, // Increased Size
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Orbitron',
+                                shadows: [
+                                  Shadow(
+                                    color: AppColors.primary,
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        // Pause Button Removed - Placeholder to keep Time centered
+                        const SizedBox(width: 48), // Match IconButton size
+                      ],
+                    ),
+                  ),
+                  // Game Area
+                  Expanded(child: GameWidget(game: game)),
+                ],
+              ),
+            ),
+          ),
         );
       case 'Result':
         return ResultPage(
@@ -163,22 +336,71 @@ class _ZonberAppState extends State<ZonberApp> {
           onExit: () => _navigateTo('Menu'),
         );
       case 'EditorVerify':
-        return GameWidget(
-          game: ZonberGame(
-            mapId: 'verify_mode',
-            customMapData: {
-              'grid': _verifyingMapData!.expand((x) => x).toList(),
-              'width': _verifyingMapData![0].length,
-              'height': _verifyingMapData!.length,
-            },
-            onExit: () => _navigateTo('Editor'), // Abort verification
-            onGameOver: _onVerificationGameOver,
-          ),
-          overlayBuilderMap: {
-            'GameUI': (context, ZonberGame game) =>
-                GameUI(game: game, onExit: () => _navigateTo('Editor')),
+        final game = ZonberGame(
+          mapId: 'verify_mode',
+          customMapData: {
+            'grid': _verifyingMapData!.expand((x) => x).toList(),
+            'width': _verifyingMapData![0].length,
+            'height': _verifyingMapData!.length,
           },
-          initialActiveOverlays: const ['GameUI'],
+          onExit: () => _navigateTo('Editor'), // Abort verification
+          onGameOver: _onVerificationGameOver,
+        );
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (bool didPop, dynamic result) {
+            if (didPop) return;
+            _pauseGame(context, game);
+          },
+          child: Scaffold(
+            backgroundColor: const Color(0xFF0B0C10),
+            body: SafeArea(
+              child: Column(
+                children: [
+                  Container(
+                    height: 80,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    color: const Color(0xFF0B0C10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: AppColors.primary,
+                            size: 28,
+                          ),
+                          onPressed: () => _pauseGame(context, game),
+                        ),
+                        ValueListenableBuilder<double>(
+                          valueListenable: game.survivalTimeNotifier,
+                          builder: (context, value, child) {
+                            return Text(
+                              'TIME: ${value.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Orbitron',
+                                shadows: [
+                                  Shadow(
+                                    color: AppColors.primary,
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: GameWidget(game: game)),
+                ],
+              ),
+            ),
+          ),
         );
       case 'Profile':
         return UserProfilePage(onComplete: () => _navigateTo('Menu'));
@@ -213,6 +435,7 @@ class _ZonberAppState extends State<ZonberApp> {
           onOpenEditor: () => _navigateTo('Editor'),
           onProfile: () => _navigateTo('MyProfile'),
           onCharacter: () => _navigateTo('CharacterSelect'),
+          onOpenShop: () => _navigateTo('Shop'),
         );
     }
   }
@@ -242,14 +465,14 @@ class _ZonberAppState extends State<ZonberApp> {
         context: context,
         barrierDismissible: false,
         builder: (context) => NeonDialog(
-          title: "VERIFICATION SUCCESS",
+          title: LanguageManager.of(context).translate('verification_success'),
           titleColor: const Color(0xFF00FF88),
           message: success
-              ? "Map '${_verifyingMapName!}' has been verified and uploaded!"
-              : "Verification passed, but upload failed.",
+              ? LanguageManager.of(context).translate('map_verified_message')
+              : "Verification passed, but upload failed.", // Fallback if internal error
           actions: [
             NeonButton(
-              text: "OK",
+              text: LanguageManager.of(context).translate('ok'),
               onPressed: () {
                 Navigator.pop(context);
                 _navigateTo('Menu');
@@ -265,13 +488,13 @@ class _ZonberAppState extends State<ZonberApp> {
         context: context,
         barrierDismissible: false,
         builder: (context) => NeonDialog(
-          title: "VERIFICATION FAILED",
+          title: LanguageManager.of(context).translate('verification_failed'),
           titleColor: AppColors.secondary,
           message:
-              "You survived ${time.toStringAsFixed(2)}s.\nYou must survive at least 30s to upload.",
+              "${LanguageManager.of(context).translate('verification_fail_message')}: ${time.toStringAsFixed(2)}s\n${LanguageManager.of(context).translate('must_survive_30s')}",
           actions: [
             NeonButton(
-              text: "TRY AGAIN",
+              text: LanguageManager.of(context).translate('try_again'),
               color: AppColors.primary,
               onPressed: () {
                 Navigator.pop(context);
@@ -283,13 +506,48 @@ class _ZonberAppState extends State<ZonberApp> {
       );
     }
   }
+
+  void _pauseGame(BuildContext context, ZonberGame game) {
+    game.pauseEngine();
+    showNeonDialog(
+      context: context,
+      title: LanguageManager.of(context).translate('paused'),
+      message: null,
+      actions: [
+        NeonButton(
+          text: LanguageManager.of(context).translate('exit'),
+          color: AppColors.secondary,
+          onPressed: () {
+            Navigator.pop(context);
+            // Trigger game's onClose/onExit logic if needed,
+            // or just navigate manually since we are outside.
+            // But game logic might need cleanup?
+            // ZonberGame doesn't have explicit cleanup other than onExit callback.
+            // We can call the onExit we passed to ZonberGame, but we need reference.
+            // Or just navigate:
+            AdManager().showInterstitialIfReady();
+            _navigateTo('Menu');
+          },
+          isPrimary: false,
+        ),
+        NeonButton(
+          text: LanguageManager.of(context).translate('resume'),
+          onPressed: () {
+            Navigator.pop(context);
+            game.resumeEngine();
+          },
+        ),
+      ],
+    );
+  }
 }
 
-class MainMenu extends StatefulWidget {
+class MainMenu extends StatelessWidget {
   final VoidCallback onStartGame;
   final VoidCallback onOpenEditor;
   final VoidCallback onProfile;
   final VoidCallback onCharacter;
+  final VoidCallback onOpenShop;
 
   const MainMenu({
     super.key,
@@ -297,38 +555,13 @@ class MainMenu extends StatefulWidget {
     required this.onOpenEditor,
     required this.onProfile,
     required this.onCharacter,
+    required this.onOpenShop,
   });
-
-  @override
-  State<MainMenu> createState() => _MainMenuState();
-}
-
-class _MainMenuState extends State<MainMenu> {
-  BannerAd? _bannerAd;
-  bool _isBannerAdReady = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _bannerAd = AdManager().loadBannerAd(() {
-      setState(() {
-        _isBannerAdReady = true;
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _bannerAd?.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return NeonScaffold(
-      bannerAd: (_isBannerAdReady && _bannerAd != null)
-          ? AdWidget(ad: _bannerAd!)
-          : null,
+      // bannerAd handled globally by AppScaffold
       body: Stack(
         children: [
           // Background Elements
@@ -354,11 +587,11 @@ class _MainMenuState extends State<MainMenu> {
               children: [
                 const Spacer(),
                 Text(
-                  "ZONBER",
+                  LanguageManager.of(context).translate('title'),
                   style: AppTextStyles.header.copyWith(fontSize: 64),
                 ),
                 Text(
-                  "SURVIVE THE ZONE",
+                  LanguageManager.of(context).translate('subtitle'),
                   style: AppTextStyles.body.copyWith(
                     color: AppColors.primaryDim,
                     letterSpacing: 4.0,
@@ -366,29 +599,72 @@ class _MainMenuState extends State<MainMenu> {
                 ),
                 const SizedBox(height: 60),
                 NeonMenuButton(
-                  text: "START GAME",
-                  onPressed: widget.onStartGame,
+                  text: LanguageManager.of(context).translate('start_game'),
+                  onPressed: onStartGame,
                   isPrimary: false,
                   color: AppColors.secondary,
                 ),
+                const SizedBox(height: 16),
                 NeonMenuButton(
-                  text: "CHARACTER",
-                  onPressed: widget.onCharacter,
+                  text: LanguageManager.of(context).translate('character'),
+                  onPressed: onCharacter,
                   color: const Color(0xFFD91DF2),
+                  isPrimary: false,
                 ),
+                const SizedBox(height: 16),
                 NeonMenuButton(
-                  text: "MAP EDITOR",
-                  onPressed: widget.onOpenEditor,
+                  text: LanguageManager.of(context).translate('map_editor'),
+                  onPressed: onOpenEditor,
                   isPrimary: true,
                 ),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(
-                    Icons.person,
-                    color: AppColors.primary,
-                    size: 32,
-                  ),
-                  onPressed: widget.onProfile,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Expanded(child: SizedBox()), // Spacer
+                    // Profile Button
+                    Column(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.person,
+                            color: AppColors.primary,
+                            size: 32,
+                          ),
+                          onPressed: onProfile,
+                        ),
+                        Text(
+                          LanguageManager.of(context).translate('my_profile'),
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 32),
+                    // Shop Button
+                    Column(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.shopping_bag,
+                            color: Color(0xFFFFD700),
+                            size: 32,
+                          ),
+                          onPressed: onOpenShop,
+                        ),
+                        Text(
+                          LanguageManager.of(context).translate('shop'),
+                          style: TextStyle(
+                            color: Color(0xFFFFD700),
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Expanded(child: SizedBox()), // Spacer
+                  ],
                 ),
                 const SizedBox(height: 20),
               ],
@@ -433,8 +709,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     return delta;
   }
 
-  // UI Component
-  late TextComponent timeText;
+  // UI Logic
+  final ValueNotifier<double> survivalTimeNotifier = ValueNotifier(0.0);
 
   double survivalTime = 0.0;
   bool isGameOver = false;
@@ -445,23 +721,12 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
   @override
   Future<void> onLoad() async {
-    camera.viewfinder.anchor = Anchor.center;
+    // FIXED: Align Map to Top Center to reduce gap with HUD
+    camera.viewfinder.anchor = Anchor.topCenter;
+
     world.add(GridBackground());
     mapArea = MapArea();
     world.add(mapArea);
-
-    timeText = TextComponent(
-      text: 'TIME: 0.00',
-      position: Vector2(20, 40),
-      textRenderer: TextPaint(
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-    camera.viewport.add(timeText);
 
     // Joystick removed
 
@@ -489,10 +754,11 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   void startGame({Map<String, dynamic>? customMapData}) {
     isGameOver = false;
     survivalTime = 0.0;
+    survivalTimeNotifier.value = 0.0;
     lastRecordId = null;
 
     overlays.remove('GameOverMenu');
-    overlays.add('GameUI');
+    // overlays.add('GameUI'); // Removed old overlay
 
     mapArea.removeAll(mapArea.children);
 
@@ -505,8 +771,9 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
     camera.stop();
     camera.viewfinder.visibleGameSize = Vector2(mapWidth, worldHeight);
-    camera.viewfinder.position = Vector2(mapWidth / 2, worldHeight / 2);
-    camera.viewfinder.anchor = Anchor.center;
+    // FIXED: Update Viewfinder Position for Top Alignment
+    camera.viewfinder.position = Vector2(mapWidth / 2, 0);
+    camera.viewfinder.anchor = Anchor.topCenter;
 
     spawner = BulletSpawner();
     mapArea.add(spawner);
@@ -616,7 +883,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     super.update(dt);
     if (!isGameOver) {
       survivalTime += dt;
-      timeText.text = 'TIME: ${survivalTime.toStringAsFixed(3)}';
+      survivalTimeNotifier.value = survivalTime;
     }
   }
 
@@ -630,60 +897,6 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   @override
   void onPanUpdate(DragUpdateInfo info) {
     _dragDeltaAccumulator += info.delta.global;
-  }
-}
-
-class GameUI extends StatelessWidget {
-  final ZonberGame game;
-  final VoidCallback onExit;
-  const GameUI({super.key, required this.game, required this.onExit});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned(
-          top: 40,
-          right: 20,
-          child: IconButton(
-            icon: const Icon(
-              Icons.pause_circle_filled,
-              color: AppColors.primary,
-              size: 40,
-            ),
-            onPressed: () {
-              game.pauseEngine();
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => NeonDialog(
-                  title: "PAUSED",
-                  message: "Game is paused. Resume?",
-                  actions: [
-                    NeonButton(
-                      text: "EXIT",
-                      color: AppColors.secondary,
-                      onPressed: () {
-                        Navigator.pop(context);
-                        onExit();
-                      },
-                      isPrimary: false,
-                    ),
-                    NeonButton(
-                      text: "RESUME",
-                      onPressed: () {
-                        Navigator.pop(context);
-                        game.resumeEngine();
-                      },
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
   }
 }
 
@@ -943,72 +1156,48 @@ class GridBackground extends Component {
   }
 }
 
-class Player extends PositionComponent
+class Player extends SpriteComponent
     with CollisionCallbacks, HasGameRef<ZonberGame> {
-  final Paint _glowPaint = Paint()
-    ..color = AppColors.primary
-        .withOpacity(0.4) // Reduced opacity & blur
-    ..maskFilter = const MaskFilter.blur(
-      BlurStyle.normal,
-      10,
-    ); // Reduced blur (15->10)
-  final Paint _corePaint = Paint()..color = AppColors.primary;
-  final double speed = 500.0; // Optimized for high sensitivity + control
+  // Removed Paint objects as we now use Sprites.
+  // Removed unused speed variable.
 
   // Track Character ID for rendering
   String characterId = 'neon_green';
 
   @override
   Future<void> onLoad() async {
-    // Reduced Player Hitbox (Radius 16 -> 12)
-    add(RectangleHitbox(position: Vector2(2, 2), size: Vector2(16, 16)));
+    // Increased Player Visual Size (24 -> 36) for better visibility
+    size = Vector2(36, 36);
+
+    // Keep hitbox smaller than visual size for fair gameplay (20x20 centered)
+    add(
+      RectangleHitbox(
+        position: Vector2(8, 8), // Centered: (36-20)/2 = 8
+        size: Vector2(20, 20),
+      ),
+    );
 
     // Load Character Skin
     final profile = await UserProfileManager.getProfile();
     characterId = profile['characterId'] ?? 'neon_green';
     Character char = CharacterData.getCharacter(characterId);
 
-    _corePaint.color = char.color;
-    _glowPaint.color = char.color.withOpacity(0.4); // Toned down glow
+    if (char.imagePath != null) {
+      // Flame expects path relative to assets/images/
+      // Our path is assets/images/characters/..., so we strip the prefix
+      final spritePath = char.imagePath!.replaceFirst('assets/images/', '');
+      try {
+        sprite = await gameRef.loadSprite(spritePath);
+      } catch (e) {
+        print("Error loading sprite: $e");
+      }
+    }
   }
 
   @override
   void render(Canvas canvas) {
-    // 4 Distinct Character Designs based on ID
-    if (characterId == 'neon_green') {
-      // 1. NEON GREEN: Standard Square Box (Classic)
-      canvas.drawRect(size.toRect(), _glowPaint);
-      canvas.drawRect(size.toRect(), _corePaint);
-    } else if (characterId == 'electric_blue') {
-      // 2. ELECTRIC BLUE: Circle / Drone (Speed)
-      double radius = size.x / 2;
-      canvas.drawCircle(Offset(radius, radius), radius + 2, _glowPaint);
-      canvas.drawCircle(Offset(radius, radius), radius, _corePaint);
-    } else if (characterId == 'cyber_red') {
-      // 3. CYBER RED: Sharp Triangle (Aggressive)
-      Path path = Path();
-      path.moveTo(size.x / 2, 0); // Top Center
-      path.lineTo(size.x, size.y); // Bottom Right
-      path.lineTo(0, size.y); // Bottom Left
-      path.close();
-      canvas.drawPath(path, _glowPaint);
-      canvas.drawPath(path, _corePaint);
-    } else if (characterId == 'plasma_purple') {
-      // 4. PLASMA PURPLE: Rocket / Spaceship
-      Path path = Path();
-      path.moveTo(size.x / 2, 0); // Nose Tip
-      path.lineTo(size.x, size.y * 0.7); // Right Wing Top
-      path.lineTo(size.x, size.y); // Right Bottom
-      path.lineTo(size.x / 2, size.y * 0.85); // Engine Center
-      path.lineTo(0, size.y); // Left Bottom
-      path.lineTo(0, size.y * 0.7); // Left Wing Top
-      path.close();
-      canvas.drawPath(path, _glowPaint);
-      canvas.drawPath(path, _corePaint);
-    } else {
-      // Fallback
-      canvas.drawRect(size.toRect(), _corePaint);
-    }
+    super.render(canvas); // Draw Sprite
+    // Optional: Add a subtle glow/shadow if needed in future
   }
 
   @override

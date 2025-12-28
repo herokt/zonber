@@ -1,10 +1,12 @@
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
+import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 import 'map_service.dart';
 import 'user_profile.dart';
 import 'design_system.dart';
+import 'language_manager.dart';
 
 class MapEditorGame extends FlameGame with TapCallbacks, DragCallbacks {
   // Grid settings (Matches Game Aspect Ratio 480:720 -> 15:24 blocks of 32px)
@@ -324,10 +326,7 @@ class EditorGrid extends Component {
     }
 
     // 6. Draw map border with glow
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, mapWidth, mapHeight),
-      borderPaint,
-    );
+    canvas.drawRect(Rect.fromLTWH(0, 0, mapWidth, mapHeight), borderPaint);
   }
 }
 
@@ -368,152 +367,115 @@ class _MapEditorPageState extends State<MapEditorPage> {
   @override
   Widget build(BuildContext context) {
     return NeonScaffold(
-      title: "MAP EDITOR",
+      title: LanguageManager.of(context).translate('map_editor'),
       showBackButton: true,
       onBack: widget.onExit,
-      body: Column(
-        children: [
-          // Info Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              children: [
-                // Grid Size Info
-                _buildInfoChip(
-                  icon: Icons.grid_4x4,
-                  label: "${MapEditorGame.gridSizeX}x${MapEditorGame.gridSizeY}",
-                ),
-                const SizedBox(width: 12),
-                // Wall Count
-                _buildInfoChip(
-                  icon: Icons.widgets,
-                  label: "$_wallCount WALLS",
-                  color: AppColors.primary,
-                ),
-                const Spacer(),
-                // Draw/Erase Mode Toggle
-                _buildModeToggle(),
-              ],
-            ),
-          ),
+      actions: [Center(child: _buildModeToggle())],
+      // Wrap body in PopScope to intercept hardware back button locally
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          widget.onExit();
+        },
+        child: Column(
+          children: [
+            // Info Bar
+            // Info Bar Removed for maximize space
+            // Draw/Erase Mode moved to AppBar Actions
 
-          // Map Area - Game Widget embedded here
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: AppColors.primaryDim.withOpacity(0.5),
-                  width: 2,
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Update camera when layout changes
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _game.updateCameraForSize(
-                        constraints.maxWidth,
-                        constraints.maxHeight,
-                      );
-                    });
-                    return GameWidget(game: _game);
-                  },
-                ),
-              ),
-            ),
-          ),
+            // Map Area - Game Widget embedded here
 
-          // Bottom Toolbar
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Action Buttons Row
-                Row(
-                  children: [
-                    Expanded(
-                      child: NeonButton(
-                        text: "CLEAR",
-                        icon: Icons.refresh,
-                        isCompact: true,
-                        color: AppColors.textDim,
-                        isPrimary: false,
-                        onPressed: () {
-                          setState(() => _game.clearMap());
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: NeonButton(
-                        text: "LOAD",
-                        icon: Icons.folder_open,
-                        isCompact: true,
-                        color: Colors.orange,
-                        isPrimary: false,
-                        onPressed: _showLoadDialog,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: NeonButton(
-                        text: "SAVE",
-                        icon: Icons.save,
-                        isCompact: true,
-                        color: Colors.blueAccent,
-                        isPrimary: false,
-                        onPressed: _showSaveDialog,
-                      ),
-                    ),
-                  ],
+            // Map Area - Game Widget embedded here
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: AppColors.primaryDim.withOpacity(0.5),
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 12),
-                // Verify Button - Full Width
-                SizedBox(
-                  width: double.infinity,
-                  child: NeonButton(
-                    text: "VERIFY & UPLOAD",
-                    icon: Icons.play_arrow,
-                    onPressed: _showVerifyDialog,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Update camera when layout changes
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _game.updateCameraForSize(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
+                        );
+                      });
+                      return GameWidget(game: _game);
+                    },
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildInfoChip({
-    required IconData icon,
-    required String label,
-    Color color = AppColors.textDim,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceGlass,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+            // Bottom Toolbar
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Action Buttons Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: NeonButton(
+                          text: LanguageManager.of(context).translate('clear'),
+                          icon: Icons.refresh,
+                          isCompact: true,
+                          color: AppColors.textDim,
+                          isPrimary: false,
+                          onPressed: () {
+                            setState(() => _game.clearMap());
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: NeonButton(
+                          text: LanguageManager.of(context).translate('load'),
+                          icon: Icons.folder_open,
+                          isCompact: true,
+                          color: Colors.orange,
+                          isPrimary: false,
+                          onPressed: _showLoadDialog,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: NeonButton(
+                          text: LanguageManager.of(context).translate('save'),
+                          icon: Icons.save,
+                          isCompact: true,
+                          color: Colors.blueAccent,
+                          isPrimary: false,
+                          onPressed: _showSaveDialog,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Verify Button - Full Width
+                  SizedBox(
+                    width: double.infinity,
+                    child: NeonButton(
+                      text: LanguageManager.of(
+                        context,
+                      ).translate('verify_upload'),
+                      icon: Icons.play_arrow,
+                      onPressed: _showVerifyDialog,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -574,13 +536,13 @@ class _MapEditorPageState extends State<MapEditorPage> {
       context: context,
       barrierDismissible: false,
       builder: (context) => NeonDialog(
-        title: "VERIFY & UPLOAD",
-        message: "To upload a map, you must survive 30 seconds on it.",
+        title: LanguageManager.of(context).translate('verify_upload'),
+        message: LanguageManager.of(context).translate('verify_message'),
         content: TextField(
           controller: nameController,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Enter Map Name",
+          decoration: InputDecoration(
+            hintText: LanguageManager.of(context).translate('enter_map_name'),
             hintStyle: TextStyle(color: Colors.grey),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: Colors.grey),
@@ -592,13 +554,13 @@ class _MapEditorPageState extends State<MapEditorPage> {
         ),
         actions: [
           NeonButton(
-            text: "CANCEL",
+            text: LanguageManager.of(context).translate('cancel'),
             color: AppColors.surface,
             isPrimary: false,
             onPressed: () => Navigator.pop(context),
           ),
           NeonButton(
-            text: "START TEST",
+            text: LanguageManager.of(context).translate('start_test'),
             onPressed: () {
               String name = nameController.text.trim();
               if (name.isEmpty) return;
@@ -640,14 +602,10 @@ class _MapEditorPageState extends State<MapEditorPage> {
                     // Header
                     Row(
                       children: [
-                        Icon(
-                          Icons.folder_open,
-                          color: Colors.orange,
-                          size: 24,
-                        ),
+                        Icon(Icons.folder_open, color: Colors.orange, size: 24),
                         const SizedBox(width: 12),
                         Text(
-                          "LOAD MAP",
+                          LanguageManager.of(context).translate('load_map'),
                           style: AppTextStyles.header.copyWith(fontSize: 20),
                         ),
                       ],
@@ -676,7 +634,9 @@ class _MapEditorPageState extends State<MapEditorPage> {
                                   ),
                                   const SizedBox(height: 12),
                                   Text(
-                                    "No maps found",
+                                    LanguageManager.of(
+                                      context,
+                                    ).translate('no_maps'),
                                     style: AppTextStyles.body.copyWith(
                                       color: AppColors.textDim,
                                     ),
@@ -710,8 +670,8 @@ class _MapEditorPageState extends State<MapEditorPage> {
                                         color: isSelected
                                             ? AppColors.primary
                                             : isMine
-                                                ? AppColors.primary.withOpacity(0.3)
-                                                : Colors.transparent,
+                                            ? AppColors.primary.withOpacity(0.3)
+                                            : Colors.transparent,
                                         width: isSelected ? 2 : 1,
                                       ),
                                     ),
@@ -722,13 +682,22 @@ class _MapEditorPageState extends State<MapEditorPage> {
                                           width: 40,
                                           height: 40,
                                           decoration: BoxDecoration(
-                                            color: (isMine ? AppColors.primary : Colors.purple)
-                                                .withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(8),
+                                            color:
+                                                (isMine
+                                                        ? AppColors.primary
+                                                        : Colors.purple)
+                                                    .withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: Icon(
-                                            isMine ? Icons.person : Icons.public,
-                                            color: isMine ? AppColors.primary : Colors.purple,
+                                            isMine
+                                                ? Icons.person
+                                                : Icons.public,
+                                            color: isMine
+                                                ? AppColors.primary
+                                                : Colors.purple,
                                             size: 20,
                                           ),
                                         ),
@@ -736,10 +705,14 @@ class _MapEditorPageState extends State<MapEditorPage> {
                                         // Map Info
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                map['name'] ?? 'Untitled',
+                                                map['name'] ??
+                                                    LanguageManager.of(
+                                                      context,
+                                                    ).translate('untitled'),
                                                 style: TextStyle(
                                                   color: isSelected
                                                       ? AppColors.primary
@@ -751,7 +724,7 @@ class _MapEditorPageState extends State<MapEditorPage> {
                                               ),
                                               const SizedBox(height: 2),
                                               Text(
-                                                "by ${map['author'] ?? 'Unknown'}",
+                                                "${LanguageManager.of(context).translate('by')} ${map['author'] ?? LanguageManager.of(context).translate('unknown')}",
                                                 style: TextStyle(
                                                   color: AppColors.textDim,
                                                   fontSize: 12,
@@ -791,7 +764,9 @@ class _MapEditorPageState extends State<MapEditorPage> {
                       children: [
                         Expanded(
                           child: NeonButton(
-                            text: "CANCEL",
+                            text: LanguageManager.of(
+                              context,
+                            ).translate('cancel'),
                             color: AppColors.textDim,
                             isPrimary: false,
                             isCompact: true,
@@ -801,7 +776,7 @@ class _MapEditorPageState extends State<MapEditorPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: NeonButton(
-                            text: "LOAD",
+                            text: LanguageManager.of(context).translate('load'),
                             icon: Icons.download,
                             color: selectedMapId != null
                                 ? AppColors.primary
@@ -838,7 +813,7 @@ class _MapEditorPageState extends State<MapEditorPage> {
       builder: (context) => NeonDialog(
         title: "DELETE MAP",
         titleColor: AppColors.secondary,
-        message: "Are you sure you want to delete '$mapName'?",
+        message: "Are you sure you want to delete '\$mapName'?",
         actions: [
           NeonButton(
             text: "CANCEL",
@@ -905,12 +880,12 @@ class _MapEditorPageState extends State<MapEditorPage> {
       context: context,
       barrierDismissible: false,
       builder: (context) => NeonDialog(
-        title: "SAVE MAP",
+        title: LanguageManager.of(context).translate('save'),
         content: TextField(
           controller: nameController,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Enter Map Name",
+          decoration: InputDecoration(
+            hintText: LanguageManager.of(context).translate('enter_map_name'),
             hintStyle: TextStyle(color: Colors.grey),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: Colors.grey),
@@ -922,16 +897,29 @@ class _MapEditorPageState extends State<MapEditorPage> {
         ),
         actions: [
           NeonButton(
-            text: "CANCEL",
+            text: LanguageManager.of(context).translate('cancel'),
             color: AppColors.surface,
             isPrimary: false,
             onPressed: () => Navigator.pop(context),
           ),
           NeonButton(
-            text: "SAVE",
+            text: LanguageManager.of(context).translate('save'),
             onPressed: () async {
               String name = nameController.text.trim();
               if (name.isEmpty) return;
+
+              if (_game.wallCount == 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      LanguageManager.of(
+                        context,
+                      ).translate('invalid_map_message'),
+                    ),
+                  ),
+                );
+                return;
+              }
 
               Navigator.pop(context); // Close dialog
 

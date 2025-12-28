@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'ranking_system.dart';
 import 'user_profile.dart';
 
 import 'design_system.dart';
+import 'language_manager.dart';
 
 class LeaderboardWidget extends StatefulWidget {
   final String mapId;
@@ -24,7 +27,7 @@ class LeaderboardWidget extends StatefulWidget {
 
 class _LeaderboardWidgetState extends State<LeaderboardWidget> {
   bool _isNational = false; // false = Global, true = National
-  RankingPeriod _period = RankingPeriod.monthly; // Default to monthly
+  RankingPeriod _period = RankingPeriod.daily; // Default to daily
   List<Map<String, dynamic>> _records = [];
   Map<String, dynamic>? _myRankData;
   bool _isLoading = true;
@@ -140,8 +143,12 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
     }
 
     final screenSize = MediaQuery.of(context).size;
-    final dialogWidth = screenSize.width * 0.9 > 400 ? 400.0 : screenSize.width * 0.9;
-    final dialogHeight = screenSize.height * 0.8 > 600 ? 600.0 : screenSize.height * 0.8;
+    final dialogWidth = screenSize.width * 0.9 > 400
+        ? 400.0
+        : screenSize.width * 0.9;
+    final dialogHeight = screenSize.height * 0.8 > 600
+        ? 600.0
+        : screenSize.height * 0.8;
 
     return Center(
       child: SizedBox(
@@ -153,7 +160,10 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
                 child: Column(
                   children: [
                     FittedBox(
@@ -226,13 +236,25 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                     // Period Filter
                     Row(
                       children: [
-                        _buildPeriodChip(RankingPeriod.daily, "DAY"),
+                        _buildPeriodChip(
+                          RankingPeriod.daily,
+                          LanguageManager.of(context).translate('day'),
+                        ),
                         const SizedBox(width: 6),
-                        _buildPeriodChip(RankingPeriod.weekly, "WEEK"),
+                        _buildPeriodChip(
+                          RankingPeriod.weekly,
+                          LanguageManager.of(context).translate('week'),
+                        ),
                         const SizedBox(width: 6),
-                        _buildPeriodChip(RankingPeriod.monthly, "MONTH"),
+                        _buildPeriodChip(
+                          RankingPeriod.monthly,
+                          LanguageManager.of(context).translate('month'),
+                        ),
                         const SizedBox(width: 6),
-                        _buildPeriodChip(RankingPeriod.allTime, "ALL"),
+                        _buildPeriodChip(
+                          RankingPeriod.allTime,
+                          LanguageManager.of(context).translate('year'),
+                        ),
                       ],
                     ),
                   ],
@@ -246,6 +268,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
+                      // List Header removed as requested
                       // List
                       Expanded(
                         child: _isLoading
@@ -257,7 +280,9 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                             : _records.isEmpty
                             ? Center(
                                 child: Text(
-                                  "No records yet",
+                                  LanguageManager.of(
+                                    context,
+                                  ).translate('no_records'),
                                   style: AppTextStyles.body,
                                 ),
                               )
@@ -283,11 +308,16 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: const Align(
+                          child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              "MY RANK",
-                              style: TextStyle(color: Colors.grey, fontSize: 11),
+                              LanguageManager.of(
+                                context,
+                              ).translate('my_rank').toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 11,
+                              ),
                             ),
                           ),
                         ),
@@ -306,7 +336,9 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                         children: [
                           Expanded(
                             child: NeonButton(
-                              text: "CLOSE",
+                              text: LanguageManager.of(
+                                context,
+                              ).translate('close'),
                               onPressed: widget.onClose,
                               isPrimary: false,
                               isCompact: true,
@@ -316,7 +348,9 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: NeonButton(
-                              text: "SHARE",
+                              text: LanguageManager.of(
+                                context,
+                              ).translate('share'),
                               onPressed: () {},
                               isPrimary: false,
                               isCompact: true,
@@ -327,7 +361,9 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: NeonButton(
-                                text: "REPLAY",
+                                text: LanguageManager.of(
+                                  context,
+                                ).translate('replay'),
                                 onPressed: widget.onRestart,
                                 isPrimary: true,
                                 isCompact: true,
@@ -360,9 +396,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isMe
-            ? AppColors.primary.withOpacity(0.1)
-            : Colors.transparent,
+        color: isMe ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isMe
@@ -419,10 +453,14 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.2) : Colors.transparent,
+          color: isSelected
+              ? AppColors.primary.withOpacity(0.2)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.primaryDim.withOpacity(0.5),
+            color: isSelected
+                ? AppColors.primary
+                : AppColors.primaryDim.withOpacity(0.5),
             width: 1.5,
           ),
         ),
@@ -454,10 +492,14 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.orange.withOpacity(0.2) : Colors.transparent,
+            color: isSelected
+                ? Colors.orange.withOpacity(0.2)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: isSelected ? Colors.orange : AppColors.primaryDim.withOpacity(0.4),
+              color: isSelected
+                  ? Colors.orange
+                  : AppColors.primaryDim.withOpacity(0.4),
               width: 1,
             ),
           ),

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'map_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'ad_manager.dart';
 import 'package:intl/intl.dart';
 import 'design_system.dart';
+import 'language_manager.dart';
 
 class MapSelectionPage extends StatefulWidget {
   final Function(String mapId) onMapSelected;
@@ -25,34 +24,26 @@ class MapSelectionPage extends StatefulWidget {
 class _MapSelectionPageState extends State<MapSelectionPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  BannerAd? _bannerAd;
-  bool _isBannerAdReady = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _bannerAd = AdManager().loadBannerAd(() {
-      setState(() => _isBannerAdReady = true);
-    });
+    // Banner Ad handled globally
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _bannerAd?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return NeonScaffold(
-      title: "SELECT ZONE",
+      title: LanguageManager.of(context).translate('select_zone'),
       showBackButton: true,
       onBack: widget.onBack,
-      bannerAd: (_isBannerAdReady && _bannerAd != null)
-          ? AdWidget(ad: _bannerAd!)
-          : null,
       body: Column(
         children: [
           // Banner Ad removed (moved to Scaffold)
@@ -82,9 +73,11 @@ class _MapSelectionPageState extends State<MapSelectionPage>
               ),
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent, // Remove default divider
-              tabs: const [
-                Tab(text: "OFFICIAL"),
-                Tab(text: "CUSTOM"),
+              tabs: [
+                Tab(
+                  text: LanguageManager.of(context).translate('official_maps'),
+                ),
+                Tab(text: LanguageManager.of(context).translate('custom_maps')),
               ],
             ),
           ),
@@ -259,9 +252,9 @@ class _MapSelectionPageState extends State<MapSelectionPage>
               Expanded(
                 flex: 1,
                 child: NeonButton(
-                  text: "RANK",
+                  text: LanguageManager.of(context).translate('rank'),
                   icon: Icons.emoji_events,
-                  isCompact: true,
+                  isCompact: false, // Match PLAY button height
                   color: Colors.amber,
                   onPressed: () => widget.onShowRanking(context, mapId),
                   isPrimary: false,
@@ -272,7 +265,7 @@ class _MapSelectionPageState extends State<MapSelectionPage>
               Expanded(
                 flex: 2,
                 child: NeonButton(
-                  text: "PLAY",
+                  text: LanguageManager.of(context).translate('play'),
                   isCompact: false, // Standard size
                   color: AppColors.primary,
                   onPressed: () => widget.onMapSelected(mapId),

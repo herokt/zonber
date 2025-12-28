@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF00B8D4); // Cyan (Darker)
@@ -43,7 +44,6 @@ class NeonScaffold extends StatelessWidget {
   final Widget? floatingActionButton;
   final bool showBackButton;
   final VoidCallback? onBack;
-  final Widget? bannerAd; // Added bannerAd support
 
   const NeonScaffold({
     super.key,
@@ -53,8 +53,10 @@ class NeonScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.showBackButton = false,
     this.onBack,
-    this.bannerAd,
+    this.actions,
   });
+
+  final List<Widget>? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -63,17 +65,12 @@ class NeonScaffold extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Banner Ad Slot (Fixed Height 50 to prevent shifts)
-            SizedBox(
-              height: 50,
-              width: double.infinity,
-              child: bannerAd ?? const SizedBox(),
-            ),
             if (title != null)
               NeonAppBar(
                 title: title!,
                 showBackButton: showBackButton,
                 onBack: onBack,
+                actions: actions,
               ),
             if (body != null) Expanded(child: body!),
           ],
@@ -95,7 +92,10 @@ class NeonAppBar extends StatelessWidget {
     required this.title,
     this.showBackButton = false,
     this.onBack,
+    this.actions,
   });
+
+  final List<Widget>? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +147,9 @@ class NeonAppBar extends StatelessWidget {
           Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              alignment: showBackButton ? Alignment.centerLeft : Alignment.center,
+              alignment: showBackButton
+                  ? Alignment.centerLeft
+                  : Alignment.center,
               child: Text(
                 title.toUpperCase(),
                 style: AppTextStyles.header,
@@ -155,7 +157,8 @@ class NeonAppBar extends StatelessWidget {
               ),
             ),
           ),
-          if (showBackButton) const SizedBox(width: 44),
+          if (actions != null) ...actions!,
+          if (actions == null && showBackButton) const SizedBox(width: 44),
         ],
       ),
     );
@@ -232,6 +235,7 @@ class NeonButton extends StatefulWidget {
   final bool isPrimary;
   final bool isCompact;
   final IconData? icon;
+  final double? fontSize;
 
   const NeonButton({
     super.key,
@@ -241,6 +245,7 @@ class NeonButton extends StatefulWidget {
     this.isPrimary = true,
     this.isCompact = false,
     this.icon,
+    this.fontSize,
   });
 
   @override
@@ -307,7 +312,7 @@ class _NeonButtonState extends State<NeonButton> {
                   widget.text,
                   style: TextStyle(
                     color: baseColor,
-                    fontSize: widget.isCompact ? 13 : 16,
+                    fontSize: widget.fontSize ?? (widget.isCompact ? 13 : 16),
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
                     shadows: [
@@ -331,6 +336,8 @@ class NeonMenuButton extends StatelessWidget {
   final VoidCallback onPressed;
   final Color? color;
   final bool isPrimary;
+  final double? width;
+  final double? fontSize;
 
   const NeonMenuButton({
     super.key,
@@ -338,20 +345,23 @@ class NeonMenuButton extends StatelessWidget {
     required this.onPressed,
     this.color,
     this.isPrimary = true,
+    this.width,
+    this.fontSize,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      width: double.infinity,
-      constraints: const BoxConstraints(maxWidth: 300),
+      width: width ?? double.infinity,
+      constraints: width == null ? const BoxConstraints(maxWidth: 300) : null,
       child: NeonButton(
         text: text,
         onPressed: onPressed,
         color: color,
         isPrimary: isPrimary,
         isCompact: false,
+        fontSize: fontSize,
       ),
     );
   }
@@ -392,10 +402,7 @@ class NeonDialog extends StatelessWidget {
               tween: Tween(begin: 0.8, end: 1.0),
               curve: Curves.easeOutBack,
               builder: (context, scale, child) {
-                return Transform.scale(
-                  scale: scale,
-                  child: child,
-                );
+                return Transform.scale(scale: scale, child: child);
               },
               child: Container(
                 constraints: BoxConstraints(
@@ -426,12 +433,18 @@ class NeonDialog extends StatelessWidget {
                         if (message != null) ...[
                           Text(
                             message!,
-                            style: AppTextStyles.body.copyWith(fontSize: 15, height: 1.5),
+                            style: AppTextStyles.body.copyWith(
+                              fontSize: 15,
+                              height: 1.5,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 20),
                         ],
-                        if (content != null) ...[content!, const SizedBox(height: 20)],
+                        if (content != null) ...[
+                          content!,
+                          const SizedBox(height: 20),
+                        ],
                         Wrap(
                           alignment: WrapAlignment.center,
                           spacing: 8,
@@ -474,4 +487,87 @@ Future<T?> showNeonDialog<T>({
       barrierDismissible: barrierDismissible,
     ),
   );
+}
+
+/// A global scaffold that acts as the root wrapper for the app's pages.
+/// It handles:
+/// 1. Global Banner Ad display at the top.
+/// 2. Android Back Button intercept (PopScope).
+class AppScaffold extends StatelessWidget {
+  final Widget child;
+  final Widget? bannerAd;
+  final VoidCallback? onBack; // If null, it assumes root and tries to exit
+  final bool showBanner;
+
+  const AppScaffold({
+    super.key,
+    required this.child,
+    this.bannerAd,
+    this.onBack,
+    this.showBanner = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light, // Force white text/icons
+      child: PopScope(
+        canPop: false, // Prevent default pop to handle it manually
+        onPopInvokedWithResult: (bool didPop, dynamic result) async {
+          if (didPop) return;
+          if (onBack != null) {
+            onBack!();
+          } else {
+            // If no back handler is provided (Root page), show exit dialog
+            bool exit =
+                await showNeonDialog<bool>(
+                  context: context,
+                  title: "EXIT GAME?",
+                  titleColor: AppColors.secondary,
+                  message: "Are you sure you want to quit?",
+                  actions: [
+                    NeonButton(
+                      text: "CANCEL",
+                      isPrimary: true,
+                      onPressed: () => Navigator.of(context).pop(false),
+                    ),
+                    NeonButton(
+                      text: "QUIT",
+                      color: AppColors.secondary,
+                      isPrimary: false,
+                      onPressed: () => Navigator.of(context).pop(true),
+                    ),
+                  ],
+                ) ??
+                false;
+
+            if (exit) {
+              SystemNavigator.pop();
+            }
+          }
+        },
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Global Banner Ad Slot
+                if (showBanner && bannerAd != null)
+                  Container(
+                    color: AppColors.background,
+                    width: double.infinity,
+                    height: 50, // Standard Banner Height
+                    alignment: Alignment.center,
+                    child: bannerAd,
+                  ),
+
+                // Main Content
+                Expanded(child: child),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

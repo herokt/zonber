@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'design_system.dart';
 import 'user_profile.dart';
+import 'language_manager.dart';
 
 class ShopPage extends StatefulWidget {
   final VoidCallback onBack;
@@ -68,12 +69,13 @@ class _ShopPageState extends State<ShopPage> {
   void _showPurchaseSuccessDialog(String itemName) {
     showNeonDialog(
       context: context,
-      title: "PURCHASE SUCCESS",
+      title: LanguageManager.of(context).translate('purchase_success'),
       titleColor: const Color(0xFF00FF88),
-      message: "You have successfully purchased:\n$itemName",
+      message:
+          "${LanguageManager.of(context).translate('purchase_message')}$itemName",
       actions: [
         NeonButton(
-          text: "OK",
+          text: LanguageManager.of(context).translate('ok'),
           onPressed: () => Navigator.pop(context),
         ),
       ],
@@ -83,7 +85,7 @@ class _ShopPageState extends State<ShopPage> {
   @override
   Widget build(BuildContext context) {
     return NeonScaffold(
-      title: "SHOP",
+      title: LanguageManager.of(context).translate('shop_title'),
       showBackButton: true,
       onBack: widget.onBack,
       body: SingleChildScrollView(
@@ -99,10 +101,14 @@ class _ShopPageState extends State<ShopPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.inventory_2, color: const Color(0xFFFFD700), size: 20),
+                      Icon(
+                        Icons.inventory_2,
+                        color: const Color(0xFFFFD700),
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Text(
-                        "MY TICKETS",
+                        LanguageManager.of(context).translate('my_tickets'),
                         style: TextStyle(
                           color: const Color(0xFFFFD700),
                           fontSize: 14,
@@ -115,9 +121,21 @@ class _ShopPageState extends State<ShopPage> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _buildOwnedTicket("Nickname", _nicknameTickets, Icons.badge)),
+                      Expanded(
+                        child: _buildOwnedTicket(
+                          "Nickname",
+                          _nicknameTickets,
+                          Icons.badge,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildOwnedTicket("Country", _countryTickets, Icons.flag)),
+                      Expanded(
+                        child: _buildOwnedTicket(
+                          "Country",
+                          _countryTickets,
+                          Icons.flag,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -127,7 +145,7 @@ class _ShopPageState extends State<ShopPage> {
 
             // Shop Items Section
             Text(
-              "CHANGE TICKETS",
+              LanguageManager.of(context).translate('change_tickets'),
               style: TextStyle(
                 color: AppColors.primary,
                 fontSize: 14,
@@ -139,8 +157,10 @@ class _ShopPageState extends State<ShopPage> {
 
             // Nickname Change Ticket
             _buildShopItem(
-              title: "Nickname Change Ticket",
-              description: "Change your nickname once",
+              title: LanguageManager.of(context).translate('ticket_nickname'),
+              description: LanguageManager.of(
+                context,
+              ).translate('ticket_nickname_desc'),
               icon: Icons.badge,
               price: "\$0.99",
               onPurchase: _purchaseNicknameTicket,
@@ -149,8 +169,10 @@ class _ShopPageState extends State<ShopPage> {
 
             // Country Change Ticket
             _buildShopItem(
-              title: "Country Change Ticket",
-              description: "Change your country flag once",
+              title: LanguageManager.of(context).translate('ticket_country'),
+              description: LanguageManager.of(
+                context,
+              ).translate('ticket_country_desc'),
               icon: Icons.flag,
               price: "\$0.99",
               onPurchase: _purchaseCountryTicket,
@@ -171,11 +193,8 @@ class _ShopPageState extends State<ShopPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      "Tickets are consumed when you change your profile. Each ticket allows one change.",
-                      style: TextStyle(
-                        color: AppColors.textDim,
-                        fontSize: 12,
-                      ),
+                      LanguageManager.of(context).translate('ticket_info'),
+                      style: TextStyle(color: AppColors.textDim, fontSize: 12),
                     ),
                   ),
                 ],
@@ -208,13 +227,7 @@ class _ShopPageState extends State<ShopPage> {
             size: 28,
           ),
           const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: AppColors.textDim,
-              fontSize: 12,
-            ),
-          ),
+          Text(label, style: TextStyle(color: AppColors.textDim, fontSize: 12)),
           const SizedBox(height: 4),
           Text(
             "$count",
@@ -265,10 +278,7 @@ class _ShopPageState extends State<ShopPage> {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    color: AppColors.textDim,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: AppColors.textDim, fontSize: 12),
                 ),
               ],
             ),
@@ -292,7 +302,10 @@ class _ShopPageState extends State<ShopPage> {
               : GestureDetector(
                   onTap: onPurchase,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF00FF88).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),

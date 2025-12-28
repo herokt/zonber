@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'character_data.dart';
 import 'user_profile.dart';
 import 'design_system.dart';
+import 'language_manager.dart';
 
 class CharacterSelectionPage extends StatefulWidget {
   final VoidCallback onBack;
@@ -46,7 +47,7 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
   @override
   Widget build(BuildContext context) {
     return NeonScaffold(
-      title: "SELECT CHARACTER",
+      title: LanguageManager.of(context).translate('select_character'),
       showBackButton: true,
       onBack: widget.onBack,
       body: GridView.builder(

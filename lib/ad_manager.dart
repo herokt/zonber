@@ -19,6 +19,14 @@ class AdManager {
 
   Future<void> initialize() async {
     if (_isMobile) {
+      // Configure AdMob for Family Policy Compliance
+      RequestConfiguration configuration = RequestConfiguration(
+        maxAdContentRating: MaxAdContentRating.g,
+        tagForChildDirectedTreatment: TagForChildDirectedTreatment.yes,
+        tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.yes,
+      );
+      await MobileAds.instance.updateRequestConfiguration(configuration);
+
       await MobileAds.instance.initialize();
       _loadInterstitial();
     }
