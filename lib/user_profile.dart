@@ -16,6 +16,7 @@ class UserProfileManager {
   static const String _keyInitialSetupDone = 'initial_setup_done';
   static const String _keyNicknameTicket = 'nickname_change_ticket';
   static const String _keyCountryTicket = 'country_change_ticket';
+  static const String _keyAdsRemoved = 'ads_removed';
 
   static Future<bool> hasProfile() async {
     final prefs = await SharedPreferences.getInstance();
@@ -40,6 +41,7 @@ class UserProfileManager {
           );
           await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
           await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
+          await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
           await prefs.setBool(_keyInitialSetupDone, true);
           return true;
         }
@@ -48,6 +50,48 @@ class UserProfileManager {
       }
     }
     return false;
+  }
+
+  // Force sync from remote to local
+  static Future<void> syncProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_keyNickname, data['nickname'] ?? 'Unknown');
+        await prefs.setString(_keyFlag, data['flag'] ?? '');
+        await prefs.setString(_keyCountryName, data['countryName'] ?? '');
+        await prefs.setString(
+          _keyCharacterId,
+          data['characterId'] ?? 'neon_green',
+        );
+        await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
+        await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
+        await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
+        await prefs.setBool(_keyInitialSetupDone, true);
+      }
+    } catch (e) {
+      print("Error syncing profile: $e");
+    }
+  }
+
+  static Future<void> clearProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyNickname);
+    await prefs.remove(_keyFlag);
+    await prefs.remove(_keyCountryName);
+    await prefs.remove(_keyCharacterId);
+    await prefs.remove(_keyInitialSetupDone);
+    await prefs.remove(_keyNicknameTicket);
+    await prefs.remove(_keyCountryTicket);
+    await prefs.remove(_keyAdsRemoved);
   }
 
   static Future<Map<String, String>> getProfile() async {
@@ -164,6 +208,27 @@ class UserProfileManager {
         }
       } catch (e) {
         print("Error syncing tickets: $e");
+      }
+    }
+  }
+
+  static Future<bool> isAdsRemoved() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyAdsRemoved) ?? false;
+  }
+
+  static Future<void> setAdsRemoved(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyAdsRemoved, value);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'adsRemoved': value,
+        }, SetOptions(merge: true));
+      } catch (e) {
+        print("Error syncing adsRemoved: $e");
       }
     }
   }
@@ -410,6 +475,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
   Map<String, String> _profile = {};
   int _nicknameTickets = 0;
   int _countryTickets = 0;
+  bool _isAdsRemoved = false;
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
   User? _currentUser;
@@ -428,10 +494,17 @@ class _MyProfilePageState extends State<MyProfilePage> {
       _profile = profile;
       _nicknameTickets = nicknameTickets;
       _countryTickets = countryTickets;
+      _isAdsRemoved = false; // Will check async
+      _checkAds();
       _soundEnabled = GameSettings().soundEnabled;
       _vibrationEnabled = GameSettings().vibrationEnabled;
       _currentUser = FirebaseAuth.instance.currentUser;
     });
+  }
+
+  Future<void> _checkAds() async {
+    bool removed = await UserProfileManager.isAdsRemoved();
+    if (mounted) setState(() => _isAdsRemoved = removed);
   }
 
   Future<void> _editNickname() async {
@@ -572,14 +645,28 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   const SizedBox(height: 16),
                   _buildInfoRow(
                     Icons.email,
-                    "Email",
+                    LanguageManager.of(context).translate('email'),
                     _currentUser?.email ?? 'Not logged in',
                   ),
                   const SizedBox(height: 12),
                   _buildInfoRow(
                     Icons.verified_user,
-                    "Provider",
+                    LanguageManager.of(context).translate('provider'),
                     _getProviderName(),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoRow(
+                    Icons.block,
+                    LanguageManager.of(context).translate('remove_ads'),
+                    _isAdsRemoved
+                        ? LanguageManager.of(context).translate('ads_removed')
+                        : LanguageManager.of(context).translate('visit_shop'),
+                    valueColor: _isAdsRemoved
+                        ? const Color(0xFF00FF88)
+                        : AppColors.primary,
+                    onTap: () {
+                      if (!_isAdsRemoved) widget.onOpenShop();
+                    },
                   ),
                 ],
               ),
@@ -705,6 +792,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                         onPressed: () {
                           Navigator.pop(context);
                           widget.onLogout();
+                          UserProfileManager.clearProfile();
                         },
                       ),
                     ],
@@ -746,24 +834,39 @@ class _MyProfilePageState extends State<MyProfilePage> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.textDim, size: 18),
-        const SizedBox(width: 12),
-        Text(
-          "$label:",
-          style: TextStyle(color: AppColors.textDim, fontSize: 14),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            overflow: TextOverflow.ellipsis,
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.textDim, size: 18),
+          const SizedBox(width: 12),
+          Text(
+            "$label:",
+            style: TextStyle(color: AppColors.textDim, fontSize: 14),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor ?? Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (onTap != null)
+            Icon(Icons.arrow_forward_ios, color: AppColors.primary, size: 14),
+        ],
+      ),
     );
   }
 

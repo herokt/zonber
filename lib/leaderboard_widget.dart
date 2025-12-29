@@ -169,7 +169,13 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        _isNational ? "NATIONAL RANKING" : "GLOBAL RANKING",
+                        _isNational
+                            ? LanguageManager.of(
+                                context,
+                              ).translate('national_ranking')
+                            : LanguageManager.of(
+                                context,
+                              ).translate('global_ranking'),
                         style: AppTextStyles.header.copyWith(
                           fontSize: 22,
                           color: AppColors.primary,

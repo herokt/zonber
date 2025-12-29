@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart'; // Add kIsWeb
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_helper.dart';
 
+import 'user_profile.dart'; // Add import
+
 class AdManager {
   static final AdManager _instance = AdManager._internal();
   factory AdManager() => _instance;
@@ -10,6 +12,7 @@ class AdManager {
 
   InterstitialAd? _interstitialAd;
   bool _isInterstitialAdLoaded = false;
+  bool _adsDisabled = false;
 
   // Counter to show interstitial every N times
   int _gameOverCounter = 0;
@@ -19,6 +22,9 @@ class AdManager {
 
   Future<void> initialize() async {
     if (_isMobile) {
+      await _checkAdsStatus();
+      if (_adsDisabled) return;
+
       // Configure AdMob for Family Policy Compliance
       RequestConfiguration configuration = RequestConfiguration(
         maxAdContentRating: MaxAdContentRating.g,
@@ -32,12 +38,42 @@ class AdManager {
     }
   }
 
+  Future<void> _checkAdsStatus() async {
+    _adsDisabled = await UserProfileManager.isAdsRemoved();
+  }
+
+  Future<void> refreshAdsStatus() async {
+    await _checkAdsStatus();
+    if (_adsDisabled) {
+      // If ads are now disabled, dispose any existing ads
+      _interstitialAd?.dispose();
+      _interstitialAd = null;
+      _isInterstitialAdLoaded = false;
+    } else {
+      // If re-enabled (unlikely but possible), load if needed
+      if (!_isInterstitialAdLoaded) _loadInterstitial();
+    }
+  }
+
   // --- Banner Ad Logic ---
 
   /// Loads a banner ad and returns the BannerAd object.
   /// If using in a Widget, remember to dispose it!
   BannerAd? loadBannerAd(Function() onLoaded) {
-    if (!_isMobile) return null;
+    if (!_isMobile || _adsDisabled) return null;
+    // We can't be sure about async check here easily without making loadBannerAd async.
+    // For simplicity, we assume we check before calling, OR we check inside but we can't return null synchronously based on async result.
+    // However, usually ads should be pre-checked.
+    // Better approach: AdManager should cache the status on init or update it.
+
+    // Let's assume AdManager will check the flag asynchronously.
+    // Actually, let's just do a sync check if we assume it's cached in UserProfileManager's prefs which is sync?
+    // No, UserProfileManager.isAdsRemoved is async.
+    // Let's rely on GameSettings or similar if we want sync access, or just fire-and-forget the check inside.
+
+    // For now, let's just allow loading, but later we might want to hide the banner widget itself.
+    // The AppScaffold handles the banner widget. It should check before verifying.
+    // Ideally update AppScaffold to check UserProfileManager.isAdsRemoved().
     return BannerAd(
       adUnitId: AdHelper.bannerAdUnitId,
       request: const AdRequest(),
@@ -92,7 +128,17 @@ class AdManager {
   /// Called when Game Over happens.
   /// Returns true if ad was shown, false otherwise.
   bool showInterstitialIfReady() {
-    if (!_isMobile) return false;
+    if (!_isMobile || _adsDisabled) return false;
+    // Determining this async is tricky for a sync method.
+    // We should cache the 'adsRemoved' state in AdManager.
+    // But for now, let's just proceed. The user only asked for the Shop item.
+    // Real implementation requires robust state management.
+    // I'll add a quick async check inside but obviously this method returns bool immediately.
+
+    // We will update this method to be async for better control? No, existing definition is sync.
+    // Let's check the preference synchronously if possible? SharedPreferences is async.
+    // Hack: We will ignore ads check here for now, assuming the caller checks it or we update AdManager to have a sync flag.
+
     _gameOverCounter++;
     print("Game Over Count: $_gameOverCounter / $_interstitialFrequency");
 

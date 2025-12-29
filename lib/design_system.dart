@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'language_manager.dart';
 
 class AppColors {
   static const Color primary = Color(0xFF00B8D4); // Cyan (Darker)
@@ -445,12 +446,21 @@ class NeonDialog extends StatelessWidget {
                           content!,
                           const SizedBox(height: 20),
                         ],
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: actions,
-                        ),
+                        if (actions.length == 2)
+                          Row(
+                            children: [
+                              Expanded(child: actions[0]),
+                              const SizedBox(width: 12),
+                              Expanded(child: actions[1]),
+                            ],
+                          )
+                        else
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: actions,
+                          ),
                       ],
                     ),
                   ),
@@ -522,17 +532,19 @@ class AppScaffold extends StatelessWidget {
             bool exit =
                 await showNeonDialog<bool>(
                   context: context,
-                  title: "EXIT GAME?",
+                  title: LanguageManager.of(context).translate('exit_game'),
                   titleColor: AppColors.secondary,
-                  message: "Are you sure you want to quit?",
+                  message: LanguageManager.of(
+                    context,
+                  ).translate('exit_game_message'),
                   actions: [
                     NeonButton(
-                      text: "CANCEL",
+                      text: LanguageManager.of(context).translate('cancel'),
                       isPrimary: true,
                       onPressed: () => Navigator.of(context).pop(false),
                     ),
                     NeonButton(
-                      text: "QUIT",
+                      text: LanguageManager.of(context).translate('quit'),
                       color: AppColors.secondary,
                       isPrimary: false,
                       onPressed: () => Navigator.of(context).pop(true),

@@ -289,38 +289,15 @@ class EditorGrid extends Component {
       for (int x = 0; x < gridX; x++) {
         if (game.mapData[y][x] == 1) {
           Rect rect = Rect.fromLTWH(
-            x * tileSize + 1,
-            y * tileSize + 1,
-            tileSize - 2,
-            tileSize - 2,
+            x * tileSize,
+            y * tileSize,
+            tileSize,
+            tileSize,
           );
 
-          // Fill
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-            wallFillPaint,
-          );
-
-          // Border
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-            wallBorderPaint,
-          );
-
-          // Inner cross pattern
-          Paint crossPaint = Paint()
-            ..color = AppColors.primary.withOpacity(0.5)
-            ..strokeWidth = 1;
-          canvas.drawLine(
-            rect.topLeft + const Offset(4, 4),
-            rect.bottomRight - const Offset(4, 4),
-            crossPaint,
-          );
-          canvas.drawLine(
-            rect.topRight + const Offset(-4, 4),
-            rect.bottomLeft + const Offset(4, -4),
-            crossPaint,
-          );
+          // Fallback
+          canvas.drawRect(rect, wallFillPaint);
+          canvas.drawRect(rect, wallBorderPaint);
         }
       }
     }
@@ -555,7 +532,7 @@ class _MapEditorPageState extends State<MapEditorPage> {
         actions: [
           NeonButton(
             text: LanguageManager.of(context).translate('cancel'),
-            color: AppColors.surface,
+            color: AppColors.textDim,
             isPrimary: false,
             onPressed: () => Navigator.pop(context),
           ),

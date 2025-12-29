@@ -114,7 +114,7 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    char.name,
+                    LanguageManager.of(context).translate('char_${char.id}'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: isSelected ? AppColors.primary : Colors.white,
@@ -125,7 +125,9 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
                   const SizedBox(height: 8),
                   Expanded(
                     child: Text(
-                      char.description,
+                      LanguageManager.of(
+                        context,
+                      ).translate('char_${char.id}_desc'),
                       textAlign: TextAlign.center,
                       style: AppTextStyles.body.copyWith(
                         color: AppColors.textDim,

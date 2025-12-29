@@ -40,6 +40,8 @@ const Map<String, Map<String, String>> appTranslations = {
     // Profile & Settings
     'my_profile': 'MY PROFILE',
     'account': 'ACCOUNT',
+    'email': 'Email',
+    'provider': 'Provider',
     'settings': 'SETTINGS',
     'language': 'Language',
     'sound': 'Sound',
@@ -49,7 +51,6 @@ const Map<String, Map<String, String>> appTranslations = {
     'nickname': 'Nickname',
     'country': 'Country',
     'edit': 'EDIT',
-    'visit_shop': 'VISIT SHOP',
     'my_tickets': 'MY TICKETS',
 
     // Initial Setup
@@ -60,7 +61,16 @@ const Map<String, Map<String, String>> appTranslations = {
     'setup_warning': 'This cannot be changed later\nwithout a change ticket',
 
     // Character Select
+    // Character Select
     'select_character': 'SELECT CHARACTER',
+    'char_neon_green': 'Neon Green',
+    'char_neon_green_desc': 'The classic Zonber operator.',
+    'char_cyber_red': 'Cyber Red',
+    'char_cyber_red_desc': 'Aggressive and dangerous.',
+    'char_electric_blue': 'Electric Blue',
+    'char_electric_blue_desc': 'Fast as lightning.',
+    'char_plasma_purple': 'Plasma Purple',
+    'char_plasma_purple_desc': 'Mysterious energy.',
 
     // Editor
     'walls': 'WALLS',
@@ -83,7 +93,10 @@ const Map<String, Map<String, String>> appTranslations = {
     'stay': 'STAY',
 
     // Shop
+    // Shop
     'shop_title': 'SHOP',
+    'visit_shop_btn': 'GO TO SHOP',
+    'visiting_shop': 'VISIT SHOP',
     'change_tickets': 'CHANGE TICKETS',
     'ticket_nickname': 'Nickname Change Ticket',
     'ticket_nickname_desc': 'Change your nickname once',
@@ -93,6 +106,14 @@ const Map<String, Map<String, String>> appTranslations = {
         'Tickets are consumed when you change your profile. Each ticket allows one change.',
     'purchase_success': 'PURCHASE SUCCESS',
     'purchase_message': 'You have successfully purchased:\n',
+    'remove_ads': 'REMOVE ADS',
+    'remove_ads_desc': 'Play without interruptions',
+    'ads_removed': 'ADS REMOVED',
+    'ads_removed_desc': 'Ads have been removed',
+    'owned': 'OWNED',
+    'restore_purchases': 'RESTORE PURCHASES',
+    'restore_success': 'Restored successfully',
+    'no_purchases': 'No purchases found',
 
     // Verification
     'verification_success': 'VERIFICATION SUCCESS',
@@ -110,6 +131,8 @@ const Map<String, Map<String, String>> appTranslations = {
     'month': 'MONTH',
     'year': 'YEAR',
     'no_records': 'No records yet',
+    'global_ranking': 'GLOBAL RANKING',
+    'national_ranking': 'NATIONAL RANKING',
     'close': 'CLOSE',
     'share': 'SHARE',
     'replay': 'REPLAY',
@@ -155,6 +178,8 @@ const Map<String, Map<String, String>> appTranslations = {
     // Profile & Settings
     'my_profile': '내 프로필',
     'account': '계정',
+    'email': '이메일',
+    'provider': '제공자',
     'settings': '설정',
     'language': '언어',
     'sound': '사운드',
@@ -164,7 +189,6 @@ const Map<String, Map<String, String>> appTranslations = {
     'nickname': '닉네임',
     'country': '국가',
     'edit': '수정',
-    'visit_shop': '상점 방문',
     'my_tickets': '보유 티켓',
 
     // Initial Setup
@@ -175,7 +199,16 @@ const Map<String, Map<String, String>> appTranslations = {
     'setup_warning': '설정 후에는 변경 티켓이 필요합니다',
 
     // Character Select
+    // Character Select
     'select_character': '캐릭터 선택',
+    'char_neon_green': '네온 그린',
+    'char_neon_green_desc': '기본적인 존버 요원입니다.',
+    'char_cyber_red': '사이버 레드',
+    'char_cyber_red_desc': '공격적이고 위험합니다.',
+    'char_electric_blue': '일렉트릭 블루',
+    'char_electric_blue_desc': '번개처럼 빠릅니다.',
+    'char_plasma_purple': '플라즈마 퍼플',
+    'char_plasma_purple_desc': '신비로운 에너지를 가졌습니다.',
 
     // Editor
     'walls': '벽',
@@ -198,7 +231,10 @@ const Map<String, Map<String, String>> appTranslations = {
     'stay': '계속하기',
 
     // Shop
+    // Shop
     'shop_title': '상점',
+    'visit_shop_btn': '상점 가기',
+    'visiting_shop': '상점 방문',
     'change_tickets': '변경 티켓',
     'ticket_nickname': '닉네임 변경권',
     'ticket_nickname_desc': '닉네임을 1회 변경할 수 있습니다',
@@ -207,6 +243,14 @@ const Map<String, Map<String, String>> appTranslations = {
     'ticket_info': '티켓은 프로필 변경 시 소모됩니다. 티켓 1장당 1회 변경 가능합니다.',
     'purchase_success': '구매 성공',
     'purchase_message': '성공적으로 구매하였습니다:\n',
+    'remove_ads': '광고 제거',
+    'remove_ads_desc': '광고 없이 플레이하세요',
+    'ads_removed': '광고 제거됨',
+    'ads_removed_desc': '광고가 제거되었습니다',
+    'owned': '보유중',
+    'restore_purchases': '구매 복원',
+    'restore_success': '복원 완료',
+    'no_purchases': '구매 내역이 없습니다',
 
     // Verification
     'verification_success': '검증 성공',
@@ -225,6 +269,8 @@ const Map<String, Map<String, String>> appTranslations = {
     'month': '월간',
     'year': '연간',
     'no_records': '기록이 없습니다',
+    'global_ranking': '세계 랭킹',
+    'national_ranking': '국가별 랭킹',
     'close': '닫기',
     'share': '공유',
     'replay': '다시 보기',

@@ -35,6 +35,7 @@ import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  print("ZONBER GAME: UPDATE VERIFIED - SYMMETRICAL CHARACTERS 2024-12-30");
 
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     await Firebase.initializeApp();
@@ -542,7 +543,7 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 }
 
-class MainMenu extends StatelessWidget {
+class MainMenu extends StatefulWidget {
   final VoidCallback onStartGame;
   final VoidCallback onOpenEditor;
   final VoidCallback onProfile;
@@ -559,6 +560,44 @@ class MainMenu extends StatelessWidget {
   });
 
   @override
+  State<MainMenu> createState() => _MainMenuState();
+}
+
+class _MainMenuState extends State<MainMenu>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  Map<String, String> _profile = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await UserProfileManager.getProfile();
+    if (mounted) {
+      setState(() {
+        _profile = profile;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return NeonScaffold(
       // bannerAd handled globally by AppScaffold
@@ -570,103 +609,192 @@ class MainMenu extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: RadialGradient(
                   center: Alignment.center,
-                  radius: 1.0,
+                  radius: 1.2,
                   colors: [
-                    AppColors.primary.withOpacity(0.1),
+                    AppColors.primary.withOpacity(0.15),
                     AppColors.background,
                   ],
                 ),
               ),
             ),
           ),
+          // Grid Pattern (Optional Simplistic)
+          Positioned.fill(child: CustomPaint(painter: _GridPainter())),
 
           // Content
-          Center(
+          SafeArea(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Spacer(),
-                Text(
-                  LanguageManager.of(context).translate('title'),
-                  style: AppTextStyles.header.copyWith(fontSize: 64),
-                ),
-                Text(
-                  LanguageManager.of(context).translate('subtitle'),
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.primaryDim,
-                    letterSpacing: 4.0,
+                // TOP BAR: Profile Pill (Left) & Settings (Right)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Left: Profile Info
+                      GestureDetector(
+                        onTap: widget.onProfile,
+                        child: NeonCard(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          borderRadius: 30,
+                          backgroundColor: AppColors.surfaceGlass,
+                          borderColor: AppColors.primary.withOpacity(0.5),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _profile['flag'] ?? '',
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                (_profile['nickname'] ?? 'Player')
+                                    .toUpperCase(),
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Right: Settings Button
+                      GestureDetector(
+                        onTap: widget.onProfile,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceGlass,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.textDim.withOpacity(0.5),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.settings,
+                            color: AppColors.textDim,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 60),
-                NeonMenuButton(
-                  text: LanguageManager.of(context).translate('start_game'),
-                  onPressed: onStartGame,
-                  isPrimary: false,
-                  color: AppColors.secondary,
-                ),
-                const SizedBox(height: 16),
-                NeonMenuButton(
-                  text: LanguageManager.of(context).translate('character'),
-                  onPressed: onCharacter,
-                  color: const Color(0xFFD91DF2),
-                  isPrimary: false,
-                ),
-                const SizedBox(height: 16),
-                NeonMenuButton(
-                  text: LanguageManager.of(context).translate('map_editor'),
-                  onPressed: onOpenEditor,
-                  isPrimary: true,
-                ),
+
                 const Spacer(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+
+                // CENTER: Title & Start Button
+                Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(child: SizedBox()), // Spacer
-                    // Profile Button
-                    Column(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.person,
+                    Text(
+                      LanguageManager.of(context).translate('title'),
+                      style: AppTextStyles.header.copyWith(
+                        fontSize: 64,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 20,
                             color: AppColors.primary,
-                            size: 32,
+                            offset: Offset(0, 0),
                           ),
-                          onPressed: onProfile,
-                        ),
-                        Text(
-                          LanguageManager.of(context).translate('my_profile'),
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 10,
+                          Shadow(
+                            blurRadius: 40,
+                            color: AppColors.primary.withOpacity(0.5),
+                            offset: Offset(0, 0),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 32),
-                    // Shop Button
-                    Column(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.shopping_bag,
-                            color: Color(0xFFFFD700),
-                            size: 32,
-                          ),
-                          onPressed: onOpenShop,
-                        ),
-                        Text(
-                          LanguageManager.of(context).translate('shop'),
-                          style: TextStyle(
-                            color: Color(0xFFFFD700),
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 8),
+                    Text(
+                      LanguageManager.of(context).translate('subtitle'),
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.primaryDim,
+                        letterSpacing: 6.0,
+                        fontSize: 16,
+                      ),
                     ),
-                    Expanded(child: SizedBox()), // Spacer
+                    const SizedBox(height: 80),
+                    ScaleTransition(
+                      scale: _pulseAnimation,
+                      child: GestureDetector(
+                        onTap: widget.onStartGame,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 48,
+                            vertical: 24,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.primary,
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withOpacity(0.4),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            LanguageManager.of(context).translate('start_game'),
+                            style: AppTextStyles.header.copyWith(
+                              fontSize: 24,
+                              color: Colors.white,
+                              letterSpacing: 2.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 20),
+
+                const Spacer(),
+
+                // BOTTOM: Secondary Menu (Row)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 40),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildMenuIcon(
+                        context,
+                        Icons.person_outline,
+                        'character',
+                        widget.onCharacter,
+                        const Color(0xFFD91DF2),
+                      ),
+                      _buildMenuIcon(
+                        context,
+                        Icons.grid_on,
+                        'map_editor',
+                        widget.onOpenEditor,
+                        const Color(0xFF00E676), // Neon Green
+                      ),
+                      _buildMenuIcon(
+                        context,
+                        Icons.shopping_bag_outlined,
+                        'shop',
+                        widget.onOpenShop,
+                        const Color(0xFFFFD700),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -674,6 +802,71 @@ class MainMenu extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildMenuIcon(
+    BuildContext context,
+    IconData icon,
+    String labelKey,
+    VoidCallback onTap,
+    Color color,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.5), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.2),
+                  blurRadius: 10,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            LanguageManager.of(context).translate(labelKey),
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.primaryDim.withOpacity(0.2)
+      ..strokeWidth = 1.0;
+
+    const double step = 40.0;
+
+    for (double x = 0; x <= size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+
+    for (double y = 0; y <= size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
@@ -764,8 +957,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
     player = Player()
       ..position = Vector2(mapWidth / 2, mapHeight / 2)
-      ..width = 24
-      ..height = 24
+      ..width = 54
+      ..height = 54
       ..anchor = Anchor.center;
     mapArea.add(player);
 
@@ -1063,28 +1256,19 @@ class MapArea extends PositionComponent {
   }
 }
 
-class Obstacle extends PositionComponent with CollisionCallbacks {
-  // Neon Crate Style Paints
-  static final Paint _borderPaint = Paint()
-    ..color = AppColors
-        .primary // Use AppColors.primary
+class Obstacle extends PositionComponent
+    with CollisionCallbacks, HasGameRef<ZonberGame> {
+  // Define paint for the neon look
+  final Paint _paint = Paint()
+    ..color =
+        const Color(0xFFD32F2F) // Neon Red (or restore to previous color)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2
-    ..maskFilter = const MaskFilter.blur(
-      BlurStyle.solid,
-      3,
-    ); // Reduced blur (5->3)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4);
 
-  static final Paint _fillPaint = Paint()
-    ..color = AppColors.primary
-        .withOpacity(0.1) // Reduced opacity (0.15->0.1)
+  final Paint _fillPaint = Paint()
+    ..color = const Color(0xFFD32F2F).withOpacity(0.3)
     ..style = PaintingStyle.fill;
-
-  static final Paint _detailPaint = Paint()
-    ..color = AppColors.primary
-        .withOpacity(0.4) // Reduced opacity
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1.5;
 
   Obstacle(Vector2 position, Vector2 size) {
     this.position = position;
@@ -1098,21 +1282,10 @@ class Obstacle extends PositionComponent with CollisionCallbacks {
 
   @override
   void render(Canvas canvas) {
-    final rect = size.toRect();
-
-    // 1. Fill (Dark Glass look)
-    canvas.drawRect(rect, _fillPaint);
-
-    // 2. Outer Glow Border
-    canvas.drawRect(rect, _borderPaint);
-
-    // 3. Inner details (Cross brace "Crate" style)
-    // Draw 'X'
-    canvas.drawLine(rect.topLeft, rect.bottomRight, _detailPaint);
-    canvas.drawLine(rect.topRight, rect.bottomLeft, _detailPaint);
-
-    // Draw Inner Box
-    canvas.drawRect(rect.deflate(4.0), _detailPaint);
+    super.render(canvas);
+    // Draw neon box
+    canvas.drawRect(size.toRect(), _fillPaint);
+    canvas.drawRect(size.toRect(), _paint);
   }
 }
 
@@ -1166,14 +1339,14 @@ class Player extends SpriteComponent
 
   @override
   Future<void> onLoad() async {
-    // Increased Player Visual Size (24 -> 36) for better visibility
-    size = Vector2(36, 36);
+    // Increased Player Visual Size (24 -> 36 -> 54) for better visibility
+    size = Vector2(54, 54);
 
-    // Keep hitbox smaller than visual size for fair gameplay (20x20 centered)
+    // Keep hitbox smaller than visual size for fair gameplay (30x30 centered)
     add(
       RectangleHitbox(
-        position: Vector2(8, 8), // Centered: (36-20)/2 = 8
-        size: Vector2(20, 20),
+        position: Vector2(12, 12), // Centered: (54-30)/2 = 12
+        size: Vector2(30, 30),
       ),
     );
 
@@ -1265,7 +1438,10 @@ class Player extends SpriteComponent
     if (other is Bullet) {
       gameRef.gameOver();
       if (GameSettings().vibrationEnabled) {
-        HapticFeedback.heavyImpact(); // Heavy vibration on death
+        // User requested stronger vibration. Using selectionClick or heavyImpact.
+        // heavyImpact is already present. Let's make sure it's used.
+        HapticFeedback.heavyImpact();
+        // Or if user wants VERY strong, we can do multiple? No, sticking to heavy for now.
       }
       removeFromParent();
     }

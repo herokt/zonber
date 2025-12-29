@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'design_system.dart';
 import 'services/auth_service.dart';
+import 'user_profile.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -20,12 +21,13 @@ class _LoginPageState extends State<LoginPage> {
     final user = await _authService.signInWithGoogle();
     setState(() => _isLoading = false);
     if (user != null) {
+      await UserProfileManager.syncProfile();
       widget.onLoginSuccess();
     } else {
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('Google Sign In failed or cancelled')),
-         );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google Sign In failed or cancelled')),
+        );
       }
     }
   }
@@ -35,12 +37,13 @@ class _LoginPageState extends State<LoginPage> {
     final user = await _authService.signInWithApple();
     setState(() => _isLoading = false);
     if (user != null) {
+      await UserProfileManager.syncProfile();
       widget.onLoginSuccess();
     } else {
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('Apple Sign In failed or cancelled')),
-         );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Apple Sign In failed or cancelled')),
+        );
       }
     }
   }
@@ -80,7 +83,7 @@ class _LoginPageState extends State<LoginPage> {
                   _handleAppleSignIn,
                   Icons.apple,
                 ),
-              ]
+              ],
             ],
           ),
         ),
