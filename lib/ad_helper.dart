@@ -4,18 +4,24 @@ class AdHelper {
   // ============================================================
   // [Release Configuration]
   // Change this to TRUE before building for Production Release!
-  static const bool isReleaseMode = false;
+  static const bool isReleaseMode = true;
 
-  // ENTER YOUR REAL IDS HERE:
-  static const String androidAppId = 'ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY';
+  // PRODUCTION AD IDS:
+  static const String androidAppId = 'ca-app-pub-6473787525002068~6688045231';
   static const String androidBannerId =
-      'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY';
+      'ca-app-pub-6473787525002068/3635163028';
   static const String androidInterstitialId =
-      'ca-app-pub-XXXXXXXXXXXXXXXX/ZZZZZZZZZZ';
+      'ca-app-pub-6473787525002068/3498581598';
+  static const String androidRewardedId =
+      'ca-app-pub-6473787525002068/6452047990';
 
-  static const String iosBannerId = 'ca-app-pub-XXXXXXXXXXXXXXXX/AAAAAAAAAA';
+  // iOS PRODUCTION AD IDS:
+  static const String iosAppId = 'ca-app-pub-6473787525002068~6193043609';
+  static const String iosBannerId = 'ca-app-pub-6473787525002068/8037442465';
   static const String iosInterstitialId =
-      'ca-app-pub-XXXXXXXXXXXXXXXX/BBBBBBBBBB';
+      'ca-app-pub-6473787525002068/7246254917';
+  static const String iosRewardedId =
+      'ca-app-pub-6473787525002068/7710139403';
   // ============================================================
 
   static String get bannerAdUnitId {

@@ -26,6 +26,7 @@ import 'ad_manager.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // For BannerAd, AdWidget
 import 'design_system.dart';
 import 'shop_page.dart';
+import 'iap_service.dart';
 import 'services/auth_service.dart';
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
@@ -40,8 +41,9 @@ void main() async {
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
     await Firebase.initializeApp();
     await AdManager().initialize(); // Initialize AdMob only on mobile
+    await IAPService().initialize(); // Initialize In-App Purchase
   } else {
-    print("Skipping Firebase/AdMob init on desktop/web");
+    print("Skipping Firebase/AdMob/IAP init on desktop/web");
   }
 
   // Fix Status Bar (White Icons for Dark Background)

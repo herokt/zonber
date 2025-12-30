@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'design_system.dart';
 import 'user_profile.dart';
 import 'language_manager.dart';
-import 'ad_manager.dart';
+import 'iap_service.dart';
 
 class ShopPage extends StatefulWidget {
   final VoidCallback onBack;
@@ -18,69 +18,98 @@ class _ShopPageState extends State<ShopPage> {
   int _countryTickets = 0;
   bool _adsRemoved = false;
   bool _isPurchasing = false;
+  String? _purchasingProductId;
+
+  final IAPService _iapService = IAPService();
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _setupIAPCallbacks();
+  }
+
+  void _setupIAPCallbacks() {
+    _iapService.onPurchaseSuccess = (productId) {
+      _loadData();
+      setState(() {
+        _isPurchasing = false;
+        _purchasingProductId = null;
+      });
+      if (mounted) {
+        _showPurchaseSuccessDialog(_getProductName(productId));
+      }
+    };
+
+    _iapService.onPurchaseError = (error) {
+      setState(() {
+        _isPurchasing = false;
+        _purchasingProductId = null;
+      });
+      if (mounted) {
+        _showErrorDialog(error);
+      }
+    };
+  }
+
+  String _getProductName(String productId) {
+    switch (productId) {
+      case IAPService.removeAdsId:
+        return 'Remove Ads';
+      case IAPService.nicknameTicketId:
+        return 'Nickname Change Ticket';
+      case IAPService.countryTicketId:
+        return 'Country Change Ticket';
+      default:
+        return productId;
+    }
   }
 
   Future<void> _loadData() async {
     final nicknameTickets = await UserProfileManager.getNicknameTickets();
     final countryTickets = await UserProfileManager.getCountryTickets();
     final adsRemoved = await UserProfileManager.isAdsRemoved();
+    if (mounted) {
+      setState(() {
+        _nicknameTickets = nicknameTickets;
+        _countryTickets = countryTickets;
+        _adsRemoved = adsRemoved;
+      });
+    }
+  }
+
+  Future<void> _purchaseProduct(String productId) async {
+    if (_isPurchasing) return;
+
     setState(() {
-      _nicknameTickets = nicknameTickets;
-      _countryTickets = countryTickets;
-      _adsRemoved = adsRemoved;
+      _isPurchasing = true;
+      _purchasingProductId = productId;
     });
+
+    final success = await _iapService.buyProduct(productId);
+    if (!success && mounted) {
+      setState(() {
+        _isPurchasing = false;
+        _purchasingProductId = null;
+      });
+    }
   }
 
-  Future<void> _purchaseNicknameTicket() async {
+  Future<void> _restorePurchases() async {
     setState(() => _isPurchasing = true);
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate
-    await UserProfileManager.addNicknameTicket(1);
-    await _loadData();
-    setState(() => _isPurchasing = false);
-    if (mounted) _showPurchaseSuccessDialog('Nickname Change Ticket');
-  }
-
-  Future<void> _purchaseCountryTicket() async {
-    setState(() => _isPurchasing = true);
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate
-    await UserProfileManager.addCountryTicket(1);
-    await _loadData();
-    setState(() => _isPurchasing = false);
-    if (mounted) _showPurchaseSuccessDialog('Country Change Ticket');
-  }
-
-  Future<void> _purchaseRemoveAds() async {
-    if (_adsRemoved) return;
-    setState(() => _isPurchasing = true);
-
-    // TODO: Implement In-App Purchase properly
-    await Future.delayed(const Duration(milliseconds: 800)); // Simulate
-
-    await UserProfileManager.setAdsRemoved(true);
-    await AdManager().refreshAdsStatus(); // Update AdManager
+    await _iapService.restorePurchases();
     await _loadData();
     setState(() => _isPurchasing = false);
 
     if (mounted) {
-      showNeonDialog(
-        context: context,
-        title: "ADS REMOVED!",
-        titleColor: const Color(0xFF00FF88),
-        message: "Thank you for your purchase.\nAds will no longer appear.",
-        actions: [
-          NeonButton(
-            text: LanguageManager.of(context).translate('ok'),
-            onPressed: () {
-              Navigator.pop(context);
-              // Optionally trigger AdManager update/refresh
-            },
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            LanguageManager.of(context).translate('restore_complete'),
+            style: const TextStyle(color: Colors.white),
           ),
-        ],
+          backgroundColor: AppColors.surface,
+        ),
       );
     }
   }
@@ -99,6 +128,26 @@ class _ShopPageState extends State<ShopPage> {
         ),
       ],
     );
+  }
+
+  void _showErrorDialog(String error) {
+    showNeonDialog(
+      context: context,
+      title: 'Error',
+      titleColor: AppColors.secondary,
+      message: error,
+      actions: [
+        NeonButton(
+          text: LanguageManager.of(context).translate('ok'),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    );
+  }
+
+  String _getPrice(String productId, String defaultPrice) {
+    final product = _iapService.getProduct(productId);
+    return product?.price ?? defaultPrice;
   }
 
   @override
@@ -158,37 +207,53 @@ class _ShopPageState extends State<ShopPage> {
 
             // Remove Ads
             _buildShopItem(
+              productId: IAPService.removeAdsId,
               title: "REMOVE ADS",
               description: "Play without interruptions",
               icon: Icons.block,
-              price: _adsRemoved ? "OWNED" : "\$1.99",
+              defaultPrice: "\$1.99",
               isPurchased: _adsRemoved,
-              onPurchase: _purchaseRemoveAds,
-              color: const Color(0xFFFF4081), // Pinkish Red
+              color: const Color(0xFFFF4081),
             ),
             const SizedBox(height: 12),
 
             // Nickname Change Ticket
             _buildShopItem(
+              productId: IAPService.nicknameTicketId,
               title: LanguageManager.of(context).translate('ticket_nickname'),
               description: LanguageManager.of(
                 context,
               ).translate('ticket_nickname_desc'),
               icon: Icons.badge,
-              price: "\$0.99",
-              onPurchase: _purchaseNicknameTicket,
+              defaultPrice: "\$0.99",
             ),
             const SizedBox(height: 12),
 
             // Country Change Ticket
             _buildShopItem(
+              productId: IAPService.countryTicketId,
               title: LanguageManager.of(context).translate('ticket_country'),
               description: LanguageManager.of(
                 context,
               ).translate('ticket_country_desc'),
               icon: Icons.flag,
-              price: "\$0.99",
-              onPurchase: _purchaseCountryTicket,
+              defaultPrice: "\$0.99",
+            ),
+            const SizedBox(height: 24),
+
+            // Restore Purchases Button
+            Center(
+              child: TextButton(
+                onPressed: _isPurchasing ? null : _restorePurchases,
+                child: Text(
+                  LanguageManager.of(context).translate('restore_purchases'),
+                  style: TextStyle(
+                    color: AppColors.textDim,
+                    fontSize: 13,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 32),
           ],
@@ -241,15 +306,17 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   Widget _buildShopItem({
+    required String productId,
     required String title,
     required String description,
     required IconData icon,
-    required String price,
-    required VoidCallback onPurchase,
+    required String defaultPrice,
     bool isPurchased = false,
     Color? color,
   }) {
     final itemColor = color ?? AppColors.primary;
+    final isLoading = _isPurchasing && _purchasingProductId == productId;
+    final price = isPurchased ? "OWNED" : _getPrice(productId, defaultPrice);
 
     return NeonCard(
       child: Row(
@@ -286,7 +353,7 @@ class _ShopPageState extends State<ShopPage> {
             ),
           ),
           const SizedBox(width: 12),
-          _isPurchasing && !isPurchased
+          isLoading
               ? SizedBox(
                   width: 60,
                   height: 30,
@@ -302,7 +369,9 @@ class _ShopPageState extends State<ShopPage> {
                   ),
                 )
               : GestureDetector(
-                  onTap: isPurchased ? null : onPurchase,
+                  onTap: isPurchased || _isPurchasing
+                      ? null
+                      : () => _purchaseProduct(productId),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,

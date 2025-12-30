@@ -113,6 +113,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'owned': 'OWNED',
     'restore_purchases': 'RESTORE PURCHASES',
     'restore_success': 'Restored successfully',
+    'restore_complete': 'Purchase restore complete',
     'no_purchases': 'No purchases found',
 
     // Verification
@@ -250,6 +251,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'owned': '보유중',
     'restore_purchases': '구매 복원',
     'restore_success': '복원 완료',
+    'restore_complete': '구매 복원이 완료되었습니다',
     'no_purchases': '구매 내역이 없습니다',
 
     // Verification

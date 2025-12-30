@@ -20,6 +20,18 @@
             "package_name": "com.zonber.game",
             "certificate_hash": "28f0285440dc37400d810f2e06f4f82c8061f62e"
           }
+        },
+        {
+          "client_id": "682278346224-ja5vrk76fti9cooba3q0kt24o3tas10d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zonber.game",
+            "certificate_hash": "660a2d475ec08df19419415059aa1144c5784b56"
+          }
+        },
+        {
+          "client_id": "682278346224-h6lp1k1ik8lilf9k2uk04vgu2tv4rg5s.apps.googleusercontent.com",
+          "client_type": 3
         }
       ],
       "api_key": [
@@ -29,7 +41,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "682278346224-h6lp1k1ik8lilf9k2uk04vgu2tv4rg5s.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "682278346224-mjot1cnpi5invioufar0qe8u6850d9uj.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zonber.game"
+              }
+            }
+          ]
         }
       }
     }
