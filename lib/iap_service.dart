@@ -59,16 +59,24 @@ class IAPService {
   }
 
   Future<void> loadProducts() async {
-    if (!_isAvailable) return;
+    if (!_isAvailable) {
+      debugPrint('IAP: Store not available');
+      return;
+    }
 
+    debugPrint('IAP: Querying products: $_productIds');
     final response = await _iap.queryProductDetails(_productIds);
 
     if (response.notFoundIDs.isNotEmpty) {
-      debugPrint('Products not found: ${response.notFoundIDs}');
+      debugPrint('IAP ERROR: Products not found: ${response.notFoundIDs}');
+      debugPrint('IAP ERROR: Make sure products are registered in App Store Connect or use StoreKit Configuration in Xcode');
     }
 
     _products = response.productDetails;
-    debugPrint('Loaded ${_products.length} products');
+    debugPrint('IAP: Loaded ${_products.length} products');
+    for (var product in _products) {
+      debugPrint('IAP: Product available: ${product.id} - ${product.price} ${product.currencyCode}');
+    }
   }
 
   ProductDetails? getProduct(String productId) {

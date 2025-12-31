@@ -1,0 +1,130 @@
+{
+  "identifier" : "F7A9B8C6",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "6503201842",
+      "localizations" : [
+        {
+          "description" : "Remove all advertisements from the game",
+          "displayName" : "Remove Ads",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "게임에서 모든 광고를 제거합니다",
+          "displayName" : "광고 제거",
+          "locale" : "ko"
+        }
+      ],
+      "productID" : "remove_ads",
+      "referenceName" : "Remove Ads",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "6503201843",
+      "localizations" : [
+        {
+          "description" : "Change your nickname one time",
+          "displayName" : "Nickname Change Ticket",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "닉네임을 한 번 변경할 수 있습니다",
+          "displayName" : "닉네임 변경권",
+          "locale" : "ko"
+        }
+      ],
+      "productID" : "nickname_ticket",
+      "referenceName" : "Nickname Change Ticket",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "6503201844",
+      "localizations" : [
+        {
+          "description" : "Change your country flag one time",
+          "displayName" : "Country Change Ticket",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "국가 국기를 한 번 변경할 수 있습니다",
+          "displayName" : "국가 변경권",
+          "locale" : "ko"
+        }
+      ],
+      "productID" : "country_ticket",
+      "referenceName" : "Country Change Ticket",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6503201841",
+    "_developerTeamID" : "YHF224G6V3",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 757382400.0,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

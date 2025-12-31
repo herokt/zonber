@@ -169,6 +169,18 @@ class UserProfileManager {
     _syncTickets(country: current);
   }
 
+  static Future<void> setNicknameTickets(int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyNicknameTicket, count);
+    _syncTickets(nickname: count);
+  }
+
+  static Future<void> setCountryTickets(int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyCountryTicket, count);
+    _syncTickets(country: count);
+  }
+
   static Future<bool> useNicknameTicket() async {
     final prefs = await SharedPreferences.getInstance();
     int current = prefs.getInt(_keyNicknameTicket) ?? 0;

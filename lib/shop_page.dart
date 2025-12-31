@@ -114,6 +114,58 @@ class _ShopPageState extends State<ShopPage> {
     }
   }
 
+  Future<void> _resetPurchases() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          '⚠️ RESET PURCHASES (TEST)',
+          style: TextStyle(color: AppColors.secondary, fontSize: 16),
+        ),
+        content: Text(
+          'This will reset all purchases and tickets.\nThis is for testing only.',
+          style: TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textDim)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('RESET', style: TextStyle(color: AppColors.secondary)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isPurchasing = true);
+
+    // Reset all purchases
+    await UserProfileManager.setAdsRemoved(false);
+    await UserProfileManager.setNicknameTickets(0);
+    await UserProfileManager.setCountryTickets(0);
+
+    await _loadData();
+    setState(() => _isPurchasing = false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '🔄 All purchases reset',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: AppColors.secondary,
+        ),
+      );
+    }
+  }
+
   void _showPurchaseSuccessDialog(String itemName) {
     showNeonDialog(
       context: context,
@@ -250,6 +302,22 @@ class _ShopPageState extends State<ShopPage> {
                   style: TextStyle(
                     color: AppColors.textDim,
                     fontSize: 13,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Reset Purchases Button (TEST ONLY)
+            Center(
+              child: TextButton(
+                onPressed: _isPurchasing ? null : _resetPurchases,
+                child: Text(
+                  '🔄 Reset Purchases (TEST)',
+                  style: TextStyle(
+                    color: AppColors.secondary.withOpacity(0.7),
+                    fontSize: 12,
                     decoration: TextDecoration.underline,
                   ),
                 ),
