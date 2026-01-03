@@ -5,14 +5,14 @@ class AdHelper {
   // ============================================================
   // ⚙️ AD MODE CONFIGURATION
   // ============================================================
-  // Set to TRUE for PRODUCTION (real ads, real revenue)
-  // Set to FALSE for TESTING (test ads, no revenue)
+  // Set to true for PRODUCTION ads (real revenue)
+  // Set to false for TEST ads (no revenue, shows "Test Ad" label)
   //
-  // ⚠️ IMPORTANT:
-  // - Use FALSE during development and testing
-  // - Use TRUE for TestFlight and App Store builds
+  // ⚠️ CHANGE THIS BEFORE SUBMITTING TO APP STORE:
+  // - true  = Production ads (REAL revenue)
+  // - false = Test ads (NO revenue, for development)
   // ============================================================
-  static const bool isReleaseMode = true;
+  static const bool isReleaseMode = false;  // 👈 Change this to true for production
   // ============================================================
 
   // 📱 PRODUCTION AD IDS (Real Ads)

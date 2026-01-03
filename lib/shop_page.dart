@@ -3,11 +3,17 @@ import 'design_system.dart';
 import 'user_profile.dart';
 import 'language_manager.dart';
 import 'iap_service.dart';
+import 'ad_manager.dart';
 
 class ShopPage extends StatefulWidget {
   final VoidCallback onBack;
+  final Future<void> Function()? onPurchaseReset;
 
-  const ShopPage({super.key, required this.onBack});
+  const ShopPage({
+    super.key,
+    required this.onBack,
+    this.onPurchaseReset,
+  });
 
   @override
   State<ShopPage> createState() => _ShopPageState();
@@ -145,22 +151,52 @@ class _ShopPageState extends State<ShopPage> {
 
     setState(() => _isPurchasing = true);
 
+    print('📍 RESET: Starting purchase reset');
+
+    // Mark all products as manually reset (to prevent auto-restoration)
+    await UserProfileManager.markPurchaseAsManuallyReset(IAPService.removeAdsId);
+    await UserProfileManager.markPurchaseAsManuallyReset(IAPService.nicknameTicketId);
+    await UserProfileManager.markPurchaseAsManuallyReset(IAPService.countryTicketId);
+    print('📍 RESET: Marked all purchases as manually reset');
+
     // Reset all purchases
     await UserProfileManager.setAdsRemoved(false);
+    print('📍 RESET: Ads removed set to false');
+
     await UserProfileManager.setNicknameTickets(0);
+    print('📍 RESET: Nickname tickets reset');
+
     await UserProfileManager.setCountryTickets(0);
+    print('📍 RESET: Country tickets reset');
+
+    // Small delay to ensure Firebase writes complete
+    await Future.delayed(Duration(milliseconds: 500));
+    print('📍 RESET: Waited for Firebase sync');
+
+    // Refresh AdManager status to re-enable ads
+    await AdManager().refreshAdsStatus();
+    print('📍 RESET: AdManager refreshed');
+
+    // Notify parent to refresh purchase status and reload banner ad
+    if (widget.onPurchaseReset != null) {
+      await widget.onPurchaseReset!();
+      print('📍 RESET: Parent notified to refresh ads');
+    }
 
     await _loadData();
     setState(() => _isPurchasing = false);
+
+    print('📍 RESET: Reset complete');
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '🔄 All purchases reset',
+            '🔄 All purchases reset successfully',
             style: const TextStyle(color: Colors.white),
           ),
           backgroundColor: AppColors.secondary,
+          duration: Duration(seconds: 2),
         ),
       );
     }

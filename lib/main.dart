@@ -39,9 +39,26 @@ void main() async {
   print("ZONBER GAME: UPDATE VERIFIED - SYMMETRICAL CHARACTERS 2024-12-30");
 
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-    await Firebase.initializeApp();
-    await AdManager().initialize(); // Initialize AdMob only on mobile
-    await IAPService().initialize(); // Initialize In-App Purchase
+    try {
+      await Firebase.initializeApp();
+      print("✅ Firebase initialized");
+    } catch (e) {
+      print("❌ Firebase initialization failed: $e");
+    }
+
+    try {
+      await AdManager().initialize();
+      print("✅ AdMob initialized");
+    } catch (e) {
+      print("❌ AdMob initialization failed: $e");
+    }
+
+    try {
+      await IAPService().initialize();
+      print("✅ IAP initialized");
+    } catch (e) {
+      print("❌ IAP initialization failed: $e");
+    }
   } else {
     print("Skipping Firebase/AdMob/IAP init on desktop/web");
   }
@@ -76,6 +93,7 @@ class _ZonberAppState extends State<ZonberApp> {
   // Global Banner Ad State
   BannerAd? _bannerAd;
   bool _isBannerAdReady = false;
+  bool _adsRemoved = false; // Track ad removal status
 
   // Verification State
   List<List<int>>? _verifyingMapData;
@@ -85,7 +103,18 @@ class _ZonberAppState extends State<ZonberApp> {
   void initState() {
     super.initState();
     _checkAuth();
-    _loadGlobalBannerAd();
+    _checkAdStatus();
+  }
+
+  Future<void> _checkAdStatus() async {
+    final adsRemoved = await UserProfileManager.isAdsRemoved();
+    setState(() {
+      _adsRemoved = adsRemoved;
+    });
+
+    if (!adsRemoved) {
+      _loadGlobalBannerAd();
+    }
   }
 
   void _loadGlobalBannerAd() {
@@ -94,6 +123,23 @@ class _ZonberAppState extends State<ZonberApp> {
         _isBannerAdReady = true;
       });
     });
+  }
+
+  Future<void> refreshPurchaseStatus() async {
+    print('📍 Refreshing purchase status...');
+
+    // Dispose old banner ad
+    _bannerAd?.dispose();
+    _bannerAd = null;
+    _isBannerAdReady = false;
+
+    // Refresh AdManager status
+    await AdManager().refreshAdsStatus();
+
+    // Reload purchase status
+    await _checkAdStatus();
+
+    print('📍 Purchase status refreshed. Ads removed: $_adsRemoved');
   }
 
   @override
@@ -213,10 +259,10 @@ class _ZonberAppState extends State<ZonberApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       home: AppScaffold(
-        bannerAd: (_isBannerAdReady && _bannerAd != null)
+        bannerAd: (_isBannerAdReady && _bannerAd != null && !_adsRemoved)
             ? AdWidget(ad: _bannerAd!)
             : null,
-        showBanner: true, // Always show top banner
+        showBanner: !_adsRemoved, // Show banner only if ads not removed
         onBack: _getBackHandler(),
         child: Builder(builder: (context) => _buildPage(context)),
       ),
@@ -417,7 +463,10 @@ class _ZonberAppState extends State<ZonberApp> {
           },
         );
       case 'Shop':
-        return ShopPage(onBack: () => _navigateTo('MyProfile'));
+        return ShopPage(
+          onBack: () => _navigateTo('MyProfile'),
+          onPurchaseReset: refreshPurchaseStatus,
+        );
       case 'Editor':
         return MapEditorPage(
           onVerify: _startVerification,

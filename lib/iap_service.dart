@@ -128,11 +128,30 @@ class IAPService {
 
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          // 구매 완료 처리
+          // For restored purchases, check if manually reset (testing only)
+          if (purchase.status == PurchaseStatus.restored) {
+            final isManuallyReset = await UserProfileManager.isPurchaseManuallyReset(purchase.productID);
+            if (isManuallyReset) {
+              debugPrint('Purchase ${purchase.productID} was manually reset, skipping restoration');
+              if (purchase.pendingCompletePurchase) {
+                await _iap.completePurchase(purchase);
+              }
+              break; // Skip delivery and callback for manually reset restorations
+            }
+          }
+
+          // Normal purchase flow (new purchases + non-reset restorations)
           await _deliverProduct(purchase);
+
+          // Clear manual reset flag if it was set
+          await UserProfileManager.clearManualResetFlag(purchase.productID);
+
+          // Complete purchase
           if (purchase.pendingCompletePurchase) {
             await _iap.completePurchase(purchase);
           }
+
+          // Call success callback
           onPurchaseSuccess?.call(purchase.productID);
           break;
 
