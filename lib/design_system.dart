@@ -425,9 +425,11 @@ class NeonDialog extends StatelessWidget {
                             style: AppTextStyles.header.copyWith(
                               color: titleColor ?? AppColors.primary,
                               fontSize: 22,
+                              decoration: TextDecoration.none,
                             ),
                             textAlign: TextAlign.center,
                             maxLines: 1,
+                            overflow: TextOverflow.visible,
                           ),
                         ),
                         const SizedBox(height: 20),

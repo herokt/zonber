@@ -114,6 +114,9 @@ const Map<String, Map<String, String>> appTranslations = {
     'restore_purchases': 'RESTORE PURCHASES',
     'restore_success': 'Restored successfully',
     'restore_complete': 'Purchase restore complete',
+    'restore_success_message_single': '1 purchase has been restored.',
+    'restore_success_message_multiple': '{count} purchases have been restored.',
+    'restore_no_items': 'No purchases to restore.',
     'no_purchases': 'No purchases found',
 
     // Verification
@@ -252,6 +255,9 @@ const Map<String, Map<String, String>> appTranslations = {
     'restore_purchases': '구매 복원',
     'restore_success': '복원 완료',
     'restore_complete': '구매 복원이 완료되었습니다',
+    'restore_success_message_single': '1개의 구매가 복원되었습니다.',
+    'restore_success_message_multiple': '{count}개의 구매가 복원되었습니다.',
+    'restore_no_items': '복원할 구매 내역이 없습니다.',
     'no_purchases': '구매 내역이 없습니다',
 
     // Verification

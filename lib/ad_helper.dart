@@ -4,7 +4,7 @@ class AdHelper {
   // ============================================================
   // [Release Configuration]
   // Change this to TRUE before building for Production Release!
-  static const bool isReleaseMode = true;
+  static const bool isReleaseMode = false;
 
   // PRODUCTION AD IDS:
   static const String androidAppId = 'ca-app-pub-6473787525002068~6688045231';

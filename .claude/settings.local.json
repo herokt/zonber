@@ -28,7 +28,14 @@
       "Bash(findstr:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\n리더보드 위젯 및 맵 서비스 추가, UI/기능 개선\n\n- 리더보드 위젯 추가 \\(leaderboard_widget.dart\\)\n- 맵 서비스 추가 \\(map_service.dart\\)\n- 에디터 게임, 메인, 맵 선택 페이지 개선\n- 랭킹 시스템 및 사용자 프로필 업데이트\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cmd /c \"flutter build apk\")",
+      "Bash(C:flutterbinflutter.bat pub get)",
+      "Bash(cmd /c \"dir /b /s C:\\\\Users\\\\%USERNAME%\\\\AppData\\\\Local\\\\Pub\\\\Cache\\\\bin\\\\flutter.bat 2>nul | findstr flutter.bat\")",
+      "Bash(D:\\\\Project\\\\zonber\\\\flutter\\\\bin\\\\flutter.bat pub get:*)",
+      "Bash(firebase:*)",
+      "Bash(D:\\\\Project\\\\zonber\\\\flutter\\\\bin\\\\flutter.bat build appbundle:*)",
+      "Bash(cmd /c:*)"
     ],
     "deny": [],
     "ask": []

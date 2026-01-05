@@ -50,6 +50,14 @@ class _ShopPageState extends State<ShopPage> {
         _showErrorDialog(error);
       }
     };
+
+    _iapService.onRestoreComplete = (restoredCount) {
+      _loadData();
+      setState(() => _isPurchasing = false);
+      if (mounted) {
+        _showRestoreResultDialog(restoredCount);
+      }
+    };
   }
 
   String _getProductName(String productId) {
@@ -98,20 +106,7 @@ class _ShopPageState extends State<ShopPage> {
   Future<void> _restorePurchases() async {
     setState(() => _isPurchasing = true);
     await _iapService.restorePurchases();
-    await _loadData();
-    setState(() => _isPurchasing = false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            LanguageManager.of(context).translate('restore_complete'),
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: AppColors.surface,
-        ),
-      );
-    }
+    // Result will be handled by onRestoreComplete callback
   }
 
   void _showPurchaseSuccessDialog(String itemName) {
@@ -131,11 +126,60 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   void _showErrorDialog(String error) {
+    // During development, products may not be registered in the store
+    // Log the error but don't show intrusive dialogs for "product not available"
+    if (error.contains('not available') || error.contains('registered in the store')) {
+      print('IAP Error (expected during development): $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Shop features require products to be registered in Google Play Console',
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+          backgroundColor: AppColors.surface,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // Show dialog for other errors
     showNeonDialog(
       context: context,
       title: 'Error',
       titleColor: AppColors.secondary,
       message: error,
+      actions: [
+        NeonButton(
+          text: LanguageManager.of(context).translate('ok'),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    );
+  }
+
+  void _showRestoreResultDialog(int restoredCount) {
+    final String title;
+    final Color titleColor;
+    final String message;
+
+    if (restoredCount > 0) {
+      title = LanguageManager.of(context).translate('restore_success');
+      titleColor = const Color(0xFF00FF88);
+      message = restoredCount == 1
+          ? LanguageManager.of(context).translate('restore_success_message_single')
+          : LanguageManager.of(context).translate('restore_success_message_multiple').replaceAll('{count}', restoredCount.toString());
+    } else {
+      title = LanguageManager.of(context).translate('restore_complete');
+      titleColor = AppColors.textDim;
+      message = LanguageManager.of(context).translate('restore_no_items');
+    }
+
+    showNeonDialog(
+      context: context,
+      title: title,
+      titleColor: titleColor,
+      message: message,
       actions: [
         NeonButton(
           text: LanguageManager.of(context).translate('ok'),

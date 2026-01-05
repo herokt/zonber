@@ -99,6 +99,7 @@ class _ZonberAppState extends State<ZonberApp> {
   @override
   void dispose() {
     _bannerAd?.dispose();
+    IAPService().dispose();
     super.dispose();
   }
 

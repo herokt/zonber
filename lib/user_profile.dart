@@ -19,19 +19,34 @@ class UserProfileManager {
   static const String _keyAdsRemoved = 'ads_removed';
 
   static Future<bool> hasProfile() async {
+    print('=== CHECKING PROFILE ===');
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_keyInitialSetupDone) ?? false) return true;
+    final localSetupDone = prefs.getBool(_keyInitialSetupDone) ?? false;
+    print('Local setup done: $localSetupDone');
+
+    if (localSetupDone) {
+      print('Profile found locally');
+      return true;
+    }
 
     // Check remote if not found locally
     final user = FirebaseAuth.instance.currentUser;
+    print('Firebase user: ${user?.uid ?? "not logged in"}');
+
     if (user != null) {
       try {
+        print('Fetching profile from Firestore...');
         final doc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
+
+        print('Firestore document exists: ${doc.exists}');
+
         if (doc.exists) {
           final data = doc.data()!;
+          print('Profile data from Firestore: $data');
+
           await prefs.setString(_keyNickname, data['nickname'] ?? 'Unknown');
           await prefs.setString(_keyFlag, data['flag'] ?? '');
           await prefs.setString(_keyCountryName, data['countryName'] ?? '');
@@ -43,12 +58,18 @@ class UserProfileManager {
           await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
           await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
           await prefs.setBool(_keyInitialSetupDone, true);
+
+          print('Profile synced from Firestore to local');
           return true;
+        } else {
+          print('No profile found in Firestore');
         }
       } catch (e) {
-        print("Error fetching profile: $e");
+        print("ERROR fetching profile from Firestore: $e");
       }
     }
+
+    print('No profile found');
     return false;
   }
 
@@ -110,6 +131,11 @@ class UserProfileManager {
     String countryName, {
     String? characterId,
   }) async {
+    print('=== SAVING PROFILE ===');
+    print('Nickname: $nickname');
+    print('Flag: $flag');
+    print('Country: $countryName');
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyNickname, nickname);
     await prefs.setString(_keyFlag, flag);
@@ -118,11 +144,15 @@ class UserProfileManager {
       await prefs.setString(_keyCharacterId, characterId);
     }
     await prefs.setBool(_keyInitialSetupDone, true);
+    print('Profile saved to local storage');
 
     // Sync to Firestore
     final user = FirebaseAuth.instance.currentUser;
+    print('Firebase user for sync: ${user?.uid ?? "not logged in"}');
+
     if (user != null) {
       try {
+        print('Syncing to Firestore...');
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'nickname': nickname,
           'flag': flag,
@@ -133,10 +163,15 @@ class UserProfileManager {
           'countryTickets': prefs.getInt(_keyCountryTicket) ?? 0,
           'lastUpdated': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+        print('Profile synced to Firestore successfully');
       } catch (e) {
-        print("Error saving to remote: $e");
+        print("ERROR saving to Firestore: $e");
       }
+    } else {
+      print('WARNING: Not logged in, skipping Firestore sync');
     }
+
+    print('=== SAVE PROFILE END ===');
   }
 
   // markInitialSetupDone is now implicit in saveProfile but kept for compatibility
@@ -783,12 +818,13 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     actions: [
                       NeonButton(
                         text: LanguageManager.of(context).translate('cancel'),
-                        isPrimary: false,
+                        isPrimary: true,
                         onPressed: () => Navigator.pop(context),
                       ),
                       NeonButton(
                         text: LanguageManager.of(context).translate('logout'),
                         color: AppColors.secondary,
+                        isPrimary: false,
                         onPressed: () {
                           Navigator.pop(context);
                           widget.onLogout();

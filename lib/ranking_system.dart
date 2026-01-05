@@ -84,11 +84,20 @@ class RankingSystem {
     String flag,
     double time,
   ) async {
+    print('=== SAVE RECORD START ===');
+    print('Map ID: $mapId');
+    print('Nickname: $nickname');
+    print('Flag: $flag');
+    print('Survival Time: $time');
+    print('Firestore available: ${_db != null}');
+
     if (_db == null) {
-      print("Saving locally/mocking (No Firestore)");
+      print("ERROR: Firestore not initialized. Check Firebase initialization in main.dart");
       return 'local_id_${DateTime.now().millisecondsSinceEpoch}';
     }
+
     try {
+      print('Attempting to save to Firestore...');
       DocumentReference docRef = await _db!
           .collection('maps')
           .doc(mapId)
@@ -99,9 +108,13 @@ class RankingSystem {
             'survivalTime': time,
             'timestamp': FieldValue.serverTimestamp(),
           });
+      print('SUCCESS: Record saved with ID: ${docRef.id}');
+      print('=== SAVE RECORD END ===');
       return docRef.id;
     } catch (e) {
-      print("Save failed: $e");
+      print("ERROR: Save failed - $e");
+      print('Stack trace: ${StackTrace.current}');
+      print('=== SAVE RECORD END ===');
       return '';
     }
   }
