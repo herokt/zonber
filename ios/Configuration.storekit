@@ -1,0 +1,65 @@
+{
+  "identifier" : "Configuration",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "6670398848",
+      "localizations" : [
+        {
+          "description" : "Remove all advertisements from the app",
+          "displayName" : "Remove Ads",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "remove_ads",
+      "referenceName" : "Remove Ads",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "6670398849",
+      "localizations" : [
+        {
+          "description" : "Change your nickname one time",
+          "displayName" : "Nickname Change Ticket",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "nickname_ticket",
+      "referenceName" : "Nickname Change Ticket",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "6670398850",
+      "localizations" : [
+        {
+          "description" : "Change your country flag one time",
+          "displayName" : "Country Change Ticket",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "country_ticket",
+      "referenceName" : "Country Change Ticket",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA"
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

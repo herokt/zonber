@@ -17,6 +17,7 @@ class UserProfileManager {
   static const String _keyNicknameTicket = 'nickname_change_ticket';
   static const String _keyCountryTicket = 'country_change_ticket';
   static const String _keyAdsRemoved = 'ads_removed';
+  static const String _keyManuallyResetPurchases = 'manually_reset_purchases';
 
   static Future<bool> hasProfile() async {
     print('=== CHECKING PROFILE ===');
@@ -57,6 +58,13 @@ class UserProfileManager {
           await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
           await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
           await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
+
+          // Sync manual reset flags
+          if (data['manuallyResetPurchases'] != null) {
+            List<String> resetList = List<String>.from(data['manuallyResetPurchases']);
+            await prefs.setStringList(_keyManuallyResetPurchases, resetList);
+          }
+
           await prefs.setBool(_keyInitialSetupDone, true);
 
           print('Profile synced from Firestore to local');
@@ -96,6 +104,13 @@ class UserProfileManager {
         await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
         await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
         await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
+
+        // Sync manual reset flags
+        if (data['manuallyResetPurchases'] != null) {
+          List<String> resetList = List<String>.from(data['manuallyResetPurchases']);
+          await prefs.setStringList(_keyManuallyResetPurchases, resetList);
+        }
+
         await prefs.setBool(_keyInitialSetupDone, true);
       }
     } catch (e) {
@@ -113,6 +128,7 @@ class UserProfileManager {
     await prefs.remove(_keyNicknameTicket);
     await prefs.remove(_keyCountryTicket);
     await prefs.remove(_keyAdsRemoved);
+    await prefs.remove(_keyManuallyResetPurchases);
   }
 
   static Future<Map<String, String>> getProfile() async {
@@ -204,6 +220,18 @@ class UserProfileManager {
     _syncTickets(country: current);
   }
 
+  static Future<void> setNicknameTickets(int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyNicknameTicket, count);
+    _syncTickets(nickname: count);
+  }
+
+  static Future<void> setCountryTickets(int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyCountryTicket, count);
+    _syncTickets(country: count);
+  }
+
   static Future<bool> useNicknameTicket() async {
     final prefs = await SharedPreferences.getInstance();
     int current = prefs.getInt(_keyNicknameTicket) ?? 0;
@@ -253,17 +281,76 @@ class UserProfileManager {
   }
 
   static Future<void> setAdsRemoved(bool value) async {
+    print('📍 UserProfile: setAdsRemoved called with value=$value');
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyAdsRemoved, value);
+    print('📍 UserProfile: Local storage updated, adsRemoved=$value');
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
+        print('📍 UserProfile: Syncing to Firebase for user ${user.uid}');
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'adsRemoved': value,
         }, SetOptions(merge: true));
+        print('📍 UserProfile: Firebase sync SUCCESS, adsRemoved=$value');
       } catch (e) {
-        print("Error syncing adsRemoved: $e");
+        print("❌ UserProfile: Error syncing adsRemoved to Firebase: $e");
+      }
+    } else {
+      print('⚠️ UserProfile: No Firebase user, skipping remote sync');
+    }
+  }
+
+  // Manual reset tracking (for testing purposes)
+  static Future<void> markPurchaseAsManuallyReset(String productId) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> resetList = prefs.getStringList(_keyManuallyResetPurchases) ?? [];
+    if (!resetList.contains(productId)) {
+      resetList.add(productId);
+      await prefs.setStringList(_keyManuallyResetPurchases, resetList);
+      print('📍 Marked $productId as manually reset');
+    }
+
+    // Sync to Firebase
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'manuallyResetPurchases': resetList,
+        }, SetOptions(merge: true));
+        print('📍 Synced manual reset flags to Firebase');
+      } catch (e) {
+        print("❌ Error syncing manual reset to Firebase: $e");
+      }
+    }
+  }
+
+  static Future<bool> isPurchaseManuallyReset(String productId) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> resetList = prefs.getStringList(_keyManuallyResetPurchases) ?? [];
+    return resetList.contains(productId);
+  }
+
+  static Future<void> clearManualResetFlag(String productId) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> resetList = prefs.getStringList(_keyManuallyResetPurchases) ?? [];
+    if (resetList.contains(productId)) {
+      resetList.remove(productId);
+      await prefs.setStringList(_keyManuallyResetPurchases, resetList);
+      print('📍 Cleared manual reset flag for $productId');
+    }
+
+    // Sync to Firebase
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'manuallyResetPurchases': resetList,
+        }, SetOptions(merge: true));
+        print('📍 Synced manual reset flags to Firebase');
+      } catch (e) {
+        print("❌ Error syncing manual reset to Firebase: $e");
       }
     }
   }

@@ -3,11 +3,17 @@ import 'design_system.dart';
 import 'user_profile.dart';
 import 'language_manager.dart';
 import 'iap_service.dart';
+import 'ad_manager.dart';
 
 class ShopPage extends StatefulWidget {
   final VoidCallback onBack;
+  final Future<void> Function()? onPurchaseReset;
 
-  const ShopPage({super.key, required this.onBack});
+  const ShopPage({
+    super.key,
+    required this.onBack,
+    this.onPurchaseReset,
+  });
 
   @override
   State<ShopPage> createState() => _ShopPageState();
@@ -107,6 +113,88 @@ class _ShopPageState extends State<ShopPage> {
     setState(() => _isPurchasing = true);
     await _iapService.restorePurchases();
     // Result will be handled by onRestoreComplete callback
+  }
+
+  Future<void> _resetPurchases() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          '⚠️ RESET PURCHASES (TEST)',
+          style: TextStyle(color: AppColors.secondary, fontSize: 16),
+        ),
+        content: Text(
+          'This will reset all purchases and tickets.\nThis is for testing only.',
+          style: TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textDim)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('RESET', style: TextStyle(color: AppColors.secondary)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isPurchasing = true);
+
+    print('📍 RESET: Starting purchase reset');
+
+    // Mark all products as manually reset (to prevent auto-restoration)
+    await UserProfileManager.markPurchaseAsManuallyReset(IAPService.removeAdsId);
+    await UserProfileManager.markPurchaseAsManuallyReset(IAPService.nicknameTicketId);
+    await UserProfileManager.markPurchaseAsManuallyReset(IAPService.countryTicketId);
+    print('📍 RESET: Marked all purchases as manually reset');
+
+    // Reset all purchases
+    await UserProfileManager.setAdsRemoved(false);
+    print('📍 RESET: Ads removed set to false');
+
+    await UserProfileManager.setNicknameTickets(0);
+    print('📍 RESET: Nickname tickets reset');
+
+    await UserProfileManager.setCountryTickets(0);
+    print('📍 RESET: Country tickets reset');
+
+    // Small delay to ensure Firebase writes complete
+    await Future.delayed(Duration(milliseconds: 500));
+    print('📍 RESET: Waited for Firebase sync');
+
+    // Refresh AdManager status to re-enable ads
+    await AdManager().refreshAdsStatus();
+    print('📍 RESET: AdManager refreshed');
+
+    // Notify parent to refresh purchase status and reload banner ad
+    if (widget.onPurchaseReset != null) {
+      await widget.onPurchaseReset!();
+      print('📍 RESET: Parent notified to refresh ads');
+    }
+
+    await _loadData();
+    setState(() => _isPurchasing = false);
+
+    print('📍 RESET: Reset complete');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '🔄 All purchases reset successfully',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: AppColors.secondary,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _showPurchaseSuccessDialog(String itemName) {
@@ -294,6 +382,22 @@ class _ShopPageState extends State<ShopPage> {
                   style: TextStyle(
                     color: AppColors.textDim,
                     fontSize: 13,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Reset Purchases Button (TEST ONLY)
+            Center(
+              child: TextButton(
+                onPressed: _isPurchasing ? null : _resetPurchases,
+                child: Text(
+                  '🔄 Reset Purchases (TEST)',
+                  style: TextStyle(
+                    color: AppColors.secondary.withOpacity(0.7),
+                    fontSize: 12,
                     decoration: TextDecoration.underline,
                   ),
                 ),

@@ -22,8 +22,14 @@ class AdManager {
 
   Future<void> initialize() async {
     if (_isMobile) {
+      // Print ad mode configuration
+      AdHelper.printAdMode();
+
       await _checkAdsStatus();
-      if (_adsDisabled) return;
+      if (_adsDisabled) {
+        debugPrint('🚫 Ads disabled - user purchased ad removal');
+        return;
+      }
 
       // Configure AdMob for Family Policy Compliance
       RequestConfiguration configuration = RequestConfiguration(
