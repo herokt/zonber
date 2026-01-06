@@ -359,7 +359,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                               child: NeonButton(
                                 text: LanguageManager.of(
                                   context,
-                                ).translate('replay'),
+                                ).translate('retry'),
                                 onPressed: widget.onRestart,
                                 isPrimary: true,
                                 isCompact: true,

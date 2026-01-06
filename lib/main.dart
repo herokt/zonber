@@ -333,7 +333,7 @@ class _ZonberAppState extends State<ZonberApp> {
           mapId: _currentMapId,
           onExit: () {
             AdManager().showInterstitialIfReady();
-            _navigateTo('Menu');
+            _navigateTo('MapSelect');
           },
           onGameOver: (result) {
             // Update Stats
@@ -512,6 +512,7 @@ class _ZonberAppState extends State<ZonberApp> {
           onMapSelected: (mapId) => _navigateTo('Game', mapId: mapId),
           onShowRanking: (ctx, mapId) => _showRankingDialog(ctx, mapId),
           onBack: () => _navigateTo('Menu'),
+          initialMapId: _currentMapId, // Pass current map ID for scrolling
         );
       case 'CharacterSelect':
         return CharacterSelectionPage(onBack: () => _navigateTo('Menu'));
@@ -614,7 +615,7 @@ class _ZonberAppState extends State<ZonberApp> {
             // We can call the onExit we passed to ZonberGame, but we need reference.
             // Or just navigate:
             AdManager().showInterstitialIfReady();
-            _navigateTo('Menu');
+            _navigateTo('MapSelect');
           },
           isPrimary: false,
         ),
@@ -1101,71 +1102,85 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   void _spawnFixedObstacles(String mapId) {
     double w = mapWidth;
     double h = mapHeight;
+    double centerX = w / 2;
+    double centerY = h / 2;
+
+    // Helper to add symmetrical obstacles (Mirrors X and Y)
+    void addSymmetrical(double dx, double dy, double width, double height) {
+      // Top-Right (Positive dx, Negative dy relative to center in visual, but here y is down)
+      // Let's use offsets from center.
+      // 1. Center + (dx, dy)
+      mapArea.add(Obstacle(Vector2(centerX + dx, centerY + dy), Vector2(width, height)));
+      // 2. Center - (dx, dy) -> (centerX - dx - width, centerY - dy - height)
+      // Note: To mirror position correctly, we subtract width/height from the subtracted coordinate
+      mapArea.add(Obstacle(Vector2(centerX - dx - width, centerY - dy - height), Vector2(width, height)));
+      // 3. Center + (dx, -dy) -> (centerX + dx, centerY - dy - height)
+      mapArea.add(Obstacle(Vector2(centerX + dx, centerY - dy - height), Vector2(width, height)));
+      // 4. Center - (dx, -dy) -> (centerX - dx - width, centerY + dy)
+      mapArea.add(Obstacle(Vector2(centerX - dx - width, centerY + dy), Vector2(width, height)));
+    }
 
     if (mapId == 'zone_3_obstacles') {
-      // Stage 3: Obstacles (The Arena) - Medium Difficulty
-      // 4 Large Corner Pillars + 1 Central Block
-      double pillarSize = 80;
-      double margin = 60;
-
-      // Top-Left
-      mapArea.add(Obstacle(Vector2(margin, margin), Vector2(pillarSize, pillarSize)));
-      // Top-Right
-      mapArea.add(Obstacle(Vector2(w - margin - pillarSize, margin), Vector2(pillarSize, pillarSize)));
-      // Bottom-Left
-      mapArea.add(Obstacle(Vector2(margin, h - margin - pillarSize), Vector2(pillarSize, pillarSize)));
-      // Bottom-Right
-      mapArea.add(Obstacle(Vector2(w - margin - pillarSize, h - margin - pillarSize), Vector2(pillarSize, pillarSize)));
-
-      // Center Block (Small)
-      mapArea.add(Obstacle(Vector2(w / 2 - 30, h / 2 - 30), Vector2(60, 60)));
+      // Stage 3: The Arena (4 Pillars)
+      // Simple and perfectly symmetrical
+      double size = 100;
+      double dist = 120; // Distance from center axis
+      addSymmetrical(dist, dist, size, size);
 
     } else if (mapId == 'zone_4_chaos') {
-      // Stage 4: Chaos (The Maze) - Hard Difficulty
-      // Horizontal Corridors with alternating gaps
-      double wallH = 30;
-      double gap = 100; // Gap for player to pass
-      
-      // Wall 1 (Top) - Gap on Right
-      mapArea.add(Obstacle(Vector2(0, h * 0.25), Vector2(w - gap, wallH)));
-      
-      // Wall 2 (Middle) - Gap on Left
-      mapArea.add(Obstacle(Vector2(gap, h * 0.5), Vector2(w - gap, wallH)));
-      
-      // Wall 3 (Bottom) - Gap on Right
-      mapArea.add(Obstacle(Vector2(0, h * 0.75), Vector2(w - gap, wallH)));
+      // Stage 4: The Weave (Intertwined)
+      // Using symmetrical L-shapes
+      double thick = 30;
+      double long = 180;
+      double short = 80;
+      double gap = 60;
 
-      // Vertical blockers to prevent straight running
-      mapArea.add(Obstacle(Vector2(w * 0.3, h * 0.25 + wallH), Vector2(30, h * 0.25 - wallH)));
-      mapArea.add(Obstacle(Vector2(w * 0.7, h * 0.5 + wallH), Vector2(30, h * 0.25 - wallH)));
+      // 1. Inner Guards (L-shape pointing in)
+      // Horizontal part
+      addSymmetrical(gap, gap + short, long, thick);
+      // Vertical part
+      addSymmetrical(gap + long - thick, gap, thick, short);
+
+      // 2. Outer Corners
+      addSymmetrical(gap + long + gap, gap + short + gap, 40, 40);
+
+      // 3. Center Blockers (Vertical bars near center)
+      // Top/Bottom Center
+      mapArea.add(Obstacle(Vector2(centerX - thick/2, centerY - 180), Vector2(thick, 100)));
+      mapArea.add(Obstacle(Vector2(centerX - thick/2, centerY + 80), Vector2(thick, 100)));
+      
+      // Left/Right Center
+      mapArea.add(Obstacle(Vector2(centerX - 180, centerY - thick/2), Vector2(100, thick)));
+      mapArea.add(Obstacle(Vector2(centerX + 80, centerY - thick/2), Vector2(100, thick)));
 
     } else if (mapId == 'zone_5_impossible') {
-      // Stage 5: Impossible (The Grid) - Very Hard Difficulty
-      // Dense Chessboard: 40px blocks, 40px gaps (Tight maneuvering)
-      double blockSize = 40; 
-      double gap = 40; 
-      double startX = (mapWidth % (blockSize + gap)) / 2;
-      double startY = (mapHeight % (blockSize + gap)) / 2;
-
-      int row = 0;
-      for (double y = startY; y < mapHeight - blockSize; y += blockSize + gap) {
-        int col = 0;
-        for (double x = startX; x < mapWidth - blockSize; x += blockSize + gap) {
-          // Chessboard logic
-          if ((row + col) % 2 == 0) {
-             // Safe Zone Check (Center 3x3 area approx 120x120)
-            if ((x - mapWidth / 2).abs() < 80 && (y - mapHeight / 2).abs() < 80) {
-              // Skip center
-            } else {
-              mapArea.add(Obstacle(Vector2(x, y), Vector2(blockSize, blockSize)));
-            }
+      // Stage 5: The Grid (Dense & Symmetrical)
+      double size = 35;
+      double gap = 55;
+      
+      // Start from center gap and move out
+      // Center gap = 55 (gap). So first block starts at gap/2.
+      double startOffset = gap / 2;
+      
+      // Fill one quadrant (Bottom-Right) and mirror
+      // Max extent is w/2 - margin
+      for (double y = startOffset; y < h/2 - 20; y += size + gap) {
+        for (double x = startOffset; x < w/2 - 20; x += size + gap) {
+          // Pattern: Chessboard
+          // Determine index
+          int ix = ((x - startOffset) / (size + gap)).round();
+          int iy = ((y - startOffset) / (size + gap)).round();
+          
+          if ((ix + iy) % 2 == 0) {
+            addSymmetrical(x, y, size, size);
           }
-          col++;
         }
-        row++;
       }
     }
-  }
+    }
+
+
+
 
   void gameOver() {
     if (isGameOver) return;
@@ -1189,6 +1204,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       survivalTimeNotifier.value = survivalTime;
     }
   }
+
+
 
   @override
   void onGameResize(Vector2 size) {
@@ -1280,7 +1297,7 @@ class _ResultPageState extends State<ResultPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "GAME OVER",
+                LanguageManager.of(context).translate('game_over'),
                 style: AppTextStyles.header.copyWith(
                   color: AppColors.secondary,
                   fontSize: 48,
@@ -1291,7 +1308,7 @@ class _ResultPageState extends State<ResultPage> {
               ),
               const SizedBox(height: 40),
               Text(
-                "SURVIVAL TIME",
+                LanguageManager.of(context).translate('survival_time'),
                 style: AppTextStyles.body.copyWith(
                   color: AppColors.textDim,
                   fontSize: 16,
@@ -1313,7 +1330,7 @@ class _ResultPageState extends State<ResultPage> {
                 SizedBox(
                   width: double.infinity,
                   child: NeonButton(
-                    text: "SUBMIT SCORE",
+                    text: LanguageManager.of(context).translate('submit_score'),
                     onPressed: _submitScore,
                     icon: Icons.emoji_events,
                   ),
@@ -1324,7 +1341,7 @@ class _ResultPageState extends State<ResultPage> {
                   children: [
                     Expanded(
                       child: NeonButton(
-                        text: "RETRY",
+                        text: LanguageManager.of(context).translate('retry'),
                         onPressed: widget.onRestart,
                         color: const Color(0xFF00FF88), // Green
                         isPrimary: false,
@@ -1335,8 +1352,11 @@ class _ResultPageState extends State<ResultPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: NeonButton(
-                        text: "EXIT",
-                        onPressed: widget.onExit,
+                        text: LanguageManager.of(context).translate('exit'),
+                        onPressed: () {
+                          widget.onExit(); // This callback is passed from parent
+                          // Parent (Game) onExit is now navigating to MapSelect
+                        },
                         color: AppColors.secondary, // Red for Exit
                         isPrimary: false,
                         icon: Icons.logout,

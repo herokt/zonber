@@ -9,32 +9,63 @@ class MapSelectionPage extends StatefulWidget {
   final Function(String mapId) onMapSelected;
   final Function(BuildContext context, String mapId) onShowRanking;
   final VoidCallback onBack;
+  final String? initialMapId; // Added for scroll preservation
 
   const MapSelectionPage({
     super.key,
     required this.onMapSelected,
     required this.onShowRanking,
     required this.onBack,
+    this.initialMapId,
   });
 
   @override
   State<MapSelectionPage> createState() => _MapSelectionPageState();
 }
 
-class _MapSelectionPageState extends State<MapSelectionPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _MapSelectionPageState extends State<MapSelectionPage> {
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    // Banner Ad handled globally
+    
+    // Scroll to initial map if provided
+    if (widget.initialMapId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToMap(widget.initialMapId!);
+      });
+    }
+  }
+
+  void _scrollToMap(String mapId) {
+    // Estimated item height (Card + Spacing)
+    // Card content height ~150 + Padding 20 = ~170?
+    // Let's approximate based on fixed list.
+    double itemHeight = 200.0; 
+    int index = 0;
+    
+    switch (mapId) {
+      case 'zone_1_classic': index = 0; break;
+      case 'zone_2_hard': index = 1; break;
+      case 'zone_3_obstacles': index = 2; break;
+      case 'zone_4_chaos': index = 3; break;
+      case 'zone_5_impossible': index = 4; break;
+      default: return;
+    }
+
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        index * itemHeight,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -47,48 +78,11 @@ class _MapSelectionPageState extends State<MapSelectionPage>
       body: Column(
         children: [
           // Banner Ad removed (moved to Scaffold)
-
-          // Custom Tabs
-          const SizedBox(height: 10), // Spacing from banner
-          Container(
-            height: 50,
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceGlass,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primaryDim.withOpacity(0.5)),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary),
-              ),
-              labelColor: AppColors.primary,
-              unselectedLabelColor: AppColors.textDim,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent, // Remove default divider
-              tabs: [
-                Tab(
-                  text: LanguageManager.of(context).translate('official_maps'),
-                ),
-                Tab(text: LanguageManager.of(context).translate('custom_maps')),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
 
           // Content
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [_buildOfficialMaps(), _buildCustomMaps()],
-            ),
+            child: _buildOfficialMaps(),
           ),
         ],
       ),
@@ -115,96 +109,49 @@ class _MapSelectionPageState extends State<MapSelectionPage>
   Widget _buildOfficialMaps() {
     // Unified List View
     return ListView(
+      controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
         _buildNeonMapCard(
           title: "ZONE 1: CLASSIC",
           description: "The beginning of the nightmare.",
           mapId: "zone_1_classic",
-          color: Colors.cyan,
+          color: Colors.cyanAccent, // Blue-ish
         ),
         const SizedBox(height: 20),
         _buildNeonMapCard(
           title: "ZONE 2: HARDCORE",
           description: "Faster and more chaos.",
           mapId: "zone_2_hard",
-          color: Colors.redAccent,
+          color: Colors.greenAccent, // Green
         ),
-        const SizedBox(height: 20),
         const SizedBox(height: 20),
         _buildNeonMapCard(
           title: "ZONE 3: OBSTACLES",
           description: "Watch your step!",
           mapId: "zone_3_obstacles",
-          color: Colors.amber,
+          color: Colors.amberAccent, // Yellow
         ),
         const SizedBox(height: 20),
         _buildNeonMapCard(
           title: "ZONE 4: CHAOS",
           description: "No way out.",
           mapId: "zone_4_chaos",
-          color: Colors.deepOrange,
+          color: Colors.deepOrangeAccent, // Orange/Red
         ),
         const SizedBox(height: 20),
         _buildNeonMapCard(
           title: "ZONE 5: IMPOSSIBLE",
           description: "Good luck.",
           mapId: "zone_5_impossible",
-          color: Colors.purpleAccent,
+          color: Colors.purpleAccent, // Purple
         ),
         const SizedBox(height: 20), // Bottom padding
       ],
     );
   }
 
-  Widget _buildCustomMaps() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: MapService().getCustomMaps(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          );
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              "Error loading maps",
-              style: AppTextStyles.body.copyWith(color: AppColors.secondary),
-            ),
-          );
-        }
-        final maps = snapshot.data ?? [];
-        if (maps.isEmpty) {
-          return const Center(
-            child: Text("No custom maps found.", style: AppTextStyles.body),
-          );
-        }
 
-        // Use standard ListView builder for consistency
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          itemCount: maps.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 20),
-          itemBuilder: (context, index) {
-            final map = maps[index];
-            DateTime? date;
-            if (map['createdAt'] != null) {
-              date = (map['createdAt'] as Timestamp).toDate();
-            }
-            return _buildNeonMapCard(
-              title: map['name'] ?? 'Untitled',
-              description:
-                  "By ${map['author'] ?? 'Unknown'} • ${date != null ? DateFormat('MM/dd').format(date) : ''}",
-              mapId: map['id'],
-              color: const Color(0xFFD91DF2), // Purple for custom
-              isCustom: true,
-            );
-          },
-        );
-      },
-    );
-  }
 
   Widget _buildNeonMapCard({
     required String title,
@@ -279,12 +226,13 @@ class _MapSelectionPageState extends State<MapSelectionPage>
               // Play Button (Bigger)
               Expanded(
                 flex: 2,
-                child: NeonButton(
-                  text: LanguageManager.of(context).translate('play'),
-                  isCompact: false, // Standard size
-                  color: AppColors.primary,
-                  onPressed: () => widget.onMapSelected(mapId),
-                ),
+                  child: NeonButton(
+                    text: LanguageManager.of(context).translate('play'),
+                    isCompact: false, // Standard size
+                    color: AppColors.primary,
+                    icon: Icons.play_arrow, // Added Icon
+                    onPressed: () => widget.onMapSelected(mapId),
+                  ),
               ),
             ],
           ),

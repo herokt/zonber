@@ -80,7 +80,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
     };
 
     return NeonScaffold(
-      title: "STATISTICS",
+      title: LanguageManager.of(context).translate('statistics'),
       showBackButton: true,
       onBack: widget.onBack,
       body: _loading
@@ -92,7 +92,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                 children: [
                    // --- TITLES SECTION ---
                   Text(
-                    "TITLES (Top 30)",
+                    LanguageManager.of(context).translate('titles_section'),
                     style: TextStyle(
                       color: AppColors.primary,
                       fontSize: 14,
@@ -109,13 +109,13 @@ class _StatisticsPageState extends State<StatisticsPage> {
                           children: [
                             Icon(Icons.emoji_events_outlined, color: AppColors.textDim, size: 48),
                             const SizedBox(height: 12),
-                            Text(
-                              "No Titles Yet",
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              "Rank in the Top 30 to earn titles!",
+                              Text(
+                                LanguageManager.of(context).translate('no_titles'),
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                LanguageManager.of(context).translate('no_titles_desc'),
                               style: TextStyle(color: AppColors.textDim, fontSize: 12),
                             ),
                           ],
@@ -157,8 +157,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
                                 Icon(icon, color: color, size: 24),
                                 const SizedBox(width: 8),
                                 Flexible(
-                                  child: Text(
-                                    title.toUpperCase(),
+                                    child: Text(
+                                      LanguageManager.of(context).translate(title).toUpperCase(),
                                     style: TextStyle(
                                       color: color,
                                       fontWeight: FontWeight.bold,
@@ -180,7 +180,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
                   
                   // --- STATISTICS SECTION ---
                   Text(
-                    "GAME STATS",
+                    LanguageManager.of(context).translate('game_stats'),
                     style: TextStyle(
                       color: AppColors.primary,
                       fontSize: 14,
@@ -201,28 +201,28 @@ class _StatisticsPageState extends State<StatisticsPage> {
                     children: [
                       // Total Play Time
                       _buildStatCard(
-                        "TOTAL PLAY TIME",
+                        LanguageManager.of(context).translate('total_play_time'),
                         _formatDuration(_stats['totalPlayTime'] ?? 0.0),
                         Icons.timer,
                         AppColors.primary,
                       ),
                       // Total Games
                       _buildStatCard(
-                        "GAMES PLAYED",
+                        LanguageManager.of(context).translate('games_played'),
                         "${_stats['totalGamesPlayed'] ?? 0}",
                         Icons.videogame_asset,
                         const Color(0xFFFF00DE), // Magenta
                       ),
                       // Favorite Map
                       _buildStatCard(
-                        "FAVORITE MAP",
+                        LanguageManager.of(context).translate('favorite_map'),
                         (_stats['favoriteMap'] ?? '-').toString().replaceAll('_', ' ').toUpperCase(),
                         Icons.map,
                         const Color(0xFF00FF88), // Green
                       ),
                       // Avg Survival (Derived)
                       _buildStatCard(
-                        "AVG SURVIVAL",
+                        LanguageManager.of(context).translate('avg_survival'),
                         _formatDuration(
                           (_stats['totalGamesPlayed'] ?? 0) > 0 
                             ? (_stats['totalPlayTime'] ?? 0.0) / (_stats['totalGamesPlayed'] ?? 1) 
