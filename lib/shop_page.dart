@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'design_system.dart';
 import 'user_profile.dart';
 import 'language_manager.dart';
@@ -67,15 +68,14 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   String _getProductName(String productId) {
-    switch (productId) {
-      case IAPService.removeAdsId:
-        return 'Remove Ads';
-      case IAPService.nicknameTicketId:
-        return 'Nickname Change Ticket';
-      case IAPService.countryTicketId:
-        return 'Country Change Ticket';
-      default:
-        return productId;
+    if (productId == IAPService.removeAdsId) {
+      return 'Remove Ads';
+    } else if (productId == IAPService.nicknameTicketId) {
+      return 'Nickname Change Ticket';
+    } else if (productId == IAPService.countryTicketId) {
+      return 'Country Change Ticket';
+    } else {
+      return productId;
     }
   }
 
@@ -221,7 +221,9 @@ class _ShopPageState extends State<ShopPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Shop features require products to be registered in Google Play Console',
+            Platform.isIOS
+                ? 'Shop features require products to be registered in App Store Connect'
+                : 'Shop features require products to be registered in Google Play Console',
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
           backgroundColor: AppColors.surface,

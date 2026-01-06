@@ -13,12 +13,21 @@ class IAPService {
   final InAppPurchase _iap = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _subscription;
 
-  // 상품 ID - Google Play Console에서 동일하게 설정 필요
-  static const String removeAdsId = 'remove_ads';
-  static const String nicknameTicketId = 'nickname_ticket';
-  static const String countryTicketId = 'country_ticket';
+  // Android Product IDs
+  static const String _androidRemoveAdsId = 'remove_ads';
+  static const String _androidNicknameTicketId = 'nickname_ticket';
+  static const String _androidCountryTicketId = 'country_ticket';
 
-  static const Set<String> _productIds = {
+  // iOS Product IDs
+  static const String _iosRemoveAdsId = 'com.zonber.game.remove_ads';
+  static const String _iosNicknameTicketId = 'com.zonber.game.nickname_ticket';
+  static const String _iosCountryTicketId = 'com.zonber.game.country_ticket';
+
+  static String get removeAdsId => Platform.isIOS ? _iosRemoveAdsId : _androidRemoveAdsId;
+  static String get nicknameTicketId => Platform.isIOS ? _iosNicknameTicketId : _androidNicknameTicketId;
+  static String get countryTicketId => Platform.isIOS ? _iosCountryTicketId : _androidCountryTicketId;
+
+  static Set<String> get _productIds => {
     removeAdsId,
     nicknameTicketId,
     countryTicketId,
@@ -245,26 +254,19 @@ class IAPService {
 
   Future<bool> _deliverProduct(PurchaseDetails purchase) async {
     try {
-      switch (purchase.productID) {
-        case removeAdsId:
-          await UserProfileManager.setAdsRemoved(true);
-          await AdManager().refreshAdsStatus();
-          debugPrint('Ads removed!');
-          break;
-
-        case nicknameTicketId:
-          await UserProfileManager.addNicknameTicket(1);
-          debugPrint('Nickname ticket added!');
-          break;
-
-        case countryTicketId:
-          await UserProfileManager.addCountryTicket(1);
-          debugPrint('Country ticket added!');
-          break;
-
-        default:
-          debugPrint('Unknown product ID: ${purchase.productID}');
-          return false;
+      if (purchase.productID == removeAdsId) {
+        await UserProfileManager.setAdsRemoved(true);
+        await AdManager().refreshAdsStatus();
+        debugPrint('Ads removed!');
+      } else if (purchase.productID == nicknameTicketId) {
+        await UserProfileManager.addNicknameTicket(1);
+        debugPrint('Nickname ticket added!');
+      } else if (purchase.productID == countryTicketId) {
+        await UserProfileManager.addCountryTicket(1);
+        debugPrint('Country ticket added!');
+      } else {
+        debugPrint('Unknown product ID: ${purchase.productID}');
+        return false;
       }
       return true;
     } catch (e) {

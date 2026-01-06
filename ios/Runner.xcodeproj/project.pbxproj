@@ -12,6 +12,7 @@
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		3DB185CB94DA9F092016ADC2 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 372B9AA835E27264C2A26118 /* Pods_Runner.framework */; };
 		7176DE4F2F042AEB001B5C9B /* Configuration.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 7176DE4E2F042AEB001B5C9B /* Configuration.storekit */; };
+		71F33AAD2F0C296600DC355C /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 71F33AAC2F0C296600DC355C /* StoreKit.framework */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
@@ -53,6 +54,7 @@
 		372B9AA835E27264C2A26118 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		7176DE4E2F042AEB001B5C9B /* Configuration.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration.storekit; sourceTree = "<group>"; };
+		71F33AAC2F0C296600DC355C /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
@@ -78,6 +80,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3DB185CB94DA9F092016ADC2 /* Pods_Runner.framework in Frameworks */,
+				71F33AAD2F0C296600DC355C /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +169,7 @@
 		BA404B108EB557C28026645F /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				71F33AAC2F0C296600DC355C /* StoreKit.framework */,
 				372B9AA835E27264C2A26118 /* Pods_Runner.framework */,
 				F8220CD3E04C7601AF95A5C0 /* Pods_RunnerTests.framework */,
 			);

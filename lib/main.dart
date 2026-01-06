@@ -859,13 +859,7 @@ class _MainMenuState extends State<MainMenu>
                         widget.onStatistics,
                         const Color(0xFF00BFFF), // Deep Sky Blue
                       ),
-                      _buildMenuIcon(
-                        context,
-                        Icons.grid_on,
-                        'map_editor',
-                        widget.onOpenEditor,
-                        const Color(0xFF00E676), // Neon Green
-                      ),
+                      // Map Editor Removed (Local change respected)
                       _buildMenuIcon(
                         context,
                         Icons.shopping_bag_outlined,
@@ -1056,7 +1050,9 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     if (customMapData != null) {
       _spawnCustomObstacles(customMapData);
     } else if (mapId == 'zone_3_obstacles') {
-      _spawnObstacles();
+      _spawnObstacles(); // Random obstacles for Stage 3
+    } else if (mapId == 'zone_4_chaos' || mapId == 'zone_5_impossible') {
+      _spawnFixedObstacles(mapId); // Fixed patterns for Stage 4 & 5
     }
 
     resumeEngine();
@@ -1124,8 +1120,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       for (final component in mapArea.children) {
         if (component is Obstacle) {
           Rect existing = component.toRect();
-          // Add padding to prevent touching
-          if (newRect.inflate(10).overlaps(existing)) {
+          // Add padding to prevent touching (Increased to 20)
+          if (newRect.inflate(20).overlaps(existing)) {
             overlaps = true;
             break;
           }
@@ -1136,6 +1132,53 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
         mapArea.add(Obstacle(Vector2(x, y), Vector2(w, h)));
         count++;
       }
+    }
+  }
+
+  void _spawnFixedObstacles(String mapId) {
+    if (mapId == 'zone_4_chaos') {
+      // Stage 4: Chaos (Maze-like / Narrow Corridors)
+      // Pattern: A complex maze-like structure with narrow paths
+      double w = mapWidth;
+      double h = mapHeight;
+      double thickness = 30; // Narrower walls
+      
+      // Vertical Bars (creating lanes)
+      mapArea.add(Obstacle(Vector2(w * 0.25, 50), Vector2(thickness, h * 0.6)));
+      mapArea.add(Obstacle(Vector2(w * 0.75, h * 0.35), Vector2(thickness, h * 0.6)));
+      
+      // Horizontal Bars (blocking lanes)
+      mapArea.add(Obstacle(Vector2(0, h * 0.2), Vector2(w * 0.4, thickness)));
+      mapArea.add(Obstacle(Vector2(w * 0.6, h * 0.5), Vector2(w * 0.4, thickness)));
+      mapArea.add(Obstacle(Vector2(w * 0.2, h * 0.8), Vector2(w * 0.6, thickness)));
+
+      // Central Block
+      mapArea.add(Obstacle(Vector2(w / 2 - 40, h / 2 - 40), Vector2(80, 80)));
+
+      // Corner Traps
+      mapArea.add(Obstacle(Vector2(0, 0), Vector2(100, 100)));
+      mapArea.add(Obstacle(Vector2(w - 100, h - 100), Vector2(100, 100)));
+
+    } else if (mapId == 'zone_5_impossible') {
+      // Stage 5: Impossible (Dense Grid / Minefield)
+      // Pattern: High density of small blocks, very little room to maneuver
+      double blockSize = 40; // Smaller blocks
+      double gap = 50; // Tighter gaps
+      double startX = 20;
+      double startY = 20;
+
+      for (double y = startY; y < mapHeight - 20; y += blockSize + gap) {
+        for (double x = startX; x < mapWidth - 20; x += blockSize + gap) {
+          // Skip center area for player spawn (slightly larger safe zone)
+          if ((x - mapWidth / 2).abs() < 70 && (y - mapHeight / 2).abs() < 70) continue;
+          
+          mapArea.add(Obstacle(Vector2(x, y), Vector2(blockSize, blockSize)));
+        }
+      }
+      
+      // Add "Kill Zones" (Long bars at edges forcing player into the grid)
+      mapArea.add(Obstacle(Vector2(0, 100), Vector2(30, mapHeight - 200)));
+      mapArea.add(Obstacle(Vector2(mapWidth - 30, 100), Vector2(30, mapHeight - 200)));
     }
   }
 
@@ -1422,15 +1465,14 @@ class Player extends SpriteComponent
 
   @override
   Future<void> onLoad() async {
-    // Reduced Player Visual Size (54 -> 48) as requested
-    size = Vector2(48, 48);
+    // Increased Player Visual Size (24 -> 36 -> 54) -> Reduced to 45
+    size = Vector2(45, 45);
 
-    // Keep hitbox smaller than visual size for fair gameplay (30x30 centered)
-    // Center: (48 - 30) / 2 = 9
+    // Keep hitbox smaller than visual size for fair gameplay (25x25 centered)
     add(
       RectangleHitbox(
-        position: Vector2(9, 9), 
-        size: Vector2(30, 30),
+        position: Vector2(10, 10), // Centered: (45-25)/2 = 10
+        size: Vector2(25, 25),
       ),
     );
 
@@ -1615,6 +1657,36 @@ class Bullet extends PositionComponent
   }
 
   @override
+  void render(Canvas canvas) {
+    // Sophisticated Bullet Design: Core + Outer Glow + Trail hint
+    // Outer Glow
+    canvas.drawCircle(
+      Offset(size.x / 2, size.y / 2),
+      size.x / 1.5, // Larger glow
+      Paint()
+        ..color = AppColors.secondary.withOpacity(0.4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+    
+    // Core
+    canvas.drawCircle(
+      Offset(size.x / 2, size.y / 2),
+      size.x / 3,
+      Paint()..color = Colors.white, // White hot core
+    );
+
+    // Inner Ring
+    canvas.drawCircle(
+      Offset(size.x / 2, size.y / 2),
+      size.x / 2,
+      Paint()
+        ..color = AppColors.secondary
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
   Future<void> onLoad() async {
     add(CircleHitbox());
   }
@@ -1698,12 +1770,7 @@ class Bullet extends PositionComponent
     }
   }
 
-  @override
-  void render(Canvas canvas) {
-    double radius = size.x / 2;
-    canvas.drawCircle(Offset(radius, radius), radius + 2, _bulletGlow);
-    canvas.drawCircle(Offset(radius, radius), radius, _bulletCore);
-  }
+
 
   @override
   void onCollisionStart(

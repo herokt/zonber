@@ -1,8 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'design_system.dart';
-import 'ranking_system.dart';
-import 'language_manager.dart';
+
 
 part of 'leaderboard_widget.dart';
 

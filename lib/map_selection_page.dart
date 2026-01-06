@@ -131,11 +131,26 @@ class _MapSelectionPageState extends State<MapSelectionPage>
           color: Colors.redAccent,
         ),
         const SizedBox(height: 20),
+        const SizedBox(height: 20),
         _buildNeonMapCard(
           title: "ZONE 3: OBSTACLES",
           description: "Watch your step!",
           mapId: "zone_3_obstacles",
           color: Colors.amber,
+        ),
+        const SizedBox(height: 20),
+        _buildNeonMapCard(
+          title: "ZONE 4: CHAOS",
+          description: "No way out.",
+          mapId: "zone_4_chaos",
+          color: Colors.deepOrange,
+        ),
+        const SizedBox(height: 20),
+        _buildNeonMapCard(
+          title: "ZONE 5: IMPOSSIBLE",
+          description: "Good luck.",
+          mapId: "zone_5_impossible",
+          color: Colors.purpleAccent,
         ),
         const SizedBox(height: 20), // Bottom padding
       ],
