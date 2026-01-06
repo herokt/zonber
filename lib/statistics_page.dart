@@ -102,66 +102,79 @@ class _StatisticsPageState extends State<StatisticsPage> {
                   ),
                   const SizedBox(height: 16),
                   
-                  if (_titles.isEmpty)
-                    NeonCard(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          Icon(Icons.emoji_events_outlined, color: AppColors.textDim, size: 48),
-                          const SizedBox(height: 12),
-                          Text(
-                            "No Titles Yet",
-                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "Rank in the Top 30 to earn titles!",
-                            style: TextStyle(color: AppColors.textDim, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      alignment: WrapAlignment.center,
-                      children: _titles.map((title) {
-                        Color color = titleColors[title] ?? AppColors.primary;
-                        IconData icon = titleIcons[title] ?? Icons.star;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: color.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: color, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: color.withOpacity(0.3),
-                                blurRadius: 10,
-                                spreadRadius: 1,
-                              )
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(icon, color: color, size: 28),
-                              const SizedBox(height: 8),
-                              Text(
-                                title.toUpperCase(),
-                                style: TextStyle(
-                                  color: color,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  shadows: [Shadow(color: color, blurRadius: 5)],
+                    if (_titles.isEmpty)
+                      NeonCard(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            Icon(Icons.emoji_events_outlined, color: AppColors.textDim, size: 48),
+                            const SizedBox(height: 12),
+                            Text(
+                              "No Titles Yet",
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Rank in the Top 30 to earn titles!",
+                              style: TextStyle(color: AppColors.textDim, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 2.5, // Wide uniform cards
+                        ),
+                        itemCount: _titles.length,
+                        itemBuilder: (context, index) {
+                          String title = _titles[index];
+                          Color color = titleColors[title] ?? AppColors.primary;
+                          IconData icon = titleIcons[title] ?? Icons.star;
+                          
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: color, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: color.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  spreadRadius: 0,
+                                )
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(icon, color: color, size: 24),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    title.toUpperCase(),
+                                    style: TextStyle(
+                                      color: color,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      shadows: [Shadow(color: color, blurRadius: 5)],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
 
                   const SizedBox(height: 32),
                   

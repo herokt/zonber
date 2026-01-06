@@ -42,26 +42,7 @@ void main() async {
   print("ZONBER GAME: UPDATE VERIFIED - SYMMETRICAL CHARACTERS 2024-12-30");
 
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-    try {
-      await Firebase.initializeApp();
-      print("✅ Firebase initialized");
-    } catch (e) {
-      print("❌ Firebase initialization failed: $e");
-    }
-
-    try {
-      await AdManager().initialize();
-      print("✅ AdMob initialized");
-    } catch (e) {
-      print("❌ AdMob initialization failed: $e");
-    }
-
-    try {
-      await IAPService().initialize();
-      print("✅ IAP initialized");
-    } catch (e) {
-      print("❌ IAP initialization failed: $e");
-    }
+    // Moved initialization to _ZonberAppState to prevent Watchdog Timeout
   } else {
     print("Skipping Firebase/AdMob/IAP init on desktop/web");
   }
@@ -69,9 +50,7 @@ void main() async {
   // Fix Status Bar (White Icons for Dark Background)
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
 
-  await GameSettings().load(); // Load Settings
-  await AudioManager().initialize(); // Preload Audio
-  await LanguageManager().init(); // Initialize Language
+  // Moved GameSettings, AudioManager, LanguageManager init to _ZonberAppState
 
   runApp(
     ChangeNotifierProvider(
@@ -105,8 +84,44 @@ class _ZonberAppState extends State<ZonberApp> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
-    _checkAdStatus();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // 1. Initialize Core Services (Firebase, AdMob, IAP)
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        await Firebase.initializeApp();
+        print("✅ Firebase initialized");
+      } catch (e) {
+        print("❌ Firebase initialization failed: $e");
+      }
+
+      try {
+        await AdManager().initialize();
+        print("✅ AdMob initialized");
+      } catch (e) {
+        print("❌ AdMob initialization failed: $e");
+      }
+
+      try {
+        await IAPService().initialize();
+        print("✅ IAP initialized");
+      } catch (e) {
+        print("❌ IAP initialization failed: $e");
+      }
+    }
+
+    // 2. Initialize App Settings & Resources
+    await GameSettings().load();
+    await AudioManager().initialize();
+    await LanguageManager().init();
+
+    // 3. Check Auth & Profile
+    await _checkAuth();
+
+    // 4. Check Ads
+    await _checkAdStatus();
   }
 
   Future<void> _checkAdStatus() async {
@@ -1049,10 +1064,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
     if (customMapData != null) {
       _spawnCustomObstacles(customMapData);
-    } else if (mapId == 'zone_3_obstacles') {
-      _spawnObstacles(); // Random obstacles for Stage 3
-    } else if (mapId == 'zone_4_chaos' || mapId == 'zone_5_impossible') {
-      _spawnFixedObstacles(mapId); // Fixed patterns for Stage 4 & 5
+    } else if (mapId == 'zone_3_obstacles' || mapId == 'zone_4_chaos' || mapId == 'zone_5_impossible') {
+      _spawnFixedObstacles(mapId); // Fixed patterns for Stages 3, 4, 5
     }
 
     resumeEngine();
@@ -1083,102 +1096,74 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     }
   }
 
-  void _spawnObstacles() {
-    final r = Random();
-    int count = 0;
-    int maxAttempts = 100;
-
-    while (count < 5 && maxAttempts > 0) {
-      maxAttempts--;
-
-      double w = 50 + r.nextDouble() * 100;
-      double h = 50 + r.nextDouble() * 100;
-
-      // 1. Outer Edge Constraint (Exclude 40px border - strict)
-      // User requested "No placement in outer edge".
-      // Assuming 1 tile = 40.0. Margin = 40.0 ensures it starts AFTER the first tile.
-      // We will add a small epsilon to be safe or keep 40.
-      double margin = 45.0; // Increased slightly to be visually clear
-      double x = margin + r.nextDouble() * (mapWidth - margin * 2 - w);
-      double y = margin + r.nextDouble() * (mapHeight - margin * 2 - h);
-
-      Rect newRect = Rect.fromLTWH(x, y, w, h);
-
-      // 2. Center 9-Tile Exclusion (3x3 tiles = 120x120)
-      // Increased buffer significantly to 160x160 (4x4 area almost)
-      Rect safeZone = Rect.fromCenter(
-        center: Offset(mapWidth / 2, mapHeight / 2),
-        width: 160,
-        height: 160,
-      );
-
-      // Check Safe Zone
-      if (newRect.overlaps(safeZone)) continue;
-
-      // Check Existing Obstacles
-      bool overlaps = false;
-      for (final component in mapArea.children) {
-        if (component is Obstacle) {
-          Rect existing = component.toRect();
-          // Add padding to prevent touching (Increased to 20)
-          if (newRect.inflate(20).overlaps(existing)) {
-            overlaps = true;
-            break;
-          }
-        }
-      }
-
-      if (!overlaps) {
-        mapArea.add(Obstacle(Vector2(x, y), Vector2(w, h)));
-        count++;
-      }
-    }
-  }
+  // _spawnObstacles (Random) removed in favor of fixed layouts
 
   void _spawnFixedObstacles(String mapId) {
-    if (mapId == 'zone_4_chaos') {
-      // Stage 4: Chaos (Maze-like / Narrow Corridors)
-      // Pattern: A complex maze-like structure with narrow paths
-      double w = mapWidth;
-      double h = mapHeight;
-      double thickness = 30; // Narrower walls
-      
-      // Vertical Bars (creating lanes)
-      mapArea.add(Obstacle(Vector2(w * 0.25, 50), Vector2(thickness, h * 0.6)));
-      mapArea.add(Obstacle(Vector2(w * 0.75, h * 0.35), Vector2(thickness, h * 0.6)));
-      
-      // Horizontal Bars (blocking lanes)
-      mapArea.add(Obstacle(Vector2(0, h * 0.2), Vector2(w * 0.4, thickness)));
-      mapArea.add(Obstacle(Vector2(w * 0.6, h * 0.5), Vector2(w * 0.4, thickness)));
-      mapArea.add(Obstacle(Vector2(w * 0.2, h * 0.8), Vector2(w * 0.6, thickness)));
+    double w = mapWidth;
+    double h = mapHeight;
 
-      // Central Block
-      mapArea.add(Obstacle(Vector2(w / 2 - 40, h / 2 - 40), Vector2(80, 80)));
+    if (mapId == 'zone_3_obstacles') {
+      // Stage 3: Obstacles (The Arena) - Medium Difficulty
+      // 4 Large Corner Pillars + 1 Central Block
+      double pillarSize = 80;
+      double margin = 60;
 
-      // Corner Traps
-      mapArea.add(Obstacle(Vector2(0, 0), Vector2(100, 100)));
-      mapArea.add(Obstacle(Vector2(w - 100, h - 100), Vector2(100, 100)));
+      // Top-Left
+      mapArea.add(Obstacle(Vector2(margin, margin), Vector2(pillarSize, pillarSize)));
+      // Top-Right
+      mapArea.add(Obstacle(Vector2(w - margin - pillarSize, margin), Vector2(pillarSize, pillarSize)));
+      // Bottom-Left
+      mapArea.add(Obstacle(Vector2(margin, h - margin - pillarSize), Vector2(pillarSize, pillarSize)));
+      // Bottom-Right
+      mapArea.add(Obstacle(Vector2(w - margin - pillarSize, h - margin - pillarSize), Vector2(pillarSize, pillarSize)));
+
+      // Center Block (Small)
+      mapArea.add(Obstacle(Vector2(w / 2 - 30, h / 2 - 30), Vector2(60, 60)));
+
+    } else if (mapId == 'zone_4_chaos') {
+      // Stage 4: Chaos (The Maze) - Hard Difficulty
+      // Horizontal Corridors with alternating gaps
+      double wallH = 30;
+      double gap = 100; // Gap for player to pass
+      
+      // Wall 1 (Top) - Gap on Right
+      mapArea.add(Obstacle(Vector2(0, h * 0.25), Vector2(w - gap, wallH)));
+      
+      // Wall 2 (Middle) - Gap on Left
+      mapArea.add(Obstacle(Vector2(gap, h * 0.5), Vector2(w - gap, wallH)));
+      
+      // Wall 3 (Bottom) - Gap on Right
+      mapArea.add(Obstacle(Vector2(0, h * 0.75), Vector2(w - gap, wallH)));
+
+      // Vertical blockers to prevent straight running
+      mapArea.add(Obstacle(Vector2(w * 0.3, h * 0.25 + wallH), Vector2(30, h * 0.25 - wallH)));
+      mapArea.add(Obstacle(Vector2(w * 0.7, h * 0.5 + wallH), Vector2(30, h * 0.25 - wallH)));
 
     } else if (mapId == 'zone_5_impossible') {
-      // Stage 5: Impossible (Dense Grid / Minefield)
-      // Pattern: High density of small blocks, very little room to maneuver
-      double blockSize = 40; // Smaller blocks
-      double gap = 50; // Tighter gaps
-      double startX = 20;
-      double startY = 20;
+      // Stage 5: Impossible (The Grid) - Very Hard Difficulty
+      // Dense Chessboard: 40px blocks, 40px gaps (Tight maneuvering)
+      double blockSize = 40; 
+      double gap = 40; 
+      double startX = (mapWidth % (blockSize + gap)) / 2;
+      double startY = (mapHeight % (blockSize + gap)) / 2;
 
-      for (double y = startY; y < mapHeight - 20; y += blockSize + gap) {
-        for (double x = startX; x < mapWidth - 20; x += blockSize + gap) {
-          // Skip center area for player spawn (slightly larger safe zone)
-          if ((x - mapWidth / 2).abs() < 70 && (y - mapHeight / 2).abs() < 70) continue;
-          
-          mapArea.add(Obstacle(Vector2(x, y), Vector2(blockSize, blockSize)));
+      int row = 0;
+      for (double y = startY; y < mapHeight - blockSize; y += blockSize + gap) {
+        int col = 0;
+        for (double x = startX; x < mapWidth - blockSize; x += blockSize + gap) {
+          // Chessboard logic
+          if ((row + col) % 2 == 0) {
+             // Safe Zone Check (Center 3x3 area approx 120x120)
+            if ((x - mapWidth / 2).abs() < 80 && (y - mapHeight / 2).abs() < 80) {
+              // Skip center
+            } else {
+              mapArea.add(Obstacle(Vector2(x, y), Vector2(blockSize, blockSize)));
+            }
+          }
+          col++;
         }
+        row++;
       }
-      
-      // Add "Kill Zones" (Long bars at edges forcing player into the grid)
-      mapArea.add(Obstacle(Vector2(0, 100), Vector2(30, mapHeight - 200)));
-      mapArea.add(Obstacle(Vector2(mapWidth - 30, 100), Vector2(30, mapHeight - 200)));
     }
   }
 
