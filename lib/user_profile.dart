@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,6 +19,11 @@ class UserProfileManager {
   static const String _keyCountryTicket = 'country_change_ticket';
   static const String _keyAdsRemoved = 'ads_removed';
   static const String _keyManuallyResetPurchases = 'manually_reset_purchases';
+  
+  // Statistics Keys
+  static const String _keyTotalPlayTime = 'stats_total_play_time';
+  static const String _keyTotalGamesPlayed = 'stats_total_games_played';
+  static const String _keyMapPlayCounts = 'stats_map_play_counts'; // JSON encoded map
 
   static Future<bool> hasProfile() async {
     print('=== CHECKING PROFILE ===');
@@ -58,6 +64,13 @@ class UserProfileManager {
           await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
           await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
           await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
+          
+          // Stats Sync
+          await prefs.setDouble(_keyTotalPlayTime, (data['totalPlayTime'] ?? 0).toDouble());
+          await prefs.setInt(_keyTotalGamesPlayed, data['totalGamesPlayed'] ?? 0);
+          if (data['mapPlayCounts'] != null) {
+            await prefs.setString(_keyMapPlayCounts, jsonEncode(data['mapPlayCounts']));
+          }
 
           // Sync manual reset flags
           if (data['manuallyResetPurchases'] != null) {
@@ -105,6 +118,13 @@ class UserProfileManager {
         await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
         await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
 
+        // Stats Sync
+        await prefs.setDouble(_keyTotalPlayTime, (data['totalPlayTime'] ?? 0).toDouble());
+        await prefs.setInt(_keyTotalGamesPlayed, data['totalGamesPlayed'] ?? 0);
+        if (data['mapPlayCounts'] != null) {
+          await prefs.setString(_keyMapPlayCounts, jsonEncode(data['mapPlayCounts']));
+        }
+
         // Sync manual reset flags
         if (data['manuallyResetPurchases'] != null) {
           List<String> resetList = List<String>.from(data['manuallyResetPurchases']);
@@ -129,6 +149,9 @@ class UserProfileManager {
     await prefs.remove(_keyCountryTicket);
     await prefs.remove(_keyAdsRemoved);
     await prefs.remove(_keyManuallyResetPurchases);
+    await prefs.remove(_keyTotalPlayTime);
+    await prefs.remove(_keyTotalGamesPlayed);
+    await prefs.remove(_keyMapPlayCounts);
   }
 
   static Future<Map<String, String>> getProfile() async {
@@ -351,6 +374,82 @@ class UserProfileManager {
         print('📍 Synced manual reset flags to Firebase');
       } catch (e) {
         print("❌ Error syncing manual reset to Firebase: $e");
+      }
+    }
+  }
+
+  // --- STATISTICS METHODS ---
+
+  static Future<Map<String, dynamic>> getStatistics() async {
+    final prefs = await SharedPreferences.getInstance();
+    double totalTime = prefs.getDouble(_keyTotalPlayTime) ?? 0.0;
+    int totalGames = prefs.getInt(_keyTotalGamesPlayed) ?? 0;
+    
+    Map<String, int> mapCounts = {};
+    String? mapCountsJson = prefs.getString(_keyMapPlayCounts);
+    if (mapCountsJson != null) {
+      try {
+        mapCounts = Map<String, int>.from(jsonDecode(mapCountsJson));
+      } catch (e) {
+        print("Error parsing map counts: $e");
+      }
+    }
+
+    // Determine favorite map
+    String favoriteMap = '-';
+    int maxCount = 0;
+    mapCounts.forEach((key, value) {
+      if (value > maxCount) {
+        maxCount = value;
+        favoriteMap = key;
+      }
+    });
+
+    return {
+      'totalPlayTime': totalTime,
+      'totalGamesPlayed': totalGames,
+      'favoriteMap': favoriteMap,
+      'mapPlayCounts': mapCounts,
+    };
+  }
+
+  static Future<void> updateGameStats({
+    required double playTime,
+    required String mapId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Update local
+    double currentTotalTime = prefs.getDouble(_keyTotalPlayTime) ?? 0.0;
+    int currentTotalGames = prefs.getInt(_keyTotalGamesPlayed) ?? 0;
+    
+    currentTotalTime += playTime;
+    currentTotalGames += 1;
+    
+    Map<String, int> mapCounts = {};
+    String? mapCountsJson = prefs.getString(_keyMapPlayCounts);
+    if (mapCountsJson != null) {
+      try {
+        mapCounts = Map<String, int>.from(jsonDecode(mapCountsJson));
+      } catch (_) {}
+    }
+    mapCounts[mapId] = (mapCounts[mapId] ?? 0) + 1;
+
+    await prefs.setDouble(_keyTotalPlayTime, currentTotalTime);
+    await prefs.setInt(_keyTotalGamesPlayed, currentTotalGames);
+    await prefs.setString(_keyMapPlayCounts, jsonEncode(mapCounts));
+
+    // Sync to Firebase
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'totalPlayTime': currentTotalTime,
+          'totalGamesPlayed': currentTotalGames,
+          'mapPlayCounts': mapCounts,
+        }, SetOptions(merge: true));
+      } catch (e) {
+        print("Error syncing stats: $e");
       }
     }
   }

@@ -276,4 +276,36 @@ class RankingSystem {
       return null;
     }
   }
+
+  // 5. Get User Titles (Check Top 30 in all periods)
+  Future<List<String>> getUserTitles(String mapId, String nickname) async {
+    if (_db == null) return [];
+    List<String> titles = [];
+
+    // Check Daily
+    var dailyTop = await getTopRecords(mapId, period: RankingPeriod.daily);
+    if (dailyTop.any((r) => r['nickname'] == nickname)) {
+      titles.add('Daily Ranker');
+    }
+
+    // Check Weekly
+    var weeklyTop = await getTopRecords(mapId, period: RankingPeriod.weekly);
+    if (weeklyTop.any((r) => r['nickname'] == nickname)) {
+      titles.add('Weekly Ranker');
+    }
+
+    // Check Monthly
+    var monthlyTop = await getTopRecords(mapId, period: RankingPeriod.monthly);
+    if (monthlyTop.any((r) => r['nickname'] == nickname)) {
+      titles.add('Monthly Ranker');
+    }
+
+    // Check Yearly (All Time in this context)
+    var yearlyTop = await getTopRecords(mapId, period: RankingPeriod.allTime);
+    if (yearlyTop.any((r) => r['nickname'] == nickname)) {
+      titles.add('Legendary Survivor');
+    }
+
+    return titles;
+  }
 }

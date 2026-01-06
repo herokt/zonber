@@ -140,6 +140,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'close': 'CLOSE',
     'share': 'SHARE',
     'replay': 'REPLAY',
+    'statistics': 'STATISTICS',
   },
   'ko': {
     // Main Menu
@@ -283,5 +284,6 @@ const Map<String, Map<String, String>> appTranslations = {
     'share': '공유',
     'replay': '다시 보기',
     'my_rank': '내 순위',
+    'statistics': '통계',
   },
 };

@@ -7,7 +7,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:firebase_core/firebase_core.dart'; // 파이어베이스 코어
 import 'package:flame/game.dart';
+import 'dart:math'; // Added for rotation effect
 import 'package:flame/components.dart';
+import 'package:flame/particles.dart'; // Added for trail effect
 import 'package:flame/collisions.dart';
 import 'package:flame/input.dart'; // Required for PanDetector
 import 'package:flame/events.dart'; // Required for DragStartInfo etc?
@@ -30,6 +32,7 @@ import 'iap_service.dart';
 import 'services/auth_service.dart';
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
+import 'statistics_page.dart'; // Added by instruction
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -232,6 +235,14 @@ class _ZonberAppState extends State<ZonberApp> {
         _navigateTo('Menu');
         break;
 
+      case 'Shop':
+        _navigateTo('Menu');
+        break;
+
+      case 'Statistics':
+        _navigateTo('Menu');
+        break;
+
       default:
         _navigateTo('Menu');
         break;
@@ -310,6 +321,12 @@ class _ZonberAppState extends State<ZonberApp> {
             _navigateTo('Menu');
           },
           onGameOver: (result) {
+            // Update Stats
+            UserProfileManager.updateGameStats(
+              playTime: result['survivalTime'],
+              mapId: result['mapId'] ?? _currentMapId,
+            );
+            
             setState(() {
               _lastGameResult = result;
               _currentPage = 'Result';
@@ -468,6 +485,8 @@ class _ZonberAppState extends State<ZonberApp> {
           onBack: () => _navigateTo('MyProfile'),
           onPurchaseReset: refreshPurchaseStatus,
         );
+      case 'Statistics':
+        return StatisticsPage(onBack: () => _navigateTo('Menu'));
       case 'Editor':
         return MapEditorPage(
           onVerify: _startVerification,
@@ -489,6 +508,7 @@ class _ZonberAppState extends State<ZonberApp> {
           onProfile: () => _navigateTo('MyProfile'),
           onCharacter: () => _navigateTo('CharacterSelect'),
           onOpenShop: () => _navigateTo('Shop'),
+          onStatistics: () => _navigateTo('Statistics'),
         );
     }
   }
@@ -601,6 +621,7 @@ class MainMenu extends StatefulWidget {
   final VoidCallback onProfile;
   final VoidCallback onCharacter;
   final VoidCallback onOpenShop;
+  final VoidCallback onStatistics;
 
   const MainMenu({
     super.key,
@@ -609,6 +630,7 @@ class MainMenu extends StatefulWidget {
     required this.onProfile,
     required this.onCharacter,
     required this.onOpenShop,
+    required this.onStatistics,
   });
 
   @override
@@ -832,6 +854,13 @@ class _MainMenuState extends State<MainMenu>
                       ),
                       _buildMenuIcon(
                         context,
+                        Icons.bar_chart,
+                        'statistics', // key needs to be added to language manager or just use literal for now if key not exists
+                        widget.onStatistics,
+                        const Color(0xFF00BFFF), // Deep Sky Blue
+                      ),
+                      _buildMenuIcon(
+                        context,
                         Icons.grid_on,
                         'map_editor',
                         widget.onOpenEditor,
@@ -1009,9 +1038,10 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
     player = Player()
       ..position = Vector2(mapWidth / 2, mapHeight / 2)
-      ..width = 54
-      ..height = 54
-      ..anchor = Anchor.center;
+      ..width = 48
+      ..height = 48
+      ..anchor = Anchor.center
+      ..priority = 10; // Ensure player is above trail (trail will be 0 or -1)
     mapArea.add(player);
 
     camera.stop();
@@ -1388,16 +1418,18 @@ class Player extends SpriteComponent
 
   // Track Character ID for rendering
   String characterId = 'neon_green';
+  Color trailColor = AppColors.primary; // Default trail color
 
   @override
   Future<void> onLoad() async {
-    // Increased Player Visual Size (24 -> 36 -> 54) for better visibility
-    size = Vector2(54, 54);
+    // Reduced Player Visual Size (54 -> 48) as requested
+    size = Vector2(48, 48);
 
     // Keep hitbox smaller than visual size for fair gameplay (30x30 centered)
+    // Center: (48 - 30) / 2 = 9
     add(
       RectangleHitbox(
-        position: Vector2(12, 12), // Centered: (54-30)/2 = 12
+        position: Vector2(9, 9), 
         size: Vector2(30, 30),
       ),
     );
@@ -1406,6 +1438,7 @@ class Player extends SpriteComponent
     final profile = await UserProfileManager.getProfile();
     characterId = profile['characterId'] ?? 'neon_green';
     Character char = CharacterData.getCharacter(characterId);
+    trailColor = char.color; // Set trail color to character color
 
     if (char.imagePath != null) {
       // Flame expects path relative to assets/images/
@@ -1417,6 +1450,10 @@ class Player extends SpriteComponent
         print("Error loading sprite: $e");
       }
     }
+    
+    // Scale Optimization: Set filter quality for smoother downsampling
+    paint.filterQuality = FilterQuality.medium;
+    paint.isAntiAlias = true;
   }
 
   @override
@@ -1428,11 +1465,57 @@ class Player extends SpriteComponent
   @override
   void update(double dt) {
     super.update(dt);
-    // Direct 1:1 Drag Control
-    // No speed multiplier, no acceleration.
-    // Position moves exactly as much as the finger moved.
+    
+    // --- ROTATION EFFECT ---
+    // Base rotation speed (radians per second)
+    double rotationSpeed = 2.0; 
+    
+    // Check if moving
     Vector2 dragInput = gameRef.consumeDragDelta();
-    if (!dragInput.isZero()) {
+    bool isMoving = !dragInput.isZero();
+
+    // Spin faster when moving
+    if (isMoving) {
+      rotationSpeed = 8.0;
+    }
+    
+    // Apply rotation
+    angle += rotationSpeed * dt;
+    angle %= 2 * pi; // Keep angle within 0~2PI range
+
+    // --- MOVEMENT LOGIC (Existing) ---
+    if (isMoving) {
+      // PARTICLE TRAIL EFFECT
+      // Emit particle every few frames (or random chance) to optimize
+      if (Random().nextDouble() < 0.3) { // 30% chance per frame (~20 particles/sec)
+        Vector2 trailPos = position.clone();
+        // Add random slight offset for natural spread
+        trailPos.add(Vector2((Random().nextDouble() - 0.5) * 10, (Random().nextDouble() - 0.5) * 10));
+
+        gameRef.mapArea.add(
+          ParticleSystemComponent(
+            priority: 0, // Lower than player (10)
+            particle: AcceleratedParticle(
+              lifespan: 0.6,
+              position: trailPos,
+              speed: Vector2.zero(), // Stays where it was dropped
+              child: ComputedParticle(
+                renderer: (canvas, particle) {
+                  // Draw fading neon square/circle
+                  final paint = Paint()
+                    ..color = trailColor.withOpacity(1.0 - particle.progress)
+                    ..style = PaintingStyle.fill;
+                    
+                  // Shrinking size
+                  double size = 6.0 * (1.0 - particle.progress);
+                  canvas.drawCircle(Offset.zero, size / 2, paint);
+                },
+              ),
+            ),
+          ),
+        );
+      }
+
       // Separate X and Y axis movement for robust sliding
 
       // 1. Try moving X

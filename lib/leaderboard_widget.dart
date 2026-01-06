@@ -7,6 +7,8 @@ import 'user_profile.dart';
 import 'design_system.dart';
 import 'language_manager.dart';
 
+part 'leaderboard_widget_popup.dart';
+
 class LeaderboardWidget extends StatefulWidget {
   final String mapId;
   final String? highlightRecordId;
@@ -351,18 +353,6 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                               color: AppColors.textDim,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: NeonButton(
-                              text: LanguageManager.of(
-                                context,
-                              ).translate('share'),
-                              onPressed: () {},
-                              isPrimary: false,
-                              isCompact: true,
-                              color: Colors.amber,
-                            ),
-                          ),
                           if (widget.onRestart != null) ...[
                             const SizedBox(width: 8),
                             Expanded(
@@ -396,55 +386,120 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
     bool isMe, {
     bool isMyRankSection = false,
   }) {
-    final String rankText = (rank <= 0) ? "-" : "$rank.";
+    // Rank Styling (Same as before)
+    Color rankColor = Colors.white;
+    IconData? rankIcon;
+    bool isTop3 = false;
+    bool isRanker = rank > 0 && rank <= 30;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: isMe ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isMe
-              ? (isMyRankSection ? AppColors.primary : AppColors.primaryDim)
-              : AppColors.primaryDim.withOpacity(0.3),
+    if (rank == 1) {
+      rankColor = const Color(0xFFFFD700); // Gold
+      rankIcon = Icons.emoji_events;
+      isTop3 = true;
+    } else if (rank == 2) {
+      rankColor = const Color(0xFFC0C0C0); // Silver
+      rankIcon = Icons.emoji_events;
+      isTop3 = true;
+    } else if (rank == 3) {
+      rankColor = const Color(0xFFCD7F32); // Bronze
+      rankIcon = Icons.emoji_events;
+      isTop3 = true;
+    } else if (isRanker) {
+      rankColor = AppColors.primaryDim; // Cyan Dim
+    }
+
+    final String rankText = (rank <= 0) ? "-" : "$rank";
+
+    return GestureDetector(
+      onTap: () => _showUserInfoDialog(data),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isMe 
+              ? AppColors.primary.withOpacity(0.15) 
+              : (isTop3 ? rankColor.withOpacity(0.05) : Colors.transparent),
+          borderRadius: BorderRadius.circular(10),
+          // No borders as requested
+          boxShadow: isTop3 
+              ? [BoxShadow(color: rankColor.withOpacity(0.1), blurRadius: 10, spreadRadius: 0)] 
+              : [],
         ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 32,
-            child: Text(
-              rankText,
-              style: TextStyle(
-                color: isMe ? AppColors.primary : Colors.white,
-                fontSize: 14,
+        child: Row(
+          children: [
+            // Rank Display
+            SizedBox(
+              width: 36,
+              child: rankIcon != null 
+                  ? Icon(rankIcon, color: rankColor, size: 20)
+                  : Text(
+                      rankText,
+                      style: TextStyle(
+                        color: isMe ? AppColors.primary : rankColor,
+                        fontSize: 14,
+                        // Italic/Bold for Me
+                        fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                        fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+            ),
+            const SizedBox(width: 8),
+            
+            // Flag
+            Text(data['flag'] ?? '🏳️', style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 10),
+             
+            // Nickname & Title Badge (for Top 30)
+            Expanded(
+              child: Row(
+                children: [
+                   Flexible(
+                    child: Text(
+                      data['nickname'] ?? 'Unknown',
+                      style: TextStyle(
+                        color: isMe ? AppColors.primary : Colors.white,
+                        fontSize: 14,
+                        // Bold/Italic only for Me or Top 3
+                        fontWeight: (isMe || isTop3) ? FontWeight.bold : FontWeight.w500,
+                        fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
+                        shadows: isMe 
+                            ? [const Shadow(color: AppColors.primary, blurRadius: 10)] 
+                            : [],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isRanker && !isTop3) ...[
+                     const SizedBox(width: 4),
+                     // Enhanced Visibility: Cyan/SkyBlue, no opacity
+                     const Icon(Icons.shield, color: Color(0xFF00BFFF), size: 14), 
+                  ],
+                ],
+              ),
+            ),
+            
+            // Time
+            Text(
+              "${data['survivalTime'].toStringAsFixed(3)}s",
+              style: const TextStyle(
+                color: Colors.orange,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-          Text(data['flag'] ?? '🏳️', style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              data['nickname'] ?? 'Unknown',
-              style: TextStyle(
-                color: isMe ? AppColors.primary : Colors.white,
-                fontSize: 14,
-                fontWeight: isMe ? FontWeight.bold : FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text(
-            "${data['survivalTime'].toStringAsFixed(3)}s",
-            style: const TextStyle(
-              color: Colors.orange,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUserInfoDialog(Map<String, dynamic> userData) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: _UserProfilePopup(mapId: widget.mapId, userData: userData),
       ),
     );
   }

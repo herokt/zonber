@@ -35,7 +35,13 @@
       "Bash(D:\\\\Project\\\\zonber\\\\flutter\\\\bin\\\\flutter.bat pub get:*)",
       "Bash(firebase:*)",
       "Bash(D:\\\\Project\\\\zonber\\\\flutter\\\\bin\\\\flutter.bat build appbundle:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(cmdkey /list:*)",
+      "Bash(git pull:*)",
+      "Bash(git diff:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
