@@ -113,36 +113,36 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
         _buildNeonMapCard(
-          title: "ZONE 1: CLASSIC",
-          description: "The beginning of the nightmare.",
+          title: LanguageManager.of(context).translate('zone_1_title'),
+          description: LanguageManager.of(context).translate('zone_1_desc'),
           mapId: "zone_1_classic",
           color: Colors.cyanAccent, // Blue-ish
         ),
         const SizedBox(height: 20),
         _buildNeonMapCard(
-          title: "ZONE 2: HARDCORE",
-          description: "Faster and more chaos.",
+          title: LanguageManager.of(context).translate('zone_2_title'),
+          description: LanguageManager.of(context).translate('zone_2_desc'),
           mapId: "zone_2_hard",
           color: Colors.greenAccent, // Green
         ),
         const SizedBox(height: 20),
         _buildNeonMapCard(
-          title: "ZONE 3: OBSTACLES",
-          description: "Watch your step!",
+          title: LanguageManager.of(context).translate('zone_3_title'),
+          description: LanguageManager.of(context).translate('zone_3_desc'),
           mapId: "zone_3_obstacles",
           color: Colors.amberAccent, // Yellow
         ),
         const SizedBox(height: 20),
         _buildNeonMapCard(
-          title: "ZONE 4: CHAOS",
-          description: "No way out.",
+          title: LanguageManager.of(context).translate('zone_4_title'),
+          description: LanguageManager.of(context).translate('zone_4_desc'),
           mapId: "zone_4_chaos",
           color: Colors.deepOrangeAccent, // Orange/Red
         ),
         const SizedBox(height: 20),
         _buildNeonMapCard(
-          title: "ZONE 5: IMPOSSIBLE",
-          description: "Good luck.",
+          title: LanguageManager.of(context).translate('zone_5_title'),
+          description: LanguageManager.of(context).translate('zone_5_desc'),
           mapId: "zone_5_impossible",
           color: Colors.purpleAccent, // Purple
         ),
@@ -212,7 +212,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
             children: [
               // Ranking Button
               Expanded(
-                flex: 1,
+                flex: 2,
                 child: NeonButton(
                   text: LanguageManager.of(context).translate('rank'),
                   icon: Icons.emoji_events,
@@ -225,7 +225,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
               const SizedBox(width: 12),
               // Play Button (Bigger)
               Expanded(
-                flex: 2,
+                flex: 3,
                   child: NeonButton(
                     text: LanguageManager.of(context).translate('play'),
                     isCompact: false, // Standard size

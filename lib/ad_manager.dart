@@ -41,6 +41,7 @@ class AdManager {
 
       await MobileAds.instance.initialize();
       _loadInterstitial();
+      _loadRewardedAd();
     }
   }
 
@@ -135,15 +136,6 @@ class AdManager {
   /// Returns true if ad was shown, false otherwise.
   bool showInterstitialIfReady() {
     if (!_isMobile || _adsDisabled) return false;
-    // Determining this async is tricky for a sync method.
-    // We should cache the 'adsRemoved' state in AdManager.
-    // But for now, let's just proceed. The user only asked for the Shop item.
-    // Real implementation requires robust state management.
-    // I'll add a quick async check inside but obviously this method returns bool immediately.
-
-    // We will update this method to be async for better control? No, existing definition is sync.
-    // Let's check the preference synchronously if possible? SharedPreferences is async.
-    // Hack: We will ignore ads check here for now, assuming the caller checks it or we update AdManager to have a sync flag.
 
     _gameOverCounter++;
     print("Game Over Count: $_gameOverCounter / $_interstitialFrequency");
@@ -155,12 +147,70 @@ class AdManager {
         return true;
       } else {
         print("Interstitial Ad not ready yet or failed to load.");
-        // If not ready, we don't reset counter so we try again next time?
-        // Or reset anyway to avoid spamming verify log?
-        // Let's keep counter high so it triggers as soon as available,
-        // but typically reload is fast.
       }
     }
     return false;
+  }
+
+  // --- Rewarded Ad Logic ---
+
+  RewardedAd? _rewardedAd;
+  bool _isRewardedAdLoaded = false;
+
+  void _loadRewardedAd() {
+    if (!_isMobile) return;
+    RewardedAd.load(
+      adUnitId: AdHelper.rewardedAdUnitId, // Ensure this exists in AdHelper
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          print('Rewarded Ad loaded.');
+          _rewardedAd = ad;
+          _isRewardedAdLoaded = true;
+          _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              print('Rewarded Ad dismissed.');
+              ad.dispose();
+              _loadRewardedAd(); // Preload next one
+            },
+            onAdFailedToShowFullScreenContent: (ad, err) {
+              print('Rewarded Ad failed to show: $err');
+              ad.dispose();
+              _loadRewardedAd();
+            },
+          );
+        },
+        onAdFailedToLoad: (err) {
+          print('Rewarded Ad failed to load: $err');
+          _isRewardedAdLoaded = false;
+        },
+      ),
+    );
+  }
+
+  /// Shows a rewarded ad. Returns true if shown, false otherwise.
+  /// [onReward] is called only if the user earned the reward.
+  bool showRewardedAd(VoidCallback onReward) {
+    if (!_isMobile) {
+      // For testing on web/desktop, just grant reward immediately
+      print("Dev/Web: Granting reward immediately.");
+      onReward();
+      return true;
+    }
+
+    if (_isRewardedAdLoaded && _rewardedAd != null) {
+      _rewardedAd!.show(
+        onUserEarnedReward: (ad, reward) {
+          print('User earned reward: ${reward.amount} ${reward.type}');
+          onReward();
+        },
+      );
+      return true;
+    } else {
+      print("Rewarded Ad not ready yet.");
+      // Try to load again for next time
+      _loadRewardedAd();
+      return false;
+    }
   }
 }

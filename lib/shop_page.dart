@@ -32,8 +32,8 @@ class _ShopPageState extends State<ShopPage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _setupIAPCallbacks();
+    // _loadData();
+    // _setupIAPCallbacks();
   }
 
   void _setupIAPCallbacks() {
@@ -198,15 +198,16 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   void _showPurchaseSuccessDialog(String itemName) {
+    final langManager = LanguageManager.of(context, listen: false);
     showNeonDialog(
       context: context,
-      title: LanguageManager.of(context).translate('purchase_success'),
+      title: langManager.translate('purchase_success'),
       titleColor: const Color(0xFF00FF88),
       message:
-          "${LanguageManager.of(context).translate('purchase_message')}$itemName",
+          "${langManager.translate('purchase_message')}$itemName",
       actions: [
         NeonButton(
-          text: LanguageManager.of(context).translate('ok'),
+          text: langManager.translate('ok'),
           onPressed: () => Navigator.pop(context),
         ),
       ],
@@ -234,6 +235,7 @@ class _ShopPageState extends State<ShopPage> {
     }
 
     // Show dialog for other errors
+    final langManager = LanguageManager.of(context, listen: false);
     showNeonDialog(
       context: context,
       title: 'Error',
@@ -241,7 +243,7 @@ class _ShopPageState extends State<ShopPage> {
       message: error,
       actions: [
         NeonButton(
-          text: LanguageManager.of(context).translate('ok'),
+          text: langManager.translate('ok'),
           onPressed: () => Navigator.pop(context),
         ),
       ],
@@ -249,20 +251,21 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   void _showRestoreResultDialog(int restoredCount) {
+    final langManager = LanguageManager.of(context, listen: false);
     final String title;
     final Color titleColor;
     final String message;
 
     if (restoredCount > 0) {
-      title = LanguageManager.of(context).translate('restore_success');
+      title = langManager.translate('restore_success');
       titleColor = const Color(0xFF00FF88);
       message = restoredCount == 1
-          ? LanguageManager.of(context).translate('restore_success_message_single')
-          : LanguageManager.of(context).translate('restore_success_message_multiple').replaceAll('{count}', restoredCount.toString());
+          ? langManager.translate('restore_success_message_single')
+          : langManager.translate('restore_success_message_multiple').replaceAll('{count}', restoredCount.toString());
     } else {
-      title = LanguageManager.of(context).translate('restore_complete');
+      title = langManager.translate('restore_complete');
       titleColor = AppColors.textDim;
-      message = LanguageManager.of(context).translate('restore_no_items');
+      message = langManager.translate('restore_no_items');
     }
 
     showNeonDialog(
@@ -272,7 +275,7 @@ class _ShopPageState extends State<ShopPage> {
       message: message,
       actions: [
         NeonButton(
-          text: LanguageManager.of(context).translate('ok'),
+          text: langManager.translate('ok'),
           onPressed: () => Navigator.pop(context),
         ),
       ],
@@ -290,122 +293,26 @@ class _ShopPageState extends State<ShopPage> {
       title: LanguageManager.of(context).translate('shop_title'),
       showBackButton: true,
       onBack: widget.onBack,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // My Tickets Section (Compact)
+            Icon(Icons.shopping_cart, size: 64, color: AppColors.textDim),
+            const SizedBox(height: 16),
             Text(
-              LanguageManager.of(context).translate('my_tickets'),
-              style: TextStyle(
-                color: const Color(0xFFFFD700),
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildOwnedTicket(
-                    LanguageManager.of(context).translate('nickname'),
-                    _nicknameTickets,
-                    Icons.badge,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildOwnedTicket(
-                    LanguageManager.of(context).translate('country'),
-                    _countryTickets,
-                    Icons.flag,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Shop Items Section
-            Text(
-              LanguageManager.of(context).translate('shop'),
+              "COMING SOON",
               style: TextStyle(
                 color: AppColors.primary,
-                fontSize: 14,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Remove Ads
-            _buildShopItem(
-              productId: IAPService.removeAdsId,
-              title: "REMOVE ADS",
-              description: "Play without interruptions",
-              icon: Icons.block,
-              defaultPrice: "\$1.99",
-              isPurchased: _adsRemoved,
-              color: const Color(0xFFFF4081),
-            ),
-            const SizedBox(height: 12),
-
-            // Nickname Change Ticket
-            _buildShopItem(
-              productId: IAPService.nicknameTicketId,
-              title: LanguageManager.of(context).translate('ticket_nickname'),
-              description: LanguageManager.of(
-                context,
-              ).translate('ticket_nickname_desc'),
-              icon: Icons.badge,
-              defaultPrice: "\$0.99",
-            ),
-            const SizedBox(height: 12),
-
-            // Country Change Ticket
-            _buildShopItem(
-              productId: IAPService.countryTicketId,
-              title: LanguageManager.of(context).translate('ticket_country'),
-              description: LanguageManager.of(
-                context,
-              ).translate('ticket_country_desc'),
-              icon: Icons.flag,
-              defaultPrice: "\$0.99",
-            ),
-            const SizedBox(height: 24),
-
-            // Restore Purchases Button
-            Center(
-              child: TextButton(
-                onPressed: _isPurchasing ? null : _restorePurchases,
-                child: Text(
-                  LanguageManager.of(context).translate('restore_purchases'),
-                  style: TextStyle(
-                    color: AppColors.textDim,
-                    fontSize: 13,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+                letterSpacing: 2.0,
               ),
             ),
             const SizedBox(height: 8),
-
-            // Reset Purchases Button (TEST ONLY)
-            Center(
-              child: TextButton(
-                onPressed: _isPurchasing ? null : _resetPurchases,
-                child: Text(
-                  '🔄 Reset Purchases (TEST)',
-                  style: TextStyle(
-                    color: AppColors.secondary.withOpacity(0.7),
-                    fontSize: 12,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
+            Text(
+              "Shop is currently unavailable.",
+              style: TextStyle(color: AppColors.textDim),
             ),
-            const SizedBox(height: 32),
           ],
         ),
       ),

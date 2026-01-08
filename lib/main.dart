@@ -81,10 +81,24 @@ class _ZonberAppState extends State<ZonberApp> {
   List<List<int>>? _verifyingMapData;
   String? _verifyingMapName;
 
+  int _reviveCount = 0; // Track revives per game session
+
+  // Current game instance (for accessing in callbacks)
+  ZonberGame? _currentGame;
+
   @override
   void initState() {
     super.initState();
+    LanguageManager().addListener(_handleLanguageChange);
     _initializeApp();
+  }
+
+  void _handleLanguageChange() {
+    print('Main: _handleLanguageChange triggered. Current: ${LanguageManager().currentLanguage}');
+    if (mounted) {
+      setState(() {});
+      print('Main: setState called for language change');
+    }
   }
 
   Future<void> _initializeApp() async {
@@ -105,7 +119,7 @@ class _ZonberAppState extends State<ZonberApp> {
       }
 
       try {
-        await IAPService().initialize();
+        // await IAPService().initialize();
         print("✅ IAP initialized");
       } catch (e) {
         print("❌ IAP initialization failed: $e");
@@ -162,8 +176,9 @@ class _ZonberAppState extends State<ZonberApp> {
 
   @override
   void dispose() {
+    LanguageManager().removeListener(_handleLanguageChange);
     _bannerAd?.dispose();
-    IAPService().dispose();
+    // IAPService().dispose();
     super.dispose();
   }
 
@@ -192,6 +207,10 @@ class _ZonberAppState extends State<ZonberApp> {
       if (mapId != null) {
         _currentMapId = mapId;
       }
+      // Reset revive count when starting a NEW game from MapSelect
+      if (page == 'Game') {
+        _reviveCount = 0;
+      }
     });
   }
 
@@ -219,17 +238,6 @@ class _ZonberAppState extends State<ZonberApp> {
         return;
 
       case 'Game':
-        // Game usually has its own pause menu, but if back is pressed:
-        // Trigger pause logic if possible, or just ignore and let game UI handle it.
-        // For now, simpler: Navigate to Menu? No, ask for confirmation.
-        // Actually, passing 'null' to onBack for Game might be tricky if we want a specific behavior.
-        // Let's make GameWidget handle the back internally or make _handleBack modify state.
-        // But AppScaffold needs a callback.
-
-        // If we want to pause:
-        // This is hard to trigger inside the FlameGame from here without a controller.
-        // So for Game, we might pass a specific handler?
-        // Or simply:
         _navigateTo('Menu'); // Just go to menu for now as fallback
         break;
 
@@ -243,14 +251,6 @@ class _ZonberAppState extends State<ZonberApp> {
         break;
 
       case 'MyProfile':
-        _navigateTo('Menu');
-        break;
-
-      case 'Shop':
-        _navigateTo('Menu');
-        break;
-
-      case 'Shop':
         _navigateTo('Menu');
         break;
 
@@ -270,15 +270,15 @@ class _ZonberAppState extends State<ZonberApp> {
     if (_currentPage == 'Menu' || _currentPage == 'Login') {
       return null; // Root -> Exit Dialog
     }
-    // For Game, we might want to prevent accidental back?
-    // User requested "Andoird back button works as previous page".
     return () => _handleBack();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Manual listener ensures rebuild, so we can access singleton directly
     return MaterialApp(
-      supportedLocales: const [Locale('en')],
+      locale: Locale(LanguageManager().currentLanguage),
+      supportedLocales: const [Locale('en'), Locale('ko')],
       localizationsDelegates: const [
         CountryLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -329,31 +329,62 @@ class _ZonberAppState extends State<ZonberApp> {
           },
         );
       case 'Game':
-        final game = ZonberGame(
+        _currentGame = ZonberGame(
           mapId: _currentMapId,
           onExit: () {
             AdManager().showInterstitialIfReady();
             _navigateTo('MapSelect');
           },
           onGameOver: (result) {
-            // Update Stats
-            UserProfileManager.updateGameStats(
-              playTime: result['survivalTime'],
-              mapId: result['mapId'] ?? _currentMapId,
-            );
-            
-            setState(() {
-              _lastGameResult = result;
-              _currentPage = 'Result';
-              AdManager().showInterstitialIfReady();
-            });
+            // Check if can revive
+            if (_reviveCount < 3) {
+              // Show Revive Dialog
+              final langManager = LanguageManager.of(context, listen: false);
+              final int revivesLeft = 3 - _reviveCount;
+              showNeonDialog(
+                context: context,
+                title: langManager.translate('revive_title'),
+                message: "${langManager.translate('revive_message')}\n($revivesLeft ${langManager.translate('revives_left')})",
+                actions: [
+                  NeonButton(
+                    text: langManager.translate('give_up'),
+                    color: AppColors.secondary,
+                    isPrimary: false,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _handleGameOver(result);
+                    },
+                  ),
+                  NeonButton(
+                    text: langManager.translate('revive'),
+                    icon: Icons.play_arrow,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      bool shown = AdManager().showRewardedAd(() {
+                        // On Reward
+                        _reviveCount++;
+                        _currentGame?.startGame(initialTime: result['survivalTime']);
+                      });
+                      if (!shown) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(langManager.translate('ad_not_ready'))),
+                        );
+                        _handleGameOver(result);
+                      }
+                    },
+                  ),
+                ],
+              );
+            } else {
+              _handleGameOver(result);
+            }
           },
         );
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (bool didPop, dynamic result) {
             if (didPop) return;
-            _pauseGame(context, game);
+            _pauseGame(context, _currentGame!);
           },
           child: Scaffold(
             backgroundColor: const Color(0xFF0B0C10),
@@ -375,11 +406,11 @@ class _ZonberAppState extends State<ZonberApp> {
                             color: AppColors.primary,
                             size: 28,
                           ),
-                          onPressed: () => _pauseGame(context, game),
+                          onPressed: () => _pauseGame(context, _currentGame!),
                         ),
                         // Time Display
                         ValueListenableBuilder<double>(
-                          valueListenable: game.survivalTimeNotifier,
+                          valueListenable: _currentGame!.survivalTimeNotifier,
                           builder: (context, value, child) {
                             return Text(
                               'TIME: ${value.toStringAsFixed(2)}',
@@ -404,7 +435,7 @@ class _ZonberAppState extends State<ZonberApp> {
                     ),
                   ),
                   // Game Area
-                  Expanded(child: GameWidget(game: game)),
+                  Expanded(child: GameWidget(game: _currentGame!)),
                 ],
               ),
             ),
@@ -491,8 +522,47 @@ class _ZonberAppState extends State<ZonberApp> {
           onBack: () => _navigateTo('Menu'),
           onOpenShop: () => _navigateTo('Shop'),
           onLogout: () async {
-            await AuthService().signOut();
-            _navigateTo('Login');
+            print('Main: onLogout called');
+            
+            // Show loading indicator
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+            );
+
+            try {
+              // 1. Sign out from Firebase
+              try {
+                await AuthService().signOut().timeout(const Duration(seconds: 2));
+                print('Main: AuthService signed out');
+              } catch (e) {
+                print('Main: Logout error (Auth): $e');
+              }
+
+              // 2. Clear local profile
+              try {
+                await UserProfileManager.clearProfile().timeout(const Duration(seconds: 1));
+                print('Main: Profile cleared');
+              } catch (e) {
+                print('Main: Logout error (Profile): $e');
+              }
+              
+              // 3. Wait a bit for UI to settle
+              await Future.delayed(const Duration(milliseconds: 500));
+
+            } catch (e) {
+              print('Main: Critical logout error: $e');
+            } finally {
+              // 4. Close loading indicator (use rootNavigator to be safe)
+              if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+                Navigator.of(context, rootNavigator: true).pop();
+              }
+
+              // 5. Navigate to Login
+              print('Main: Navigating to Login');
+              _navigateTo('Login');
+            }
           },
         );
       case 'Shop':
@@ -523,11 +593,12 @@ class _ZonberAppState extends State<ZonberApp> {
           onOpenEditor: () => _navigateTo('Editor'),
           onProfile: () => _navigateTo('MyProfile'),
           onCharacter: () => _navigateTo('CharacterSelect'),
-          onOpenShop: () => _navigateTo('Shop'),
+          // onOpenShop: () => _navigateTo('Shop'),
           onStatistics: () => _navigateTo('Statistics'),
         );
     }
   }
+
 
   void _startVerification(List<List<int>> data, String name) {
     setState(() {
@@ -539,6 +610,8 @@ class _ZonberAppState extends State<ZonberApp> {
 
   void _onVerificationGameOver(Map<String, dynamic> result) async {
     double time = result['survivalTime'];
+    final langManager = LanguageManager.of(context, listen: false);
+
     if (time >= 30.0) {
       // Success
       bool success = await MapService().saveCustomMap(
@@ -553,17 +626,17 @@ class _ZonberAppState extends State<ZonberApp> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => NeonDialog(
-          title: LanguageManager.of(context).translate('verification_success'),
+        builder: (dialogContext) => NeonDialog(
+          title: langManager.translate('verification_success'),
           titleColor: const Color(0xFF00FF88),
           message: success
-              ? LanguageManager.of(context).translate('map_verified_message')
+              ? langManager.translate('map_verified_message')
               : "Verification passed, but upload failed.", // Fallback if internal error
           actions: [
             NeonButton(
-              text: LanguageManager.of(context).translate('ok'),
+              text: langManager.translate('ok'),
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 _navigateTo('Menu');
               },
             ),
@@ -576,17 +649,17 @@ class _ZonberAppState extends State<ZonberApp> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => NeonDialog(
-          title: LanguageManager.of(context).translate('verification_failed'),
+        builder: (dialogContext) => NeonDialog(
+          title: langManager.translate('verification_failed'),
           titleColor: AppColors.secondary,
           message:
-              "${LanguageManager.of(context).translate('verification_fail_message')}: ${time.toStringAsFixed(2)}s\n${LanguageManager.of(context).translate('must_survive_30s')}",
+              "${langManager.translate('verification_fail_message')}: ${time.toStringAsFixed(2)}s\n${langManager.translate('must_survive_30s')}",
           actions: [
             NeonButton(
-              text: LanguageManager.of(context).translate('try_again'),
+              text: langManager.translate('try_again'),
               color: AppColors.primary,
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 _navigateTo('Editor'); // Go back to editor
               },
             ),
@@ -598,13 +671,14 @@ class _ZonberAppState extends State<ZonberApp> {
 
   void _pauseGame(BuildContext context, ZonberGame game) {
     game.pauseEngine();
+    final langManager = LanguageManager.of(context, listen: false);
     showNeonDialog(
       context: context,
-      title: LanguageManager.of(context).translate('paused'),
+      title: langManager.translate('paused'),
       message: null,
       actions: [
         NeonButton(
-          text: LanguageManager.of(context).translate('exit'),
+          text: langManager.translate('exit'),
           color: AppColors.secondary,
           onPressed: () {
             Navigator.pop(context);
@@ -620,7 +694,7 @@ class _ZonberAppState extends State<ZonberApp> {
           isPrimary: false,
         ),
         NeonButton(
-          text: LanguageManager.of(context).translate('resume'),
+          text: langManager.translate('resume'),
           onPressed: () {
             Navigator.pop(context);
             game.resumeEngine();
@@ -629,6 +703,21 @@ class _ZonberAppState extends State<ZonberApp> {
       ],
     );
   }
+
+
+  void _handleGameOver(Map<String, dynamic> result) {
+    // Update Stats
+    UserProfileManager.updateGameStats(
+      playTime: result['survivalTime'],
+      mapId: result['mapId'] ?? _currentMapId,
+    );
+
+    setState(() {
+      _lastGameResult = result;
+      _currentPage = 'Result';
+      AdManager().showInterstitialIfReady();
+    });
+  }
 }
 
 class MainMenu extends StatefulWidget {
@@ -636,7 +725,7 @@ class MainMenu extends StatefulWidget {
   final VoidCallback onOpenEditor;
   final VoidCallback onProfile;
   final VoidCallback onCharacter;
-  final VoidCallback onOpenShop;
+  final VoidCallback? onOpenShop;
   final VoidCallback onStatistics;
 
   const MainMenu({
@@ -645,7 +734,7 @@ class MainMenu extends StatefulWidget {
     required this.onOpenEditor,
     required this.onProfile,
     required this.onCharacter,
-    required this.onOpenShop,
+    this.onOpenShop,
     required this.onStatistics,
   });
 
@@ -876,13 +965,13 @@ class _MainMenuState extends State<MainMenu>
                         const Color(0xFF00BFFF), // Deep Sky Blue
                       ),
                       // Map Editor Removed (Local change respected)
-                      _buildMenuIcon(
-                        context,
-                        Icons.shopping_bag_outlined,
-                        'shop',
-                        widget.onOpenShop,
-                        const Color(0xFFFFD700),
-                      ),
+                      // _buildMenuIcon(
+                      //   context,
+                      //   Icons.shopping_bag_outlined,
+                      //   'shop',
+                      //   widget.onOpenShop,
+                      //   const Color(0xFFFFD700),
+                      // ),
                     ],
                   ),
                 ),
@@ -1035,10 +1124,10 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     }
   }
 
-  void startGame({Map<String, dynamic>? customMapData}) {
+  void startGame({Map<String, dynamic>? customMapData, double initialTime = 0.0}) {
     isGameOver = false;
-    survivalTime = 0.0;
-    survivalTimeNotifier.value = 0.0;
+    survivalTime = initialTime;
+    survivalTimeNotifier.value = initialTime;
     lastRecordId = null;
 
     overlays.remove('GameOverMenu');

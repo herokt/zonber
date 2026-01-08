@@ -470,11 +470,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (isRanker && !isTop3) ...[
-                     const SizedBox(width: 4),
-                     // Enhanced Visibility: Cyan/SkyBlue, no opacity
-                     const Icon(Icons.shield, color: Color(0xFF00BFFF), size: 14), 
-                  ],
+
                 ],
               ),
             ),

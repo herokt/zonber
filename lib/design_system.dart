@@ -489,7 +489,6 @@ Future<T?> showNeonDialog<T>({
   return showDialog<T>(
     context: context,
     barrierDismissible: false, // We handle this ourselves
-    barrierColor: Colors.transparent,
     builder: (context) => NeonDialog(
       title: title,
       message: message,
@@ -531,22 +530,21 @@ class AppScaffold extends StatelessWidget {
             onBack!();
           } else {
             // If no back handler is provided (Root page), show exit dialog
+            final langManager = LanguageManager.of(context, listen: false);
             bool exit =
                 await showNeonDialog<bool>(
                   context: context,
-                  title: LanguageManager.of(context).translate('exit_game'),
+                  title: langManager.translate('exit_game'),
                   titleColor: AppColors.secondary,
-                  message: LanguageManager.of(
-                    context,
-                  ).translate('exit_game_message'),
+                  message: langManager.translate('exit_game_message'),
                   actions: [
                     NeonButton(
-                      text: LanguageManager.of(context).translate('cancel'),
+                      text: langManager.translate('cancel'),
                       isPrimary: true,
                       onPressed: () => Navigator.of(context).pop(false),
                     ),
                     NeonButton(
-                      text: LanguageManager.of(context).translate('quit'),
+                      text: langManager.translate('quit'),
                       color: AppColors.secondary,
                       isPrimary: false,
                       onPressed: () => Navigator.of(context).pop(true),

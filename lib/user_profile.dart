@@ -679,7 +679,7 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
 class MyProfilePage extends StatefulWidget {
   final VoidCallback onBack;
   final VoidCallback onOpenShop;
-  final VoidCallback onLogout;
+  final Future<void> Function() onLogout;
 
   const MyProfilePage({
     super.key,
@@ -876,19 +876,19 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     _getProviderName(),
                   ),
                   const SizedBox(height: 12),
-                  _buildInfoRow(
-                    Icons.block,
-                    LanguageManager.of(context).translate('remove_ads'),
-                    _isAdsRemoved
-                        ? LanguageManager.of(context).translate('ads_removed')
-                        : LanguageManager.of(context).translate('visit_shop'),
-                    valueColor: _isAdsRemoved
-                        ? const Color(0xFF00FF88)
-                        : AppColors.primary,
-                    onTap: () {
-                      if (!_isAdsRemoved) widget.onOpenShop();
-                    },
-                  ),
+                  // _buildInfoRow(
+                  //   Icons.block,
+                  //   LanguageManager.of(context).translate('remove_ads'),
+                  //   _isAdsRemoved
+                  //       ? LanguageManager.of(context).translate('ads_removed')
+                  //       : LanguageManager.of(context).translate('visit_shop'),
+                  //   valueColor: _isAdsRemoved
+                  //       ? const Color(0xFF00FF88)
+                  //       : AppColors.primary,
+                  //   onTap: () {
+                  //     if (!_isAdsRemoved) widget.onOpenShop();
+                  //   },
+                  // ),
                 ],
               ),
             ),
@@ -963,17 +963,17 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   ),
                   const SizedBox(height: 16),
 
-                  _buildSettingRow(
-                    Icons.volume_up,
-                    LanguageManager.of(context).translate("sound"),
-                    _soundEnabled,
-                    (v) async {
-                      setState(() => _soundEnabled = v);
-                      await GameSettings().setSound(v);
-                      AudioManager().refreshBgm();
-                    },
-                  ),
-                  const SizedBox(height: 8),
+                  // _buildSettingRow(
+                  //   Icons.volume_up,
+                  //   LanguageManager.of(context).translate("sound"),
+                  //   _soundEnabled,
+                  //   (v) async {
+                  //     setState(() => _soundEnabled = v);
+                  //     await GameSettings().setSound(v);
+                  //     AudioManager().refreshBgm();
+                  //   },
+                  // ),
+                  // const SizedBox(height: 8),
                   _buildSettingRow(
                     Icons.vibration,
                     LanguageManager.of(context).translate("vibration"),
@@ -995,26 +995,25 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 color: AppColors.secondary,
                 icon: Icons.logout,
                 onPressed: () {
+                  print('MyProfilePage: Logout button tapped');
+                  final langManager = LanguageManager.of(context, listen: false);
                   showNeonDialog(
                     context: context,
-                    title: LanguageManager.of(context).translate('logout'),
-                    message: LanguageManager.of(
-                      context,
-                    ).translate('logout_confirm'),
+                    title: langManager.translate('logout'),
+                    message: langManager.translate('logout_confirm'),
                     actions: [
                       NeonButton(
-                        text: LanguageManager.of(context).translate('cancel'),
+                        text: langManager.translate('cancel'),
                         isPrimary: true,
                         onPressed: () => Navigator.pop(context),
                       ),
                       NeonButton(
-                        text: LanguageManager.of(context).translate('logout'),
+                        text: langManager.translate('logout'),
                         color: AppColors.secondary,
                         isPrimary: false,
-                        onPressed: () {
+                        onPressed: () async {
                           Navigator.pop(context);
-                          widget.onLogout();
-                          UserProfileManager.clearProfile();
+                          await widget.onLogout();
                         },
                       ),
                     ],
@@ -1184,8 +1183,15 @@ class _MyProfilePageState extends State<MyProfilePage> {
     String flagEmoji = code == 'en' ? '🇺🇸' : '🇰🇷';
 
     return GestureDetector(
-      onTap: () {
-        LanguageManager.of(context).changeLanguage(code);
+      onTap: () async {
+        print('MyProfilePage: Language option $code tapped');
+        // Use singleton directly in event handler (not Provider.of with listen=true)
+        await LanguageManager().changeLanguage(code);
+        if (mounted) {
+          setState(() {
+            // Trigger rebuild to update UI
+          });
+        }
       },
       child: Container(
         width: 40,

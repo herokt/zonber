@@ -12,29 +12,38 @@ class LanguageManager extends ChangeNotifier {
   String get currentLanguage => _currentLanguage;
 
   /// Helper to access via Provider context to ensure rebuilds on change.
-  static LanguageManager of(BuildContext context) {
-    return Provider.of<LanguageManager>(context, listen: true);
+  /// Set listen: false when calling from event handlers (onPressed, onTap, etc.)
+  static LanguageManager of(BuildContext context, {bool listen = true}) {
+    return Provider.of<LanguageManager>(context, listen: listen);
   }
 
   Future<void> init() async {
-    // Load from GameSettings (or prefs directly if GameSettings doesn't support it yet)
-    // For now, let's just use GameSettings to persist it.
-    // We will update GameSettings to support language first.
+    print('LanguageManager: init() called');
     final prefs = await SharedPreferences.getInstance();
     _currentLanguage = prefs.getString('language') ?? 'en';
+    print('LanguageManager: Loaded language $_currentLanguage');
     notifyListeners();
   }
 
   Future<void> changeLanguage(String languageCode) async {
+    print('LanguageManager: changeLanguage($languageCode) called. Current: $_currentLanguage');
     if (_currentLanguage == languageCode) return;
 
     if (appTranslations.containsKey(languageCode)) {
+      // Optimistic update
       _currentLanguage = languageCode;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('language', languageCode);
-
       notifyListeners();
+      print('LanguageManager: Language changed to $languageCode (Optimistic)');
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('language', languageCode);
+        print('LanguageManager: Persisted language to prefs');
+      } catch (e) {
+        print('LanguageManager: Failed to save language: $e');
+      }
+    } else {
+      print('LanguageManager: Invalid language code $languageCode');
     }
   }
 

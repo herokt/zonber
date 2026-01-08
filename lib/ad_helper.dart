@@ -12,7 +12,7 @@ class AdHelper {
   // - true  = Production ads (REAL revenue)
   // - false = Test ads (NO revenue, for development)
   // ============================================================
-  static const bool isReleaseMode = false;  // 👈 Change this to true for production
+  static const bool isReleaseMode = true;  // 👈 Change this to true for production
   // ============================================================
 
   // 📱 PRODUCTION AD IDS (Real Ads)
@@ -39,6 +39,8 @@ class AdHelper {
   static const String testAndroidInterstitial = 'ca-app-pub-3940256099942544/1033173712';
   static const String testIOSBanner = 'ca-app-pub-3940256099942544/2934735716';
   static const String testIOSInterstitial = 'ca-app-pub-3940256099942544/4411468910';
+  static const String testAndroidRewarded = 'ca-app-pub-3940256099942544/5224354917';
+  static const String testIOSRewarded = 'ca-app-pub-3940256099942544/1712485313';
   // ============================================================
 
   // Get current mode as string for debugging
@@ -81,6 +83,19 @@ class AdHelper {
       // Test mode - use Google's test ad IDs
       if (Platform.isAndroid) return testAndroidInterstitial;
       if (Platform.isIOS) return testIOSInterstitial;
+    }
+    throw UnsupportedError('Unsupported platform');
+  }
+
+  static String get rewardedAdUnitId {
+    if (isReleaseMode) {
+      // Production mode - use real ad IDs
+      if (Platform.isAndroid) return androidRewardedId;
+      if (Platform.isIOS) return iosRewardedId;
+    } else {
+      // Test mode - use Google's test ad IDs
+      if (Platform.isAndroid) return testAndroidRewarded;
+      if (Platform.isIOS) return testIOSRewarded;
     }
     throw UnsupportedError('Unsupported platform');
   }

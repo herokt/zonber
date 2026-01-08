@@ -23,11 +23,27 @@ const Map<String, Map<String, String>> appTranslations = {
     // Game Over
     'game_over': 'GAME OVER',
     'survival_time': 'SURVIVAL TIME',
+    'revive_title': 'REVIVE?',
+    'revive_message': 'Watch an ad to revive and continue?',
+    'revives_left': 'revives left',
+    'give_up': 'GIVE UP',
+    'revive': 'REVIVE',
+    'ad_not_ready': 'Ad not ready yet. Try again later.',
 
     // Map Selection
     'select_zone': 'SELECT ZONE',
     'official_maps': 'OFFICIAL',
     'custom_maps': 'CUSTOM',
+    'zone_1_title': 'ZONE 1: CLASSIC',
+    'zone_1_desc': 'The beginning of the nightmare.',
+    'zone_2_title': 'ZONE 2: HARDCORE',
+    'zone_2_desc': 'Faster and more chaos.',
+    'zone_3_title': 'ZONE 3: OBSTACLES',
+    'zone_3_desc': 'Watch your step!',
+    'zone_4_title': 'ZONE 4: CHAOS',
+    'zone_4_desc': 'No way out.',
+    'zone_5_title': 'ZONE 5: IMPOSSIBLE',
+    'zone_5_desc': 'Good luck.',
 
     // Editor
     'clear': 'CLEAR',
@@ -178,11 +194,27 @@ const Map<String, Map<String, String>> appTranslations = {
     // Game Over
     'game_over': '게임 오버',
     'survival_time': '생존 시간',
+    'revive_title': '부활하기?',
+    'revive_message': '광고를 보고 부활하시겠습니까?',
+    'revives_left': '회 남음',
+    'give_up': '포기',
+    'revive': '부활',
+    'ad_not_ready': '광고가 아직 준비되지 않았습니다. 나중에 다시 시도하세요.',
 
     // Map Selection
     'select_zone': '맵 선택',
     'official_maps': '공식 맵',
     'custom_maps': '커스텀 맵',
+    'zone_1_title': 'ZONE 1: 클래식',
+    'zone_1_desc': '악몽의 시작입니다.',
+    'zone_2_title': 'ZONE 2: 하드코어',
+    'zone_2_desc': '더 빠르고 혼란스럽습니다.',
+    'zone_3_title': 'ZONE 3: 장애물',
+    'zone_3_desc': '발밑을 조심하세요!',
+    'zone_4_title': 'ZONE 4: 카오스',
+    'zone_4_desc': '출구는 없습니다.',
+    'zone_5_title': 'ZONE 5: 임파서블',
+    'zone_5_desc': '행운을 빕니다.',
 
     // Editor
     'clear': '지우기',

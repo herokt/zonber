@@ -124,7 +124,7 @@ class _UserProfilePopupState extends State<_UserProfilePopup> {
              ),
              const SizedBox(height: 12),
              Text(
-               highestTitle.toUpperCase(),
+               LanguageManager.of(context).translate(highestTitle).toUpperCase(),
                style: TextStyle(
                  color: mainColor,
                  fontSize: 14,
@@ -137,7 +137,7 @@ class _UserProfilePopupState extends State<_UserProfilePopup> {
              const Icon(Icons.person_outline, size: 64, color: AppColors.textDim),
              const SizedBox(height: 12),
              Text(
-               "NO TITLES YET",
+               LanguageManager.of(context).translate('no_titles'),
                style: TextStyle(
                  color: AppColors.textDim,
                  fontSize: 14,
@@ -172,7 +172,7 @@ class _UserProfilePopupState extends State<_UserProfilePopup> {
                      border: Border.all(color: color.withOpacity(0.5)),
                    ),
                    child: Text(
-                     title,
+                     LanguageManager.of(context).translate(title),
                      style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
                    ),
                  );

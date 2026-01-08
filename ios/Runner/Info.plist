@@ -68,13 +68,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs access to your camera.</string>
 
-	<!-- Network Services (for debugging) -->
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_dartobservatory._tcp</string>
-	</array>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>This app does not require local network access</string>
+
 
 	<!-- Google Sign-In URL Schemes -->
 	<key>CFBundleURLTypes</key>
