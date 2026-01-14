@@ -5,8 +5,13 @@ import 'user_profile.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
+  final VoidCallback? onGuestContinue;
 
-  const LoginPage({super.key, required this.onLoginSuccess});
+  const LoginPage({
+    super.key,
+    required this.onLoginSuccess,
+    this.onGuestContinue,
+  });
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -18,10 +23,35 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
-    final user = await _authService.signInWithGoogle();
+    final credential = await _authService.signInWithGoogle();
     setState(() => _isLoading = false);
-    if (user != null) {
+
+    if (credential != null) {
+      // Try to sync existing profile from Firestore
       await UserProfileManager.syncProfile();
+
+      // Check if profile exists
+      bool hasProfile = await UserProfileManager.hasProfile();
+
+      if (!hasProfile) {
+        // Auto-create profile from Google account
+        final user = credential.user;
+        String nickname = user?.displayName?.split(' ').first ?? 'Player';
+
+        // Limit nickname to 8 characters
+        if (nickname.length > 8) {
+          nickname = nickname.substring(0, 8);
+        }
+
+        await UserProfileManager.saveProfile(
+          nickname,
+          '', // Empty flag, user can set later
+          '', // Empty country name
+        );
+
+        print('✅ Auto-created profile from Google: $nickname');
+      }
+
       widget.onLoginSuccess();
     } else {
       if (mounted) {
@@ -34,11 +64,40 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleAppleSignIn() async {
     setState(() => _isLoading = true);
-    final user = await _authService.signInWithApple();
+    final result = await _authService.signInWithApple();
     setState(() => _isLoading = false);
-    if (user != null) {
-      await UserProfileManager.syncProfile();
-      widget.onLoginSuccess();
+
+    if (result != null) {
+      final credential = result['credential'] as UserCredential?;
+      final fullName = result['fullName'] as String?;
+
+      if (credential != null) {
+        // Try to sync existing profile from Firestore
+        await UserProfileManager.syncProfile();
+
+        // Check if profile exists
+        bool hasProfile = await UserProfileManager.hasProfile();
+
+        if (!hasProfile) {
+          // Auto-create profile from Apple account
+          String nickname = fullName ?? credential.user?.displayName ?? 'Player';
+
+          // Limit nickname to 8 characters
+          if (nickname.length > 8) {
+            nickname = nickname.substring(0, 8);
+          }
+
+          await UserProfileManager.saveProfile(
+            nickname,
+            '', // Empty flag, user can set later
+            '', // Empty country name
+          );
+
+          print('✅ Auto-created profile from Apple: $nickname');
+        }
+
+        widget.onLoginSuccess();
+      }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -46,6 +105,11 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     }
+  }
+
+  Future<void> _handleGuestContinue() async {
+    await UserProfileManager.enableGuestMode();
+    widget.onGuestContinue?.call();
   }
 
   @override
@@ -63,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                "SIGN IN TO CONTINUE",
+                "SIGN IN TO COMPETE",
                 style: AppTextStyles.body.copyWith(
                   color: AppColors.textDim,
                   letterSpacing: 2.0,
@@ -83,6 +147,31 @@ class _LoginPageState extends State<LoginPage> {
                   _handleAppleSignIn,
                   Icons.apple,
                 ),
+                const SizedBox(height: 32),
+                // Guest Mode Divider
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(color: AppColors.textDim.withOpacity(0.3)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        "OR",
+                        style: TextStyle(
+                          color: AppColors.textDim,
+                          fontSize: 12,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(color: AppColors.textDim.withOpacity(0.3)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _buildGuestButton(),
               ],
             ],
           ),
@@ -100,6 +189,21 @@ class _LoginPageState extends State<LoginPage> {
         text: text,
         onPressed: onPressed,
         icon: icon,
+        isCompact: false,
+      ),
+    );
+  }
+
+  Widget _buildGuestButton() {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(maxWidth: 300),
+      child: NeonButton(
+        text: "CONTINUE AS GUEST",
+        onPressed: _handleGuestContinue,
+        icon: Icons.person_outline,
+        color: AppColors.textDim,
+        isPrimary: false,
         isCompact: false,
       ),
     );

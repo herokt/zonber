@@ -1,6 +1,7 @@
 import 'dart:io'; // Add dart:io
 import 'package:flutter/foundation.dart'; // Add kIsWeb
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'ad_helper.dart';
 
 import 'user_profile.dart'; // Add import
@@ -22,6 +23,16 @@ class AdManager {
 
   Future<void> initialize() async {
     if (_isMobile) {
+      // Request App Tracking Transparency permission (iOS only)
+      if (Platform.isIOS) {
+        try {
+          final status = await AppTrackingTransparency.requestTrackingAuthorization();
+          debugPrint('📍 ATT Status: $status');
+        } catch (e) {
+          debugPrint('⚠️ ATT request error: $e');
+        }
+      }
+
       // Print ad mode configuration
       AdHelper.printAdMode();
 

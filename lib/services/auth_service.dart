@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 
 class AuthService {
@@ -38,7 +39,8 @@ class AuthService {
   }
 
   // Sign in with Apple
-  Future<UserCredential?> signInWithApple() async {
+  // Returns a Map with 'credential' and 'fullName' keys
+  Future<Map<String, dynamic>?> signInWithApple() async {
     try {
       if (Platform.isIOS || Platform.isMacOS) {
         final appleCredential = await SignInWithApple.getAppleIDCredential(
@@ -54,7 +56,18 @@ class AuthService {
           accessToken: appleCredential.authorizationCode,
         );
 
-        return await _auth.signInWithCredential(credential);
+        final userCredential = await _auth.signInWithCredential(credential);
+
+        // Extract full name (only available on first sign-in)
+        String? fullName;
+        if (appleCredential.givenName != null) {
+          fullName = appleCredential.givenName;
+        }
+
+        return {
+          'credential': userCredential,
+          'fullName': fullName,
+        };
       } else {
         // Fallback for Android or other platforms if needed, though usually Apple Sign In on Android uses a web flow
         // For now, restricting to iOS
@@ -71,5 +84,36 @@ class AuthService {
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
+  }
+
+  // Delete Account
+  Future<bool> deleteAccount() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      // Delete user data from Firestore
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .delete();
+        print('✅ User data deleted from Firestore');
+      } catch (e) {
+        print('⚠️ Error deleting Firestore data: $e');
+      }
+
+      // Delete Firebase Auth account
+      await user.delete();
+      print('✅ Firebase Auth account deleted');
+
+      // Sign out from providers
+      await _googleSignIn.signOut();
+
+      return true;
+    } catch (e) {
+      print('❌ Error deleting account: $e');
+      return false;
+    }
   }
 }

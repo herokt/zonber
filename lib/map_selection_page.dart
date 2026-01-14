@@ -168,18 +168,20 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
         children: [
           Row(
             children: [
+              // Map Preview (Mini Map)
               Container(
-                width: 50,
-                height: 50,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: color.withOpacity(0.6)),
                 ),
-                child: Icon(
-                  isCustom ? Icons.public : Icons.token,
-                  color: color,
-                  size: 28,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: CustomPaint(
+                    painter: MapPreviewPainter(mapId: mapId, color: color),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -240,4 +242,111 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
       ),
     );
   }
+}
+
+/// Custom Painter for Map Preview (Mini Map)
+class MapPreviewPainter extends CustomPainter {
+  final String mapId;
+  final Color color;
+
+  MapPreviewPainter({required this.mapId, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withOpacity(0.6)
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = color.withOpacity(0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    // Draw map border
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      borderPaint,
+    );
+
+    // Draw obstacles based on map type
+    // Map dimensions ratio: 480x768 (15x24 grid)
+    // Canvas is 80x80, so we scale accordingly
+    double scaleX = size.width / 480;
+    double scaleY = size.height / 768;
+    double centerX = size.width / 2;
+    double centerY = size.height / 2;
+
+    if (mapId == 'zone_1_classic' || mapId == 'zone_2_hard') {
+      // No obstacles, just empty map
+      // Draw a small center marker to show spawn area
+      canvas.drawCircle(
+        Offset(centerX, centerY),
+        2,
+        Paint()..color = color.withOpacity(0.3),
+      );
+    } else if (mapId == 'zone_3_obstacles') {
+      // Stage 3: The Arena (4 Pillars)
+      // Original: size=100, dist=120 from center (in game coords: centerX=240, centerY=384)
+      double size_ = 100 * scaleX;
+      double dist = 120;
+
+      // 4 symmetrical pillars
+      _drawRect(canvas, paint, centerX + dist * scaleX - size_ / 2, centerY + dist * scaleY - size_ / 2, size_, size_);
+      _drawRect(canvas, paint, centerX - dist * scaleX - size_ / 2, centerY + dist * scaleY - size_ / 2, size_, size_);
+      _drawRect(canvas, paint, centerX + dist * scaleX - size_ / 2, centerY - dist * scaleY - size_ / 2, size_, size_);
+      _drawRect(canvas, paint, centerX - dist * scaleX - size_ / 2, centerY - dist * scaleY - size_ / 2, size_, size_);
+    } else if (mapId == 'zone_4_chaos') {
+      // Stage 4: The Weave (L-shapes)
+      double thick = 30 * scaleX;
+
+      // Top-left L
+      _drawRect(canvas, paint, centerX - 180 * scaleX, centerY - 180 * scaleY, thick, 200 * scaleY);
+      _drawRect(canvas, paint, centerX - 180 * scaleX, centerY + 20 * scaleY - thick, 120 * scaleX, thick);
+
+      // Top-right L
+      _drawRect(canvas, paint, centerX + 150 * scaleX, centerY - 180 * scaleY, thick, 200 * scaleY);
+      _drawRect(canvas, paint, centerX + 60 * scaleX, centerY + 20 * scaleY - thick, 120 * scaleX, thick);
+
+      // Bottom-left L
+      _drawRect(canvas, paint, centerX - 180 * scaleX, centerY - 20 * scaleY, thick, 200 * scaleY);
+      _drawRect(canvas, paint, centerX - 180 * scaleX, centerY - 20 * scaleY, 120 * scaleX, thick);
+
+      // Bottom-right L
+      _drawRect(canvas, paint, centerX + 150 * scaleX, centerY - 20 * scaleY, thick, 200 * scaleY);
+      _drawRect(canvas, paint, centerX + 60 * scaleX, centerY - 20 * scaleY, 120 * scaleX, thick);
+
+      // Center horizontal bars
+      _drawRect(canvas, paint, centerX - 180 * scaleX, centerY - thick / 2, 100 * scaleX, thick);
+      _drawRect(canvas, paint, centerX + 80 * scaleX, centerY - thick / 2, 100 * scaleX, thick);
+    } else if (mapId == 'zone_5_impossible') {
+      // Stage 5: The Grid (Dense pattern)
+      double size_ = 35 * scaleX;
+      double gap = 55;
+
+      // 3x5 grid
+      for (int row = -2; row <= 2; row++) {
+        for (int col = -1; col <= 1; col++) {
+          // Skip center (spawn area)
+          if (row == 0 && col == 0) continue;
+
+          double x = centerX + col * gap * scaleX - size_ / 2;
+          double y = centerY + row * gap * scaleY - size_ / 2;
+          _drawRect(canvas, paint, x, y, size_, size_);
+        }
+      }
+    }
+  }
+
+  void _drawRect(Canvas canvas, Paint paint, double x, double y, double width, double height) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, width, height),
+        const Radius.circular(2),
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

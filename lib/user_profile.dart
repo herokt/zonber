@@ -8,6 +8,7 @@ import 'design_system.dart';
 import 'game_settings.dart';
 import 'audio_manager.dart';
 import 'language_manager.dart';
+import 'services/auth_service.dart';
 
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
@@ -19,7 +20,9 @@ class UserProfileManager {
   static const String _keyCountryTicket = 'country_change_ticket';
   static const String _keyAdsRemoved = 'ads_removed';
   static const String _keyManuallyResetPurchases = 'manually_reset_purchases';
-  
+  static const String _keyIsGuest = 'is_guest_mode';
+  static const String _keyFirstEdit = 'first_edit_available';
+
   // Statistics Keys
   static const String _keyTotalPlayTime = 'stats_total_play_time';
   static const String _keyTotalGamesPlayed = 'stats_total_games_played';
@@ -152,6 +155,54 @@ class UserProfileManager {
     await prefs.remove(_keyTotalPlayTime);
     await prefs.remove(_keyTotalGamesPlayed);
     await prefs.remove(_keyMapPlayCounts);
+    await prefs.remove(_keyIsGuest);
+    await prefs.remove(_keyFirstEdit);
+  }
+
+  // Guest Mode Methods
+  static Future<bool> isGuestMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyIsGuest) ?? false;
+  }
+
+  static Future<void> enableGuestMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyIsGuest, true);
+    await prefs.setBool(_keyInitialSetupDone, true);
+    // Set default guest profile
+    await prefs.setString(_keyNickname, 'Guest');
+    await prefs.setString(_keyFlag, '');
+    await prefs.setString(_keyCountryName, '');
+    await prefs.setString(_keyCharacterId, 'neon_green');
+    await prefs.setBool(_keyFirstEdit, true); // Guest can edit profile once logged in
+  }
+
+  static Future<void> disableGuestMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyIsGuest, false);
+  }
+
+  // First Edit (Free edit for first-time users)
+  static Future<bool> isFirstEditAvailable() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyFirstEdit) ?? true; // Default: available
+  }
+
+  static Future<void> useFirstEdit() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyFirstEdit, false);
+
+    // Sync to Firebase
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'firstEditUsed': true,
+        }, SetOptions(merge: true));
+      } catch (e) {
+        print("Error syncing firstEdit to Firebase: $e");
+      }
+    }
   }
 
   static Future<Map<String, String>> getProfile() async {
@@ -700,6 +751,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
   User? _currentUser;
+  bool _firstEdit = true;
 
   @override
   void initState() {
@@ -711,10 +763,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
     final profile = await UserProfileManager.getProfile();
     final nicknameTickets = await UserProfileManager.getNicknameTickets();
     final countryTickets = await UserProfileManager.getCountryTickets();
+    final firstEdit = await UserProfileManager.isFirstEditAvailable();
     setState(() {
       _profile = profile;
       _nicknameTickets = nicknameTickets;
       _countryTickets = countryTickets;
+      _firstEdit = firstEdit;
       _isAdsRemoved = false; // Will check async
       _checkAds();
       _soundEnabled = GameSettings().soundEnabled;
@@ -764,8 +818,17 @@ class _MyProfilePageState extends State<MyProfilePage> {
       ],
     );
     if (result != null && result.isNotEmpty && result != _profile['nickname']) {
-      bool used = await UserProfileManager.useNicknameTicket();
-      if (used) {
+      bool canEdit = false;
+
+      // Check if first edit is available or has ticket
+      if (_firstEdit) {
+        canEdit = true;
+        await UserProfileManager.useFirstEdit();
+      } else {
+        canEdit = await UserProfileManager.useNicknameTicket();
+      }
+
+      if (canEdit) {
         await UserProfileManager.saveProfile(
           result,
           _profile['flag']!,
@@ -786,8 +849,17 @@ class _MyProfilePageState extends State<MyProfilePage> {
       showPhoneCode: false,
       favorite: ['KR', 'US', 'JP'],
       onSelect: (Country country) async {
-        bool used = await UserProfileManager.useCountryTicket();
-        if (used) {
+        bool canEdit = false;
+
+        // Check if first edit is available or has ticket
+        if (_firstEdit) {
+          canEdit = true;
+          await UserProfileManager.useFirstEdit();
+        } else {
+          canEdit = await UserProfileManager.useCountryTicket();
+        }
+
+        if (canEdit) {
           await UserProfileManager.saveProfile(
             _profile['nickname']!,
             country.flagEmoji,
@@ -843,6 +915,76 @@ class _MyProfilePageState extends State<MyProfilePage> {
         ),
       ],
     );
+  }
+
+  Future<void> _handleDeleteAccount() async {
+    // Show confirmation dialog
+    final confirmed = await showNeonDialog<bool>(
+      context: context,
+      title: "DELETE ACCOUNT",
+      message: "Are you sure you want to delete your account?\n\nThis action cannot be undone. All your data will be permanently deleted.",
+      actions: [
+        NeonButton(
+          text: "CANCEL",
+          isPrimary: true,
+          onPressed: () => Navigator.pop(context, false),
+        ),
+        NeonButton(
+          text: "DELETE",
+          color: Colors.red,
+          isPrimary: false,
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
+    );
+
+    if (confirmed == true) {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+
+      // Delete account
+      final authService = AuthService();
+      final success = await authService.deleteAccount();
+
+      // Close loading
+      if (mounted) Navigator.pop(context);
+
+      if (success) {
+        // Clear local profile
+        await UserProfileManager.clearProfile();
+
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account deleted successfully')),
+          );
+        }
+
+        // Logout
+        await widget.onLogout();
+      } else {
+        // Show error message
+        if (mounted) {
+          showNeonDialog(
+            context: context,
+            title: "ERROR",
+            message: "Failed to delete account. Please try again or contact support.",
+            actions: [
+              NeonButton(
+                text: "OK",
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -907,7 +1049,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     LanguageManager.of(context).translate('nickname'),
                     _profile['nickname'] ?? 'Unknown',
                     _nicknameTickets,
-                    _nicknameTickets > 0 ? _editNickname : null,
+                    (_firstEdit || _nicknameTickets > 0) ? _editNickname : null,
+                    isFirstEdit: _firstEdit,
                   ),
                   const SizedBox(height: 12),
                   _buildEditableRow(
@@ -915,7 +1058,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     LanguageManager.of(context).translate('country'),
                     "${_profile['flag'] ?? ''} ${_profile['countryName'] ?? 'Unknown'}",
                     _countryTickets,
-                    _countryTickets > 0 ? _editCountry : null,
+                    (_firstEdit || _countryTickets > 0) ? _editCountry : null,
+                    isFirstEdit: _firstEdit,
                   ),
                 ],
               ),
@@ -1021,6 +1165,17 @@ class _MyProfilePageState extends State<MyProfilePage> {
                 },
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: NeonButton(
+                text: "DELETE ACCOUNT",
+                color: Colors.red,
+                icon: Icons.delete_forever,
+                isPrimary: false,
+                onPressed: _handleDeleteAccount,
+              ),
+            ),
             const SizedBox(height: 32),
           ],
         ),
@@ -1096,8 +1251,9 @@ class _MyProfilePageState extends State<MyProfilePage> {
     String label,
     String value,
     int ticketCount,
-    VoidCallback? onEdit,
-  ) {
+    VoidCallback? onEdit, {
+    bool isFirstEdit = false,
+  }) {
     return Row(
       children: [
         Icon(icon, color: AppColors.textDim, size: 18),
@@ -1114,7 +1270,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (ticketCount > 0)
+        if (onEdit != null)
           GestureDetector(
             onTap: onEdit,
             child: Container(
@@ -1130,7 +1286,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   Icon(Icons.edit, color: AppColors.primary, size: 14),
                   const SizedBox(width: 4),
                   Text(
-                    "EDIT",
+                    isFirstEdit ? "FREE" : "EDIT",
                     style: TextStyle(
                       color: AppColors.primary,
                       fontSize: 11,

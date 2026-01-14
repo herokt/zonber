@@ -327,6 +327,9 @@ class _ZonberAppState extends State<ZonberApp> {
           onLoginSuccess: () {
             _checkProfile();
           },
+          onGuestContinue: () {
+            _navigateTo('Menu');
+          },
         );
       case 'Game':
         _currentGame = ZonberGame(
