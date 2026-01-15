@@ -92,7 +92,9 @@ class RankingSystem {
     print('Firestore available: ${_db != null}');
 
     if (_db == null) {
-      print("ERROR: Firestore not initialized. Check Firebase initialization in main.dart");
+      print(
+        "ERROR: Firestore not initialized. Check Firebase initialization in main.dart",
+      );
       return 'local_id_${DateTime.now().millisecondsSinceEpoch}';
     }
 
@@ -109,6 +111,12 @@ class RankingSystem {
             'timestamp': FieldValue.serverTimestamp(),
           });
       print('SUCCESS: Record saved with ID: ${docRef.id}');
+
+      // Increment Global Play Count for this Map
+      await _db!.collection('maps').doc(mapId).set({
+        'playCount': FieldValue.increment(1),
+      }, SetOptions(merge: true));
+
       print('=== SAVE RECORD END ===');
       return docRef.id;
     } catch (e) {
@@ -116,6 +124,25 @@ class RankingSystem {
       print('Stack trace: ${StackTrace.current}');
       print('=== SAVE RECORD END ===');
       return '';
+    }
+  }
+
+  // 1.5 Get Global Play Counts
+  Future<Map<String, int>> getGlobalPlayCounts() async {
+    if (_db == null) return {};
+    try {
+      QuerySnapshot snapshot = await _db!.collection('maps').get();
+      Map<String, int> counts = {};
+      for (var doc in snapshot.docs) {
+        Map<String, dynamic>? data = doc.data() as Map<String, dynamic>?;
+        if (data != null && data.containsKey('playCount')) {
+          counts[doc.id] = data['playCount'] as int;
+        }
+      }
+      return counts;
+    } catch (e) {
+      print("Error fetching play counts: $e");
+      return {};
     }
   }
 

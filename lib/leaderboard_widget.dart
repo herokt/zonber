@@ -38,6 +38,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
   String? _myFlag;
   String? _myNickname;
   String _targetFlag = '🇰🇷'; // Default to a valid flag emoji (Korea)
+  bool _isGuest = false; // Add guest flag
 
   @override
   void initState() {
@@ -52,6 +53,20 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
         setState(() {
           _myFlag = profile['flag'];
           _myNickname = profile['nickname'];
+
+          // Simple guest check based on nickname or auth (assuming nickname 'Guest' means guest or use other flag)
+          // Ideally use FirebaseAuth but profile might have 'isGuest' if we saved it?
+          // UserProfileManager loads from SharedPreferences usually.
+          // Let's rely on empty flag or specific nickname if needed.
+          // Or just check if flag is empty/default.
+          // User request implies guests might be logged in anonymously.
+          if (_myNickname == 'Guest' ||
+              (_myFlag == null || _myFlag!.isEmpty || _myFlag == '🏳️')) {
+            _isGuest = true;
+          } else {
+            _isGuest = false;
+          }
+
           if (_myFlag != null && _myFlag != '🏳️') {
             _targetFlag = _myFlag!;
             String? storedName = profile['countryName'];
@@ -230,7 +245,9 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                           child: _buildFilterChip(
                             label: "${_myFlag ?? '🏳️'} NATIONAL",
                             isSelected: _isNational,
+                            isDisabled: _isGuest, // Disable for guests
                             onTap: () {
+                              if (_isGuest) return; // Block tap
                               if (!_isNational) {
                                 setState(() => _isNational = true);
                                 _loadRecords();
@@ -416,13 +433,19 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: isMe 
-              ? AppColors.primary.withOpacity(0.15) 
+          color: isMe
+              ? AppColors.primary.withOpacity(0.15)
               : (isTop3 ? rankColor.withOpacity(0.05) : Colors.transparent),
           borderRadius: BorderRadius.circular(10),
           // No borders as requested
-          boxShadow: isTop3 
-              ? [BoxShadow(color: rankColor.withOpacity(0.1), blurRadius: 10, spreadRadius: 0)] 
+          boxShadow: isTop3
+              ? [
+                  BoxShadow(
+                    color: rankColor.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 0,
+                  ),
+                ]
               : [],
         ),
         child: Row(
@@ -430,7 +453,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
             // Rank Display
             SizedBox(
               width: 36,
-              child: rankIcon != null 
+              child: rankIcon != null
                   ? Icon(rankIcon, color: rankColor, size: 20)
                   : Text(
                       rankText,
@@ -445,36 +468,42 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                     ),
             ),
             const SizedBox(width: 8),
-            
+
             // Flag
             Text(data['flag'] ?? '🏳️', style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 10),
-             
+
             // Nickname & Title Badge (for Top 30)
             Expanded(
               child: Row(
                 children: [
-                   Flexible(
+                  Flexible(
                     child: Text(
                       data['nickname'] ?? 'Unknown',
                       style: TextStyle(
                         color: isMe ? AppColors.primary : Colors.white,
                         fontSize: 14,
                         // Bold/Italic only for Me or Top 3
-                        fontWeight: (isMe || isTop3) ? FontWeight.bold : FontWeight.w500,
+                        fontWeight: (isMe || isTop3)
+                            ? FontWeight.bold
+                            : FontWeight.w500,
                         fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
-                        shadows: isMe 
-                            ? [const Shadow(color: AppColors.primary, blurRadius: 10)] 
+                        shadows: isMe
+                            ? [
+                                const Shadow(
+                                  color: AppColors.primary,
+                                  blurRadius: 10,
+                                ),
+                              ]
                             : [],
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-
                 ],
               ),
             ),
-            
+
             // Time
             Text(
               "${data['survivalTime'].toStringAsFixed(3)}s",
@@ -504,20 +533,25 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
+    bool isDisabled = false,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withOpacity(0.2)
-              : Colors.transparent,
+          color: isDisabled
+              ? Colors.grey.withOpacity(0.1) // Greyed out
+              : (isSelected
+                    ? AppColors.primary.withOpacity(0.2)
+                    : Colors.transparent),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected
-                ? AppColors.primary
-                : AppColors.primaryDim.withOpacity(0.5),
+            color: isDisabled
+                ? Colors.grey.withOpacity(0.3)
+                : (isSelected
+                      ? AppColors.primary
+                      : AppColors.primaryDim.withOpacity(0.5)),
             width: 1.5,
           ),
         ),
@@ -526,7 +560,9 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? AppColors.primary : AppColors.textDim,
+              color: isDisabled
+                  ? Colors.grey
+                  : (isSelected ? AppColors.primary : AppColors.textDim),
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),
