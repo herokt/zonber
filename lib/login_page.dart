@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'design_system.dart';
 import 'services/auth_service.dart';
 import 'user_profile.dart';
@@ -80,7 +81,8 @@ class _LoginPageState extends State<LoginPage> {
 
         if (!hasProfile) {
           // Auto-create profile from Apple account
-          String nickname = fullName ?? credential.user?.displayName ?? 'Player';
+          String nickname =
+              fullName ?? credential.user?.displayName ?? 'Player';
 
           // Limit nickname to 8 characters
           if (nickname.length > 8) {

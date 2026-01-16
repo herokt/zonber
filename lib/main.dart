@@ -7,7 +7,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:firebase_core/firebase_core.dart'; // 파이어베이스 코어
 import 'package:flame/game.dart';
-import 'dart:math'; // Added for rotation effect
 import 'package:flame/components.dart';
 import 'package:flame/particles.dart'; // Added for trail effect
 import 'package:flame/collisions.dart';
@@ -20,6 +19,7 @@ import 'user_profile.dart';
 import 'map_selection_page.dart';
 import 'leaderboard_widget.dart';
 import 'map_service.dart'; // Import MapService
+import 'maze_generator.dart'; // Import MazeGenerator
 import 'game_settings.dart';
 import 'character_selection_page.dart';
 import 'character_data.dart';
@@ -28,7 +28,6 @@ import 'ad_manager.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // For BannerAd, AdWidget
 import 'design_system.dart';
 import 'shop_page.dart';
-import 'iap_service.dart';
 import 'services/auth_service.dart';
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
@@ -82,6 +81,7 @@ class _ZonberAppState extends State<ZonberApp> {
   String? _verifyingMapName;
 
   int _reviveCount = 0; // Track revives per game session
+  double _initialSurvivalTime = 0.0; // Track initial time for revives
 
   // Current game instance (for accessing in callbacks)
   ZonberGame? _currentGame;
@@ -94,7 +94,9 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 
   void _handleLanguageChange() {
-    print('Main: _handleLanguageChange triggered. Current: ${LanguageManager().currentLanguage}');
+    print(
+      'Main: _handleLanguageChange triggered. Current: ${LanguageManager().currentLanguage}',
+    );
     if (mounted) {
       setState(() {});
       print('Main: setState called for language change');
@@ -201,14 +203,15 @@ class _ZonberAppState extends State<ZonberApp> {
     });
   }
 
-  void _navigateTo(String page, {String? mapId}) {
+  void _navigateTo(String page, {String? mapId, double initialTime = 0.0}) {
     setState(() {
       _currentPage = page;
+      _initialSurvivalTime = initialTime;
       if (mapId != null) {
         _currentMapId = mapId;
       }
-      // Reset revive count when starting a NEW game from MapSelect
-      if (page == 'Game') {
+      // Reset revive count when starting a NEW game from MapSelect (Time 0)
+      if (page == 'Game' && initialTime == 0.0) {
         _reviveCount = 0;
       }
     });
@@ -334,53 +337,13 @@ class _ZonberAppState extends State<ZonberApp> {
       case 'Game':
         _currentGame = ZonberGame(
           mapId: _currentMapId,
+          initialSurvivalTime: _initialSurvivalTime,
           onExit: () {
             AdManager().showInterstitialIfReady();
             _navigateTo('MapSelect');
           },
           onGameOver: (result) {
-            // Check if can revive
-            if (_reviveCount < 3) {
-              // Show Revive Dialog
-              final langManager = LanguageManager.of(context, listen: false);
-              final int revivesLeft = 3 - _reviveCount;
-              showNeonDialog(
-                context: context,
-                title: langManager.translate('revive_title'),
-                message: "${langManager.translate('revive_message')}\n($revivesLeft ${langManager.translate('revives_left')})",
-                actions: [
-                  NeonButton(
-                    text: langManager.translate('give_up'),
-                    color: AppColors.secondary,
-                    isPrimary: false,
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _handleGameOver(result);
-                    },
-                  ),
-                  NeonButton(
-                    text: langManager.translate('revive'),
-                    icon: Icons.play_arrow,
-                    onPressed: () {
-                      Navigator.pop(context);
-                      bool shown = AdManager().showRewardedAd(() {
-                        // On Reward
-                        _reviveCount++;
-                        _currentGame?.startGame(initialTime: result['survivalTime']);
-                      });
-                      if (!shown) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(langManager.translate('ad_not_ready'))),
-                        );
-                        _handleGameOver(result);
-                      }
-                    },
-                  ),
-                ],
-              );
-            } else {
-              _handleGameOver(result);
-            }
+            _handleGameOver(result);
           },
         );
         return PopScope(
@@ -450,6 +413,29 @@ class _ZonberAppState extends State<ZonberApp> {
           result: _lastGameResult!,
           onRestart: () => _navigateTo('Game'),
           onExit: () => _navigateTo('Menu'),
+          onRevive: (_reviveCount < 3)
+              ? () {
+                  bool shown = AdManager().showRewardedAd(() {
+                    // On Reward: Resume Game
+                    _reviveCount++; // Increment Revive Count
+                    _navigateTo(
+                      'Game',
+                      initialTime: _lastGameResult!['survivalTime'],
+                    );
+                  });
+
+                  if (!shown) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          LanguageManager.of(context).translate('ad_not_ready'),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              : null,
+          revivesLeft: 3 - _reviveCount,
         );
       case 'EditorVerify':
         final game = ZonberGame(
@@ -526,18 +512,22 @@ class _ZonberAppState extends State<ZonberApp> {
           onOpenShop: () => _navigateTo('Shop'),
           onLogout: () async {
             print('Main: onLogout called');
-            
+
             // Show loading indicator
             showDialog(
               context: context,
               barrierDismissible: false,
-              builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              builder: (_) => const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
             );
 
             try {
               // 1. Sign out from Firebase
               try {
-                await AuthService().signOut().timeout(const Duration(seconds: 2));
+                await AuthService().signOut().timeout(
+                  const Duration(seconds: 2),
+                );
                 print('Main: AuthService signed out');
               } catch (e) {
                 print('Main: Logout error (Auth): $e');
@@ -545,20 +535,22 @@ class _ZonberAppState extends State<ZonberApp> {
 
               // 2. Clear local profile
               try {
-                await UserProfileManager.clearProfile().timeout(const Duration(seconds: 1));
+                await UserProfileManager.clearProfile().timeout(
+                  const Duration(seconds: 1),
+                );
                 print('Main: Profile cleared');
               } catch (e) {
                 print('Main: Logout error (Profile): $e');
               }
-              
+
               // 3. Wait a bit for UI to settle
               await Future.delayed(const Duration(milliseconds: 500));
-
             } catch (e) {
               print('Main: Critical logout error: $e');
             } finally {
               // 4. Close loading indicator (use rootNavigator to be safe)
-              if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+              if (mounted &&
+                  Navigator.of(context, rootNavigator: true).canPop()) {
                 Navigator.of(context, rootNavigator: true).pop();
               }
 
@@ -601,7 +593,6 @@ class _ZonberAppState extends State<ZonberApp> {
         );
     }
   }
-
 
   void _startVerification(List<List<int>> data, String name) {
     setState(() {
@@ -706,7 +697,6 @@ class _ZonberAppState extends State<ZonberApp> {
       ],
     );
   }
-
 
   void _handleGameOver(Map<String, dynamic> result) {
     // Update Stats
@@ -1056,6 +1046,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   final String mapId;
   final VoidCallback onExit;
   final Function(Map<String, dynamic>) onGameOver; // Callback for game over
+  final double initialSurvivalTime;
 
   final Map<String, dynamic>? customMapData; // Optional map data
 
@@ -1063,6 +1054,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     required this.mapId,
     required this.onExit,
     required this.onGameOver,
+    this.initialSurvivalTime = 0.0,
     this.customMapData,
   });
 
@@ -1111,9 +1103,9 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       _loadCustomMap(mapId);
     } else if (customMapData != null) {
       // Verify Mode or Direct Play
-      startGame(customMapData: customMapData);
+      startGame(customMapData: customMapData, initialTime: initialSurvivalTime);
     } else {
-      startGame();
+      startGame(initialTime: initialSurvivalTime);
     }
   }
 
@@ -1127,11 +1119,18 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     }
   }
 
-  void startGame({Map<String, dynamic>? customMapData, double initialTime = 0.0}) {
+  void startGame({
+    Map<String, dynamic>? customMapData,
+    double initialTime = 0.0,
+  }) {
     isGameOver = false;
     survivalTime = initialTime;
     survivalTimeNotifier.value = initialTime;
     lastRecordId = null;
+
+    // Track Play Count
+    // Track Play Count - Moved to RankingSystem.saveRecord (Global)
+    // UserProfileManager.incrementMapPlayCount(mapId);
 
     overlays.remove('GameOverMenu');
     // overlays.add('GameUI'); // Removed old overlay
@@ -1157,8 +1156,11 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
     if (customMapData != null) {
       _spawnCustomObstacles(customMapData);
-    } else if (mapId == 'zone_3_obstacles' || mapId == 'zone_4_chaos' || mapId == 'zone_5_impossible') {
-      _spawnFixedObstacles(mapId); // Fixed patterns for Stages 3, 4, 5
+    } else if (mapId == 'zone_2_obstacles' ||
+        mapId == 'zone_3_chaos' ||
+        mapId == 'zone_4_impossible' ||
+        mapId == 'zone_5_maze') {
+      _spawnFixedObstacles(mapId); // Fixed patterns for Stages
     }
 
     resumeEngine();
@@ -1202,77 +1204,152 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       // Top-Right (Positive dx, Negative dy relative to center in visual, but here y is down)
       // Let's use offsets from center.
       // 1. Center + (dx, dy)
-      mapArea.add(Obstacle(Vector2(centerX + dx, centerY + dy), Vector2(width, height)));
+      mapArea.add(
+        Obstacle(Vector2(centerX + dx, centerY + dy), Vector2(width, height)),
+      );
       // 2. Center - (dx, dy) -> (centerX - dx - width, centerY - dy - height)
       // Note: To mirror position correctly, we subtract width/height from the subtracted coordinate
-      mapArea.add(Obstacle(Vector2(centerX - dx - width, centerY - dy - height), Vector2(width, height)));
+      mapArea.add(
+        Obstacle(
+          Vector2(centerX - dx - width, centerY - dy - height),
+          Vector2(width, height),
+        ),
+      );
       // 3. Center + (dx, -dy) -> (centerX + dx, centerY - dy - height)
-      mapArea.add(Obstacle(Vector2(centerX + dx, centerY - dy - height), Vector2(width, height)));
+      mapArea.add(
+        Obstacle(
+          Vector2(centerX + dx, centerY - dy - height),
+          Vector2(width, height),
+        ),
+      );
       // 4. Center - (dx, -dy) -> (centerX - dx - width, centerY + dy)
-      mapArea.add(Obstacle(Vector2(centerX - dx - width, centerY + dy), Vector2(width, height)));
+      mapArea.add(
+        Obstacle(
+          Vector2(centerX - dx - width, centerY + dy),
+          Vector2(width, height),
+        ),
+      );
     }
 
-    if (mapId == 'zone_3_obstacles') {
-      // Stage 3: The Arena (4 Pillars)
-      // Simple and perfectly symmetrical
+    if (mapId == 'zone_2_obstacles') {
+      // Was Zone 3: The Arena (4 Pillars)
       double size = 100;
-      double dist = 120; // Distance from center axis
+      double dist = 120;
       addSymmetrical(dist, dist, size, size);
+    } else if (mapId == 'zone_3_chaos') {
+      // Zone 3: The Cross (Entropy)
+      // Cruciform shape with open center for traversal
+      double thickness = 30; // Wall thickness
+      double centerGap = 60; // Half-gap size (Total 120px opening)
+      // Player is 48px, so 120px is plenty to pass
 
-    } else if (mapId == 'zone_4_chaos') {
-      // Stage 4: The Weave (Intertwined)
-      // Using symmetrical L-shapes
-      double thick = 30;
-      double long = 180;
-      double short = 80;
-      double gap = 60;
+      // Vertical Wall (Top)
+      mapArea.add(
+        Obstacle(
+          Vector2(centerX - thickness / 2, 0),
+          Vector2(thickness, centerY - centerGap),
+        ),
+      );
+      // Vertical Wall (Bottom)
+      mapArea.add(
+        Obstacle(
+          Vector2(centerX - thickness / 2, centerY + centerGap),
+          Vector2(thickness, h - (centerY + centerGap)),
+        ),
+      );
 
-      // 1. Inner Guards (L-shape pointing in)
-      // Horizontal part
-      addSymmetrical(gap, gap + short, long, thick);
-      // Vertical part
-      addSymmetrical(gap + long - thick, gap, thick, short);
-
-      // 2. Outer Corners
-      addSymmetrical(gap + long + gap, gap + short + gap, 40, 40);
-
-      // 3. Center Blockers (Vertical bars near center)
-      // Top/Bottom Center
-      mapArea.add(Obstacle(Vector2(centerX - thick/2, centerY - 180), Vector2(thick, 100)));
-      mapArea.add(Obstacle(Vector2(centerX - thick/2, centerY + 80), Vector2(thick, 100)));
-      
-      // Left/Right Center
-      mapArea.add(Obstacle(Vector2(centerX - 180, centerY - thick/2), Vector2(100, thick)));
-      mapArea.add(Obstacle(Vector2(centerX + 80, centerY - thick/2), Vector2(100, thick)));
-
-    } else if (mapId == 'zone_5_impossible') {
-      // Stage 5: The Grid (Dense & Symmetrical)
+      // Horizontal Wall (Left)
+      mapArea.add(
+        Obstacle(
+          Vector2(0, centerY - thickness / 2),
+          Vector2(centerX - centerGap, thickness),
+        ),
+      );
+      // Horizontal Wall (Right)
+      mapArea.add(
+        Obstacle(
+          Vector2(centerX + centerGap, centerY - thickness / 2),
+          Vector2(w - (centerX + centerGap), thickness),
+        ),
+      );
+    } else if (mapId == 'zone_4_impossible') {
+      // Was Zone 5: The Grid
       double size = 35;
       double gap = 55;
-      
-      // Start from center gap and move out
-      // Center gap = 55 (gap). So first block starts at gap/2.
       double startOffset = gap / 2;
-      
-      // Fill one quadrant (Bottom-Right) and mirror
-      // Max extent is w/2 - margin
-      for (double y = startOffset; y < h/2 - 20; y += size + gap) {
-        for (double x = startOffset; x < w/2 - 20; x += size + gap) {
-          // Pattern: Chessboard
-          // Determine index
+
+      for (double y = startOffset; y < h / 2 - 20; y += size + gap) {
+        for (double x = startOffset; x < w / 2 - 20; x += size + gap) {
           int ix = ((x - startOffset) / (size + gap)).round();
           int iy = ((y - startOffset) / (size + gap)).round();
-          
           if ((ix + iy) % 2 == 0) {
             addSymmetrical(x, y, size, size);
           }
         }
       }
+    } else if (mapId == 'zone_5_maze') {
+      // NEW Zone 5: Connected Maze with Safe Border & Entrances
+      // Adjusted cell size (60) and wall thickness (5)
+      // Gap = 60 - 5 = 55px. Player = 48px. Clearance = 7px. Safe & Dense.
+      double cellSize = 60;
+      double wallThickness = 5;
+
+      // 1. Calculate dimensions with a safe margin (1 cell padding)
+      double availableW = mapWidth - cellSize * 2;
+      double availableH = mapHeight - cellSize * 2;
+
+      int cols = (availableW / cellSize).floor();
+      int rows = (availableH / cellSize).floor();
+
+      // Calculate start offset to center the maze
+      double offsetX = (mapWidth - (cols * cellSize)) / 2;
+      double offsetY = (mapHeight - (rows * cellSize)) / 2;
+
+      // Use Fixed Seed for consistency
+      MazeGenerator generator = MazeGenerator(rows, cols, seed: 12345);
+      List<List<dynamic>> walls = generator.generate();
+
+      // Entrances seed (also fixed for consistency)
+      Random rng = Random(67890);
+
+      for (var wall in walls) {
+        int c = wall[0];
+        int r = wall[1];
+        bool isHorizontal = wall[2];
+
+        bool isBoundary = false;
+        if (isHorizontal) {
+          if (r == 0 || r == rows) isBoundary = true;
+        } else {
+          if (c == 0 || c == cols) isBoundary = true;
+        }
+
+        if (isBoundary && rng.nextDouble() < 0.2) {
+          continue;
+        }
+
+        double x = c * cellSize + offsetX;
+        double y = r * cellSize + offsetY;
+
+        if (x > mapWidth / 2 - 80 &&
+            x < mapWidth / 2 + 80 &&
+            y > mapHeight / 2 - 80 &&
+            y < mapHeight / 2 + 80) {
+          continue;
+        }
+
+        if (isHorizontal) {
+          mapArea.add(
+            Obstacle(Vector2(x, y), Vector2(cellSize, wallThickness)),
+          );
+        } else {
+          mapArea.add(
+            Obstacle(Vector2(x, y), Vector2(wallThickness, cellSize)),
+          );
+        }
+      }
     }
-    }
-
-
-
+  }
 
   void gameOver() {
     if (isGameOver) return;
@@ -1297,8 +1374,6 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     }
   }
 
-
-
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
@@ -1317,6 +1392,8 @@ class ResultPage extends StatefulWidget {
   final Map<String, dynamic> result;
   final VoidCallback onRestart;
   final VoidCallback onExit;
+  final VoidCallback? onRevive; // Optional Revive Callback
+  final int revivesLeft;
 
   const ResultPage({
     super.key,
@@ -1324,6 +1401,8 @@ class ResultPage extends StatefulWidget {
     required this.result,
     required this.onRestart,
     required this.onExit,
+    this.onRevive,
+    this.revivesLeft = 0,
   });
 
   @override
@@ -1419,6 +1498,20 @@ class _ResultPageState extends State<ResultPage> {
               if (_isSaving)
                 const CircularProgressIndicator(color: AppColors.primary)
               else ...[
+                if (widget.onRevive != null) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: NeonButton(
+                      text:
+                          "${LanguageManager.of(context).translate('revive')} (${widget.revivesLeft})",
+                      onPressed: widget.onRevive!,
+                      icon: Icons.play_arrow,
+                      color: AppColors.primary,
+                      isPrimary: true, // Make it prominent
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 SizedBox(
                   width: double.infinity,
                   child: NeonButton(
@@ -1446,7 +1539,8 @@ class _ResultPageState extends State<ResultPage> {
                       child: NeonButton(
                         text: LanguageManager.of(context).translate('exit'),
                         onPressed: () {
-                          widget.onExit(); // This callback is passed from parent
+                          widget
+                              .onExit(); // This callback is passed from parent
                           // Parent (Game) onExit is now navigating to MapSelect
                         },
                         color: AppColors.secondary, // Red for Exit
@@ -1589,7 +1683,7 @@ class Player extends SpriteComponent
         print("Error loading sprite: $e");
       }
     }
-    
+
     // Scale Optimization: Set filter quality for smoother downsampling
     paint.filterQuality = FilterQuality.medium;
     paint.isAntiAlias = true;
@@ -1604,11 +1698,11 @@ class Player extends SpriteComponent
   @override
   void update(double dt) {
     super.update(dt);
-    
+
     // --- ROTATION EFFECT ---
     // Base rotation speed (radians per second)
-    double rotationSpeed = 2.0; 
-    
+    double rotationSpeed = 2.0;
+
     // Check if moving
     Vector2 dragInput = gameRef.consumeDragDelta();
     bool isMoving = !dragInput.isZero();
@@ -1617,7 +1711,7 @@ class Player extends SpriteComponent
     if (isMoving) {
       rotationSpeed = 8.0;
     }
-    
+
     // Apply rotation
     angle += rotationSpeed * dt;
     angle %= 2 * pi; // Keep angle within 0~2PI range
@@ -1626,10 +1720,16 @@ class Player extends SpriteComponent
     if (isMoving) {
       // PARTICLE TRAIL EFFECT
       // Emit particle every few frames (or random chance) to optimize
-      if (Random().nextDouble() < 0.3) { // 30% chance per frame (~20 particles/sec)
+      if (Random().nextDouble() < 0.3) {
+        // 30% chance per frame (~20 particles/sec)
         Vector2 trailPos = position.clone();
         // Add random slight offset for natural spread
-        trailPos.add(Vector2((Random().nextDouble() - 0.5) * 10, (Random().nextDouble() - 0.5) * 10));
+        trailPos.add(
+          Vector2(
+            (Random().nextDouble() - 0.5) * 10,
+            (Random().nextDouble() - 0.5) * 10,
+          ),
+        );
 
         gameRef.mapArea.add(
           ParticleSystemComponent(
@@ -1644,7 +1744,7 @@ class Player extends SpriteComponent
                   final paint = Paint()
                     ..color = trailColor.withOpacity(1.0 - particle.progress)
                     ..style = PaintingStyle.fill;
-                    
+
                   // Shrinking size
                   double size = 6.0 * (1.0 - particle.progress);
                   canvas.drawCircle(Offset.zero, size / 2, paint);
@@ -1764,7 +1864,7 @@ class Bullet extends PositionComponent
         ..color = AppColors.secondary.withOpacity(0.4)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-    
+
     // Core
     canvas.drawCircle(
       Offset(size.x / 2, size.y / 2),
@@ -1866,8 +1966,6 @@ class Bullet extends PositionComponent
       removeFromParent();
     }
   }
-
-
 
   @override
   void onCollisionStart(

@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'design_system.dart';
 import 'game_settings.dart';
-import 'audio_manager.dart';
+
 import 'language_manager.dart';
 import 'services/auth_service.dart';
 
@@ -26,7 +26,8 @@ class UserProfileManager {
   // Statistics Keys
   static const String _keyTotalPlayTime = 'stats_total_play_time';
   static const String _keyTotalGamesPlayed = 'stats_total_games_played';
-  static const String _keyMapPlayCounts = 'stats_map_play_counts'; // JSON encoded map
+  static const String _keyMapPlayCounts =
+      'stats_map_play_counts'; // JSON encoded map
 
   static Future<bool> hasProfile() async {
     print('=== CHECKING PROFILE ===');
@@ -64,20 +65,35 @@ class UserProfileManager {
             _keyCharacterId,
             data['characterId'] ?? 'neon_green',
           );
+          // Sync First Edit Status
+          if (data['firstEditUsed'] == true) {
+            await prefs.setBool(_keyFirstEdit, false);
+          }
           await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
           await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
           await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
-          
+
           // Stats Sync
-          await prefs.setDouble(_keyTotalPlayTime, (data['totalPlayTime'] ?? 0).toDouble());
-          await prefs.setInt(_keyTotalGamesPlayed, data['totalGamesPlayed'] ?? 0);
+          await prefs.setDouble(
+            _keyTotalPlayTime,
+            (data['totalPlayTime'] ?? 0).toDouble(),
+          );
+          await prefs.setInt(
+            _keyTotalGamesPlayed,
+            data['totalGamesPlayed'] ?? 0,
+          );
           if (data['mapPlayCounts'] != null) {
-            await prefs.setString(_keyMapPlayCounts, jsonEncode(data['mapPlayCounts']));
+            await prefs.setString(
+              _keyMapPlayCounts,
+              jsonEncode(data['mapPlayCounts']),
+            );
           }
 
           // Sync manual reset flags
           if (data['manuallyResetPurchases'] != null) {
-            List<String> resetList = List<String>.from(data['manuallyResetPurchases']);
+            List<String> resetList = List<String>.from(
+              data['manuallyResetPurchases'],
+            );
             await prefs.setStringList(_keyManuallyResetPurchases, resetList);
           }
 
@@ -117,20 +133,32 @@ class UserProfileManager {
           _keyCharacterId,
           data['characterId'] ?? 'neon_green',
         );
+        // Sync First Edit Status
+        if (data['firstEditUsed'] == true) {
+          await prefs.setBool(_keyFirstEdit, false);
+        }
         await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
         await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
         await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
 
         // Stats Sync
-        await prefs.setDouble(_keyTotalPlayTime, (data['totalPlayTime'] ?? 0).toDouble());
+        await prefs.setDouble(
+          _keyTotalPlayTime,
+          (data['totalPlayTime'] ?? 0).toDouble(),
+        );
         await prefs.setInt(_keyTotalGamesPlayed, data['totalGamesPlayed'] ?? 0);
         if (data['mapPlayCounts'] != null) {
-          await prefs.setString(_keyMapPlayCounts, jsonEncode(data['mapPlayCounts']));
+          await prefs.setString(
+            _keyMapPlayCounts,
+            jsonEncode(data['mapPlayCounts']),
+          );
         }
 
         // Sync manual reset flags
         if (data['manuallyResetPurchases'] != null) {
-          List<String> resetList = List<String>.from(data['manuallyResetPurchases']);
+          List<String> resetList = List<String>.from(
+            data['manuallyResetPurchases'],
+          );
           await prefs.setStringList(_keyManuallyResetPurchases, resetList);
         }
 
@@ -174,7 +202,10 @@ class UserProfileManager {
     await prefs.setString(_keyFlag, '');
     await prefs.setString(_keyCountryName, '');
     await prefs.setString(_keyCharacterId, 'neon_green');
-    await prefs.setBool(_keyFirstEdit, true); // Guest can edit profile once logged in
+    await prefs.setBool(
+      _keyFirstEdit,
+      true,
+    ); // Guest can edit profile once logged in
   }
 
   static Future<void> disableGuestMode() async {
@@ -213,6 +244,50 @@ class UserProfileManager {
       'countryName': prefs.getString(_keyCountryName) ?? 'Unknown Region',
       'characterId': prefs.getString(_keyCharacterId) ?? 'neon_green',
     };
+  }
+
+  static Future<Map<String, int>> getMapPlayCounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString(_keyMapPlayCounts);
+    if (jsonString != null) {
+      try {
+        final decoded = jsonDecode(jsonString);
+        return Map<String, int>.from(decoded);
+      } catch (e) {
+        print("Error decoding play counts: $e");
+      }
+    }
+    return {};
+  }
+
+  static Future<void> incrementMapPlayCount(String mapId) async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, int> counts = await getMapPlayCounts();
+    counts[mapId] = (counts[mapId] ?? 0) + 1;
+
+    // Save Local
+    await prefs.setString(_keyMapPlayCounts, jsonEncode(counts));
+
+    // Attempt Sync Remote
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        // Use atomic increment for the specific map field
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({
+              'mapPlayCounts.$mapId': FieldValue.increment(1),
+              'totalGamesPlayed': FieldValue.increment(1),
+            });
+      } catch (e) {
+        print("Error syncing play count: $e");
+      }
+    }
+
+    // Update local total games played too
+    int total = prefs.getInt(_keyTotalGamesPlayed) ?? 0;
+    await prefs.setInt(_keyTotalGamesPlayed, total + 1);
   }
 
   static Future<void> saveProfile(
@@ -379,7 +454,8 @@ class UserProfileManager {
   // Manual reset tracking (for testing purposes)
   static Future<void> markPurchaseAsManuallyReset(String productId) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> resetList = prefs.getStringList(_keyManuallyResetPurchases) ?? [];
+    List<String> resetList =
+        prefs.getStringList(_keyManuallyResetPurchases) ?? [];
     if (!resetList.contains(productId)) {
       resetList.add(productId);
       await prefs.setStringList(_keyManuallyResetPurchases, resetList);
@@ -402,13 +478,15 @@ class UserProfileManager {
 
   static Future<bool> isPurchaseManuallyReset(String productId) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> resetList = prefs.getStringList(_keyManuallyResetPurchases) ?? [];
+    List<String> resetList =
+        prefs.getStringList(_keyManuallyResetPurchases) ?? [];
     return resetList.contains(productId);
   }
 
   static Future<void> clearManualResetFlag(String productId) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> resetList = prefs.getStringList(_keyManuallyResetPurchases) ?? [];
+    List<String> resetList =
+        prefs.getStringList(_keyManuallyResetPurchases) ?? [];
     if (resetList.contains(productId)) {
       resetList.remove(productId);
       await prefs.setStringList(_keyManuallyResetPurchases, resetList);
@@ -435,7 +513,7 @@ class UserProfileManager {
     final prefs = await SharedPreferences.getInstance();
     double totalTime = prefs.getDouble(_keyTotalPlayTime) ?? 0.0;
     int totalGames = prefs.getInt(_keyTotalGamesPlayed) ?? 0;
-    
+
     Map<String, int> mapCounts = {};
     String? mapCountsJson = prefs.getString(_keyMapPlayCounts);
     if (mapCountsJson != null) {
@@ -469,14 +547,14 @@ class UserProfileManager {
     required String mapId,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Update local
     double currentTotalTime = prefs.getDouble(_keyTotalPlayTime) ?? 0.0;
     int currentTotalGames = prefs.getInt(_keyTotalGamesPlayed) ?? 0;
-    
+
     currentTotalTime += playTime;
     currentTotalGames += 1;
-    
+
     Map<String, int> mapCounts = {};
     String? mapCountsJson = prefs.getString(_keyMapPlayCounts);
     if (mapCountsJson != null) {
@@ -553,12 +631,12 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                "WELCOME",
+                LanguageManager.of(context).translate('welcome'),
                 style: AppTextStyles.header.copyWith(fontSize: 48),
               ),
               const SizedBox(height: 8),
               Text(
-                "SET UP YOUR PROFILE",
+                LanguageManager.of(context).translate('setup_profile'),
                 style: AppTextStyles.body.copyWith(
                   color: AppColors.textDim,
                   letterSpacing: 2.0,
@@ -578,9 +656,13 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                         maxLength: 8,
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
-                          labelText: "NICKNAME",
+                          labelText: LanguageManager.of(
+                            context,
+                          ).translate('setup_nickname_label'),
                           labelStyle: TextStyle(color: AppColors.textDim),
-                          hintText: "Enter nickname",
+                          hintText: LanguageManager.of(
+                            context,
+                          ).translate('setup_nickname_hint'),
                           hintStyle: TextStyle(
                             color: AppColors.textDim.withOpacity(0.5),
                           ),
@@ -600,7 +682,9 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        "SELECT COUNTRY",
+                        LanguageManager.of(
+                          context,
+                        ).translate('setup_country_label'),
                         style: TextStyle(
                           color: AppColors.textDim,
                           fontSize: 12,
@@ -631,7 +715,9 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                             children: [
                               if (_selectedFlag.isEmpty)
                                 Text(
-                                  "Tap to select",
+                                  LanguageManager.of(
+                                    context,
+                                  ).translate('tap_to_select'),
                                   style: TextStyle(
                                     color: AppColors.textDim,
                                     fontSize: 16,
@@ -669,7 +755,7 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                       SizedBox(
                         width: double.infinity,
                         child: NeonButton(
-                          text: "START",
+                          text: LanguageManager.of(context).translate('start'),
                           onPressed: _saveAndContinue,
                           icon: Icons.play_arrow,
                         ),
@@ -680,7 +766,7 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
               ),
               const SizedBox(height: 24),
               Text(
-                "This cannot be changed later\nwithout a change ticket",
+                LanguageManager.of(context).translate('setup_warning'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.textDim.withOpacity(0.6),
@@ -712,7 +798,7 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
         bottomSheetHeight: 500,
         borderRadius: BorderRadius.circular(20),
         inputDecoration: InputDecoration(
-          hintText: 'Search country',
+          hintText: LanguageManager.of(context).translate('search_country'),
           hintStyle: TextStyle(color: AppColors.textDim),
           prefixIcon: Icon(Icons.search, color: AppColors.textDim),
           enabledBorder: OutlineInputBorder(
@@ -786,14 +872,14 @@ class _MyProfilePageState extends State<MyProfilePage> {
     final controller = TextEditingController(text: _profile['nickname']);
     final result = await showNeonDialog<String>(
       context: context,
-      title: "CHANGE NICKNAME",
+      title: LanguageManager.of(context).translate('change_nickname'),
       content: TextField(
         controller: controller,
         style: AppTextStyles.body.copyWith(fontSize: 16),
         maxLength: 8,
         textAlign: TextAlign.center,
         decoration: InputDecoration(
-          hintText: "New nickname",
+          hintText: LanguageManager.of(context).translate('new_nickname_hint'),
           hintStyle: TextStyle(color: AppColors.textDim),
           enabledBorder: OutlineInputBorder(
             borderSide: BorderSide(color: AppColors.textDim),
@@ -806,13 +892,13 @@ class _MyProfilePageState extends State<MyProfilePage> {
       ),
       actions: [
         NeonButton(
-          text: "CANCEL",
+          text: LanguageManager.of(context).translate('cancel'),
           color: AppColors.secondary,
           isPrimary: false,
           onPressed: () => Navigator.pop(context),
         ),
         NeonButton(
-          text: "CONFIRM",
+          text: LanguageManager.of(context).translate('confirm'),
           onPressed: () => Navigator.pop(context, controller.text.trim()),
         ),
       ],
@@ -836,79 +922,37 @@ class _MyProfilePageState extends State<MyProfilePage> {
         );
         _loadData();
         if (mounted)
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Nickname changed!')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                LanguageManager.of(context).translate('nickname_changed'),
+              ),
+            ),
+          );
+      } else {
+        _showNoTicketDialog(
+          LanguageManager.of(context).translate('ticket_nickname'),
+        );
       }
     }
   }
 
-  Future<void> _editCountry() async {
-    showCountryPicker(
-      context: context,
-      showPhoneCode: false,
-      favorite: ['KR', 'US', 'JP'],
-      onSelect: (Country country) async {
-        bool canEdit = false;
-
-        // Check if first edit is available or has ticket
-        if (_firstEdit) {
-          canEdit = true;
-          await UserProfileManager.useFirstEdit();
-        } else {
-          canEdit = await UserProfileManager.useCountryTicket();
-        }
-
-        if (canEdit) {
-          await UserProfileManager.saveProfile(
-            _profile['nickname']!,
-            country.flagEmoji,
-            country.name,
-          );
-          _loadData();
-          if (mounted)
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Country changed!')));
-        }
-      },
-      countryListTheme: CountryListThemeData(
-        backgroundColor: AppColors.surface,
-        textStyle: const TextStyle(color: Colors.white),
-        searchTextStyle: const TextStyle(color: Colors.white),
-        bottomSheetHeight: 500,
-        borderRadius: BorderRadius.circular(20),
-        inputDecoration: InputDecoration(
-          hintText: 'Search country',
-          hintStyle: TextStyle(color: AppColors.textDim),
-          prefixIcon: Icon(Icons.search, color: AppColors.textDim),
-          enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: AppColors.textDim),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: AppColors.primary),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showNoTicketDialog(String type) {
+    final lang = LanguageManager.of(context);
     showNeonDialog(
       context: context,
-      title: "NO TICKET",
-      message:
-          "You need a $type Change Ticket.\n\nVisit the Shop to purchase one.",
+      title: lang.translate('no_ticket_title'),
+      message: lang.translate('ticket_required').replaceAll('{type}', type),
       actions: [
         NeonButton(
-          text: "GO TO SHOP",
+          text: lang.translate('shop'),
           onPressed: () {
             Navigator.pop(context);
             widget.onOpenShop();
           },
         ),
         NeonButton(
-          text: "CLOSE",
+          text: lang.translate('close'),
           color: AppColors.textDim,
           isPrimary: false,
           onPressed: () => Navigator.pop(context),
@@ -918,27 +962,35 @@ class _MyProfilePageState extends State<MyProfilePage> {
   }
 
   Future<void> _handleDeleteAccount() async {
+    print('MyProfilePage: _handleDeleteAccount started');
+    // Use listen: false to avoid rebuild issues
+    final lang = LanguageManager.of(context, listen: false);
+
     // Show confirmation dialog
+    print('MyProfilePage: Showing confirmation dialog');
     final confirmed = await showNeonDialog<bool>(
       context: context,
-      title: "DELETE ACCOUNT",
-      message: "Are you sure you want to delete your account?\n\nThis action cannot be undone. All your data will be permanently deleted.",
+      title: lang.translate('delete_account_confirm'),
+      message: lang.translate('delete_account_message'),
       actions: [
         NeonButton(
-          text: "CANCEL",
+          text: lang.translate('cancel'),
           isPrimary: true,
           onPressed: () => Navigator.pop(context, false),
         ),
         NeonButton(
-          text: "DELETE",
-          color: Colors.red,
+          text: lang.translate('delete'),
+          color: AppColors.secondary,
           isPrimary: false,
           onPressed: () => Navigator.pop(context, true),
         ),
       ],
     );
+    print('MyProfilePage: Dialog result: $confirmed');
 
     if (confirmed == true) {
+      if (!mounted) return;
+
       // Show loading
       showDialog(
         context: context,
@@ -962,7 +1014,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
         // Show success message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account deleted successfully')),
+            SnackBar(content: Text(lang.translate('delete_success'))),
           );
         }
 
@@ -974,10 +1026,10 @@ class _MyProfilePageState extends State<MyProfilePage> {
           showNeonDialog(
             context: context,
             title: "ERROR",
-            message: "Failed to delete account. Please try again or contact support.",
+            message: lang.translate('delete_fail'),
             actions: [
               NeonButton(
-                text: "OK",
+                text: lang.translate('ok'),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -1009,7 +1061,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   _buildInfoRow(
                     Icons.email,
                     LanguageManager.of(context).translate('email'),
-                    _currentUser?.email ?? 'Not logged in',
+                    (_currentUser == null || _currentUser!.isAnonymous)
+                        ? LanguageManager.of(context).translate('guest_account')
+                        : (_currentUser!.email ??
+                              LanguageManager.of(
+                                context,
+                              ).translate('provider_unknown')),
                   ),
                   const SizedBox(height: 12),
                   _buildInfoRow(
@@ -1044,13 +1101,22 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     Icons.person,
                   ),
                   const SizedBox(height: 16),
+
+                  // Guest Warning Removed as per request
                   _buildEditableRow(
                     Icons.badge,
                     LanguageManager.of(context).translate('nickname'),
                     _profile['nickname'] ?? 'Unknown',
                     _nicknameTickets,
-                    (_firstEdit || _nicknameTickets > 0) ? _editNickname : null,
+                    // Disable edit if Guest OR (No First Edit AND No Tickets)
+                    (_currentUser == null || _currentUser!.isAnonymous)
+                        ? null
+                        : ((_firstEdit || _nicknameTickets > 0)
+                              ? _editNickname
+                              : null),
                     isFirstEdit: _firstEdit,
+                    isEditDisabled:
+                        (_currentUser == null || _currentUser!.isAnonymous),
                   ),
                   const SizedBox(height: 12),
                   _buildEditableRow(
@@ -1058,8 +1124,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     LanguageManager.of(context).translate('country'),
                     "${_profile['flag'] ?? ''} ${_profile['countryName'] ?? 'Unknown'}",
                     _countryTickets,
-                    (_firstEdit || _countryTickets > 0) ? _editCountry : null,
-                    isFirstEdit: _firstEdit,
+                    null, // Disable Country Edit as per request
+                    isEditDisabled: true, // Visual lock
                   ),
                 ],
               ),
@@ -1132,50 +1198,79 @@ class _MyProfilePageState extends State<MyProfilePage> {
             ),
 
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: NeonButton(
-                text: LanguageManager.of(context).translate('logout'),
-                color: AppColors.secondary,
-                icon: Icons.logout,
-                onPressed: () {
-                  print('MyProfilePage: Logout button tapped');
-                  final langManager = LanguageManager.of(context, listen: false);
-                  showNeonDialog(
-                    context: context,
-                    title: langManager.translate('logout'),
-                    message: langManager.translate('logout_confirm'),
-                    actions: [
-                      NeonButton(
-                        text: langManager.translate('cancel'),
-                        isPrimary: true,
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      NeonButton(
-                        text: langManager.translate('logout'),
-                        color: AppColors.secondary,
-                        isPrimary: false,
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await widget.onLogout();
-                        },
-                      ),
-                    ],
-                  );
-                },
+            const SizedBox(height: 16),
+            if (_currentUser != null && _currentUser!.isAnonymous) ...[
+              // Guest Mode -> Show Login Button
+              SizedBox(
+                width: double.infinity,
+                child: NeonButton(
+                  text: LanguageManager.of(context).translate('login'),
+                  color: AppColors.primary,
+                  icon: Icons.login,
+                  onPressed: () async {
+                    // Logging out navigates to Login Page
+                    await widget.onLogout();
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: NeonButton(
-                text: "DELETE ACCOUNT",
-                color: Colors.red,
-                icon: Icons.delete_forever,
-                isPrimary: false,
-                onPressed: _handleDeleteAccount,
+            ] else ...[
+              // Normal Mode -> Show Logout & Delete
+              SizedBox(
+                width: double.infinity,
+                child: NeonButton(
+                  text: LanguageManager.of(context).translate('logout'),
+                  color: AppColors.textDim, // Neutral Grey
+                  icon: Icons.logout,
+                  isPrimary: false, // Outline style
+                  onPressed: () {
+                    print('MyProfilePage: Logout button tapped');
+                    final langManager = LanguageManager.of(
+                      context,
+                      listen: false,
+                    );
+                    showNeonDialog(
+                      context: context,
+                      title: langManager.translate('logout'),
+                      message: langManager.translate('logout_confirm'),
+                      actions: [
+                        NeonButton(
+                          text: langManager.translate('cancel'),
+                          isPrimary: true,
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        NeonButton(
+                          text: langManager.translate('logout'),
+                          color: AppColors.secondary,
+                          isPrimary: false,
+                          onPressed: () async {
+                            Navigator.pop(context);
+                            await widget.onLogout();
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity, // Match Logout button width
+                child: NeonButton(
+                  text: LanguageManager.of(context).translate('delete_account'),
+                  color: AppColors.secondary,
+                  isPrimary: false,
+                  icon: Icons.delete_forever,
+                  onPressed: () async {
+                    print('MyProfilePage: Delete Account Pressed');
+                    try {
+                      await _handleDeleteAccount();
+                    } catch (e) {
+                      print('MyProfilePage: Delete Account Error: $e');
+                    }
+                  },
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
           ],
         ),
@@ -1184,12 +1279,27 @@ class _MyProfilePageState extends State<MyProfilePage> {
   }
 
   String _getProviderName() {
-    if (_currentUser == null) return 'None';
-    for (var info in _currentUser!.providerData) {
-      if (info.providerId == 'google.com') return 'Google';
-      if (info.providerId == 'apple.com') return 'Apple';
+    if (_currentUser == null) {
+      return LanguageManager.of(context).translate('provider_unknown');
     }
-    return 'Unknown';
+    for (var info in _currentUser!.providerData) {
+      if (info.providerId == 'google.com') {
+        return LanguageManager.of(context).translate('provider_google');
+      }
+      if (info.providerId == 'apple.com') {
+        return LanguageManager.of(context).translate('provider_apple');
+      }
+      if (info.providerId == 'password') {
+        return LanguageManager.of(context).translate('provider_password');
+      }
+      if (info.providerId == 'anonymous') {
+        return LanguageManager.of(context).translate('provider_anonymous');
+      }
+    }
+    if (_currentUser!.isAnonymous) {
+      return LanguageManager.of(context).translate('provider_anonymous');
+    }
+    return LanguageManager.of(context).translate('provider_unknown');
   }
 
   Widget _buildSectionHeader(String title, IconData icon, {Color? color}) {
@@ -1253,6 +1363,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
     int ticketCount,
     VoidCallback? onEdit, {
     bool isFirstEdit = false,
+    bool isEditDisabled = false,
   }) {
     return Row(
       children: [
@@ -1270,7 +1381,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (onEdit != null)
+        if (onEdit != null && !isEditDisabled)
           GestureDetector(
             onTap: onEdit,
             child: Container(
