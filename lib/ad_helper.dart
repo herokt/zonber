@@ -17,21 +17,21 @@ class AdHelper {
 
   // 📱 PRODUCTION AD IDS (Real Ads)
   // Android
-  static const String androidAppId = 'ca-app-pub-6473787525002068~6688045231';
+  static const String androidAppId = 'ca-app-pub-2067804993393343~6812656981';
   static const String androidBannerId =
-      'ca-app-pub-6473787525002068/3635163028';
+      'ca-app-pub-2067804993393343/7647867139';
   static const String androidInterstitialId =
-      'ca-app-pub-6473787525002068/3498581598';
+      'ca-app-pub-2067804993393343/2890557994';
   static const String androidRewardedId =
-      'ca-app-pub-6473787525002068/6452047990';
+      'ca-app-pub-2067804993393343/7032982983';
 
   // iOS
-  static const String iosAppId = 'ca-app-pub-6473787525002068~6193043609';
-  static const String iosBannerId = 'ca-app-pub-6473787525002068/8037442465';
+  static const String iosAppId = 'ca-app-pub-2067804993393343~6579695026';
+  static const String iosBannerId = 'ca-app-pub-2067804993393343/8298797345';
   static const String iosInterstitialId =
-      'ca-app-pub-6473787525002068/7246254917';
+      'ca-app-pub-2067804993393343/1274030470';
   static const String iosRewardedId =
-      'ca-app-pub-6473787525002068/7710139403';
+      'ca-app-pub-2067804993393343/8960948805';
 
   // 🧪 TEST AD IDS (Google's official test IDs)
   // These will show "Test Ad" label
