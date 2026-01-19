@@ -24,14 +24,14 @@ class AdManager {
   Future<void> initialize() async {
     if (_isMobile) {
       // Request App Tracking Transparency permission (iOS only)
-      if (Platform.isIOS) {
-        try {
-          final status = await AppTrackingTransparency.requestTrackingAuthorization();
-          debugPrint('📍 ATT Status: $status');
-        } catch (e) {
-          debugPrint('⚠️ ATT request error: $e');
-        }
-      }
+      // if (Platform.isIOS) {
+      //   try {
+      //     final status = await AppTrackingTransparency.requestTrackingAuthorization();
+      //     debugPrint('📍 ATT Status: $status');
+      //   } catch (e) {
+      //     debugPrint('⚠️ ATT request error: $e');
+      //   }
+      // }
 
       // Print ad mode configuration
       AdHelper.printAdMode();

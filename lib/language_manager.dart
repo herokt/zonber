@@ -20,7 +20,7 @@ class LanguageManager extends ChangeNotifier {
   Future<void> init() async {
     print('LanguageManager: init() called');
     final prefs = await SharedPreferences.getInstance();
-    _currentLanguage = prefs.getString('language') ?? 'en';
+    _currentLanguage = prefs.getString('language') ?? 'ko';
     print('LanguageManager: Loaded language $_currentLanguage');
     notifyListeners();
   }

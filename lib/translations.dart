@@ -7,6 +7,11 @@ const Map<String, Map<String, String>> appTranslations = {
     'character': 'CHARACTER',
     'map_editor': 'MAP EDITOR',
     'profile': 'PROFILE',
+    'login_subtitle': 'SIGN IN TO COMPETE',
+    'signin_google': 'SIGN IN WITH GOOGLE',
+    'signin_apple': 'SIGN IN WITH APPLE',
+    'continue_guest': 'CONTINUE AS GUEST',
+    'or': 'OR',
 
     // Dialogs & Actions
     'exit_game': 'EXIT GAME?',
@@ -202,6 +207,11 @@ const Map<String, Map<String, String>> appTranslations = {
     'character': '캐릭터',
     'map_editor': '맵 에디터',
     'profile': '프로필',
+    'login_subtitle': '경쟁에 참여하려면 로그인하세요',
+    'signin_google': '구글로 로그인',
+    'signin_apple': '애플로 로그인',
+    'continue_guest': '게스트로 계속하기',
+    'or': '또는',
 
     // Dialogs & Actions
     'exit_game': '게임 종료?',

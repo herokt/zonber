@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'design_system.dart';
 import 'services/auth_service.dart';
 import 'user_profile.dart';
+import 'language_manager.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -124,12 +125,12 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                "WELCOME",
+                LanguageManager.of(context).translate('welcome'),
                 style: AppTextStyles.header.copyWith(fontSize: 48),
               ),
               const SizedBox(height: 16),
               Text(
-                "SIGN IN TO COMPETE",
+                LanguageManager.of(context).translate('login_subtitle'),
                 style: AppTextStyles.body.copyWith(
                   color: AppColors.textDim,
                   letterSpacing: 2.0,
@@ -140,12 +141,12 @@ class _LoginPageState extends State<LoginPage> {
                 const CircularProgressIndicator(color: AppColors.primary)
               else ...[
                 _buildLoginButton(
-                  "SIGN IN WITH GOOGLE",
+                  LanguageManager.of(context).translate('signin_google'),
                   _handleGoogleSignIn,
                   Icons.android, // Using Android icon as placeholder for Google
                 ),
                 _buildLoginButton(
-                  "SIGN IN WITH APPLE",
+                  LanguageManager.of(context).translate('signin_apple'),
                   _handleAppleSignIn,
                   Icons.apple,
                 ),
@@ -159,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
-                        "OR",
+                        LanguageManager.of(context).translate('or'),
                         style: TextStyle(
                           color: AppColors.textDim,
                           fontSize: 12,
@@ -201,7 +202,7 @@ class _LoginPageState extends State<LoginPage> {
       width: double.infinity,
       constraints: const BoxConstraints(maxWidth: 300),
       child: NeonButton(
-        text: "CONTINUE AS GUEST",
+        text: LanguageManager.of(context).translate('continue_guest'),
         onPressed: _handleGuestContinue,
         icon: Icons.person_outline,
         color: AppColors.textDim,

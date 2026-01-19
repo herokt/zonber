@@ -228,25 +228,8 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
                   ],
                 ),
               ),
-              // Play Count Display
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Icon(
-                    Icons.videogame_asset,
-                    color: AppColors.textDim,
-                    size: 16,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "${_playCounts[mapId] ?? 0}",
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+              // Play Count Display Removed
+
             ],
           ),
           const SizedBox(height: 16),
