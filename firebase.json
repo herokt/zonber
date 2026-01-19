@@ -1,5 +1,32 @@
 {
-  "firestore": {
-    "rules": "firestore.rules"
-  }
+    "firestore": {
+        "rules": "firestore.rules"
+    },
+    "hosting": {
+        "public": "hosting_root",
+        "ignore": [
+            "firebase.json",
+            "**/.*",
+            "**/node_modules/**"
+        ],
+        "rewrites": [
+            {
+                "source": "**",
+                "destination": "/index.html"
+            }
+        ]
+    },
+    "flutter": {
+        "platforms": {
+            "dart": {
+                "lib/firebase_options.dart": {
+                    "projectId": "stayzone-88364",
+                    "configurations": {
+                        "web": "1:682278346224:web:a442a9f3b5e5fcd98bd135",
+                        "android": "1:682278346224:android:e026cbc6fdc109398bd135"
+                    }
+                }
+            }
+        }
+    }
 }

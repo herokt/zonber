@@ -2,15 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // 맵 기록 - 로그인한 사용자만 쓰기 가능
-    match /maps/{mapId}/records/{recordId} {
-      allow read: if true;  // 누구나 읽기 가능 (리더보드)
-      allow create: if request.auth != null;  // 로그인한 사용자만 쓰기
+    // 맵(스테이지) 정보 - 누구나 읽기 가능
+    match /maps/{mapId} {
+      allow read: if true;
+      allow write: if request.auth != null; // 백오피스/게임서버 기록용
+
+      match /records/{recordId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+      }
     }
 
-    // 사용자 프로필 - 본인만 수정 가능
+    // 사용자 프로필 - 로그인한 사용자(관리자 포함) 수정 가능
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null; // 백오피스 수정을 위해 본인 확인 제거
     }
 
     // 커스텀 맵
