@@ -430,13 +430,15 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
     return GestureDetector(
       onTap: () => _showUserInfoDialog(data),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 8), // Increased gap
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isMe
               ? AppColors.primary.withOpacity(0.15)
-              : (isTop3 ? rankColor.withOpacity(0.05) : Colors.transparent),
-          borderRadius: BorderRadius.circular(10),
+              : (isTop3
+                    ? rankColor.withOpacity(0.05)
+                    : Colors.white.withOpacity(0.02)),
+          borderRadius: BorderRadius.circular(12),
           // No borders as requested
           boxShadow: isTop3
               ? [
@@ -450,67 +452,74 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
         ),
         child: Row(
           children: [
-            // Rank Display
+            // Fixed Width Rank
             SizedBox(
-              width: 36,
+              width: 40,
               child: rankIcon != null
-                  ? Icon(rankIcon, color: rankColor, size: 20)
+                  ? Icon(rankIcon, color: rankColor, size: 22)
                   : Text(
                       rankText,
                       style: TextStyle(
-                        color: isMe ? AppColors.primary : rankColor,
-                        fontSize: 14,
-                        // Italic/Bold for Me
-                        fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                        color: isMe
+                            ? AppColors.primary
+                            : (rank <= 30 ? Colors.white : Colors.white54),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                         fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
                       ),
                       textAlign: TextAlign.center,
                     ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
 
-            // Flag
-            Text(data['flag'] ?? '🏳️', style: const TextStyle(fontSize: 20)),
-            const SizedBox(width: 10),
+            // Fixed Width Flag
+            SizedBox(
+              width: 32,
+              child: Text(
+                data['flag'] ?? '🏳️',
+                style: const TextStyle(fontSize: 24),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 16),
 
-            // Nickname & Title Badge (for Top 30)
+            // Nickname (Flexible)
             Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      data['nickname'] ?? 'Unknown',
-                      style: TextStyle(
-                        color: isMe ? AppColors.primary : Colors.white,
-                        fontSize: 14,
-                        // Bold/Italic only for Me or Top 3
-                        fontWeight: (isMe || isTop3)
-                            ? FontWeight.bold
-                            : FontWeight.w500,
-                        fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
-                        shadows: isMe
-                            ? [
-                                const Shadow(
-                                  color: AppColors.primary,
-                                  blurRadius: 10,
-                                ),
-                              ]
-                            : [],
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              child: Text(
+                data['nickname'] ?? 'Unknown',
+                style: TextStyle(
+                  color: isMe ? AppColors.primary : Colors.white,
+                  fontSize: 15,
+                  fontWeight: (isMe || isTop3)
+                      ? FontWeight.bold
+                      : FontWeight.w500,
+                  fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
+                  shadows: isMe
+                      ? [const Shadow(color: AppColors.primary, blurRadius: 8)]
+                      : [],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
 
-            // Time
-            Text(
-              "${data['survivalTime'].toStringAsFixed(3)}s",
-              style: const TextStyle(
-                color: Colors.orange,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
+            const SizedBox(width: 16),
+
+            // Fixed Width Score (Monospace for Alignment)
+            SizedBox(
+              width: 80,
+              child: Text(
+                "${data['survivalTime'].toStringAsFixed(2)}s",
+                style: const TextStyle(
+                  color: Color(0xFF00FF88), // Consistent Green
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'monospace', // Ensure alignment
+                  fontFeatures: [
+                    FontFeature.tabularFigures(),
+                  ], // Tabular alignment if font supports
+                ),
+                textAlign: TextAlign.right,
               ),
             ),
           ],

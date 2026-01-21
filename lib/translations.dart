@@ -198,6 +198,15 @@ const Map<String, Map<String, String>> appTranslations = {
     'no_ticket_title': 'NO TICKET',
     'ticket_required': 'You need a {type}.\n\nVisit the Shop to purchase one.',
     'Legendary Survivor': 'Legendary Survivor',
+
+    // Invite
+    'invite_crew': 'INVITE CREW',
+    'invite_copied': 'Invite message copied!',
+    'invite_message_title': '[ZONBER: SURVIVE]',
+    'invite_message_body':
+        'I invite you to my crew!\nPlay together and earn rewards.\n\nInvite Code: {code}',
+    'download_link':
+        'Download:\nhttps://play.google.com/store/apps/details?id=com.zonber.game',
   },
   'ko': {
     // Main Menu
@@ -405,5 +414,13 @@ const Map<String, Map<String, String>> appTranslations = {
     'Weekly Ranker': '주간 랭커',
     'Monthly Ranker': '월간 랭커',
     'Legendary Survivor': '전설의 생존자',
+
+    // Invite
+    'invite_crew': '크루 초대',
+    'invite_copied': '초대 메시지가 복사되었습니다!',
+    'invite_message_title': '[ZONBER: 존버]',
+    'invite_message_body': '크루에 초대합니다!\n같이 플레이하고 보상을 받으세요.\n\n초대 코드: {code}',
+    'download_link':
+        '다운로드:\nhttps://play.google.com/store/apps/details?id=com.zonber.game',
   },
 };

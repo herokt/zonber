@@ -32,6 +32,8 @@ import 'services/auth_service.dart';
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
 import 'statistics_page.dart'; // Added by instruction
+import 'backoffice/backoffice_home.dart'; // Added for Secret Admin
+import 'firebase_options.dart'; // Added by instruction
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -90,6 +92,12 @@ class _ZonberAppState extends State<ZonberApp> {
   void initState() {
     super.initState();
     LanguageManager().addListener(_handleLanguageChange);
+
+    // Check for Secret Admin URL
+    if (kIsWeb && Uri.base.toString().contains('/secret_admin')) {
+      _currentPage = 'Backoffice';
+    }
+
     _initializeApp();
   }
 
@@ -105,12 +113,21 @@ class _ZonberAppState extends State<ZonberApp> {
 
   Future<void> _initializeApp() async {
     // 1. Initialize Core Services (Firebase, AdMob, IAP)
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    if (kIsWeb) {
       try {
-        await Firebase.initializeApp();
-        print("✅ Firebase initialized");
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+        print("✅ Firebase initialized (Web)");
       } catch (e) {
-        print("❌ Firebase initialization failed: $e");
+        print("❌ Firebase initialization failed (Web): $e");
+      }
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      try {
+        await Firebase.initializeApp(); // Use default for mobile (google-services.json)
+        print("✅ Firebase initialized (Mobile)");
+      } catch (e) {
+        print("❌ Firebase initialization failed (Mobile): $e");
       }
 
       try {
@@ -185,7 +202,22 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 
   Future<void> _checkAuth() async {
-    // Wait for Firebase to initialize if needed (already done in main)
+    // If we are in Backoffice mode, ensure we are signed in (Anonymously is fine for admin rules if configured, or user will just see empty data if rules are strict)
+    // But importantly, DO NOT redirect to Login/Menu.
+    if (_currentPage == 'Backoffice') {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        try {
+          await FirebaseAuth.instance.signInAnonymously();
+          print("✅ Signed in anonymously for Backoffice");
+        } catch (e) {
+          print("❌ Backoffice Auth failed: $e");
+        }
+      }
+      return; // Stay on Backoffice
+    }
+
+    // Normal App Flow
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       setState(() {
@@ -301,6 +333,8 @@ class _ZonberAppState extends State<ZonberApp> {
 
   Widget _buildPage(BuildContext context) {
     switch (_currentPage) {
+      case 'Backoffice':
+        return const BackofficeHome();
       case 'Splash':
         return const Scaffold(
           backgroundColor: AppColors.background,

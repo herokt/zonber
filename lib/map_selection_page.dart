@@ -130,7 +130,10 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
     // Unified List View
     return ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 24,
+        vertical: 24,
+      ), // More breathing room
       children: [
         _buildNeonMapCard(
           title: LanguageManager.of(context).translate('zone_1_title'),
@@ -138,7 +141,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
           mapId: "zone_1_classic",
           color: Colors.cyanAccent, // Blue-ish
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24), // Increased spacing
         // Zone 2 -> was Zone 3 (Obstacles)
         _buildNeonMapCard(
           title: LanguageManager.of(context).translate('zone_2_title'),
@@ -146,7 +149,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
           mapId: "zone_2_obstacles",
           color: Colors.greenAccent, // Green
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         // Zone 3 -> was Zone 4 (Chaos)
         _buildNeonMapCard(
           title: LanguageManager.of(context).translate('zone_3_title'),
@@ -154,7 +157,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
           mapId: "zone_3_chaos",
           color: Colors.amberAccent, // Yellow
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         // Zone 4 -> was Zone 5 (Impossible)
         _buildNeonMapCard(
           title: LanguageManager.of(context).translate('zone_4_title'),
@@ -162,7 +165,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
           mapId: "zone_4_impossible",
           color: Colors.deepOrangeAccent, // Orange/Red
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         // Zone 5 -> New MAZE
         _buildNeonMapCard(
           title: LanguageManager.of(context).translate('zone_5_title'),
@@ -170,7 +173,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
           mapId: "zone_5_maze",
           color: Colors.purpleAccent, // Purple
         ),
-        const SizedBox(height: 20), // Bottom padding
+        const SizedBox(height: 48), // Bottom padding
       ],
     );
   }
@@ -184,55 +187,65 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
   }) {
     return NeonCard(
       borderColor: color,
-      padding: const EdgeInsets.all(16), // Unified padding
+      padding: const EdgeInsets.all(20), // More internal padding
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Map Preview (Mini Map)
               Container(
-                width: 80,
-                height: 80,
+                width: 88, // Slightly larger preview
+                height: 88,
                 decoration: BoxDecoration(
                   color: AppColors.background,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withOpacity(0.6)),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: color.withOpacity(0.6), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(color: color.withOpacity(0.1), blurRadius: 12),
+                  ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(14),
                   child: CustomPaint(
                     painter: MapPreviewPainter(mapId: mapId, color: color),
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const SizedBox(height: 4),
                     Text(
                       title,
-                      style: AppTextStyles.subHeader.copyWith(color: color),
+                      style: AppTextStyles.subHeader.copyWith(
+                        color: color,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       description,
                       style: AppTextStyles.body.copyWith(
                         color: AppColors.textDim,
-                        fontSize: 12,
+                        fontSize: 13,
+                        height: 1.4,
                       ),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              // Play Count Display Removed
-
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           // Buttons Row
           Row(
             children: [
@@ -241,7 +254,8 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
                 flex: 2,
                 child: NeonButton(
                   text: LanguageManager.of(context).translate('rank'),
-                  icon: Icons.emoji_events,
+                  icon: Icons
+                      .emoji_events_outlined, // Outlined icon for secondary
                   isCompact: false, // Match PLAY button height
                   color: Colors.amber,
                   onPressed: () => widget.onShowRanking(context, mapId),
@@ -256,7 +270,7 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
                   text: LanguageManager.of(context).translate('play'),
                   isCompact: false, // Standard size
                   color: AppColors.primary,
-                  icon: Icons.play_arrow, // Added Icon
+                  icon: Icons.play_arrow_rounded,
                   onPressed: () => widget.onMapSelected(mapId),
                 ),
               ),
