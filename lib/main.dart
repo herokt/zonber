@@ -229,6 +229,9 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 
   Future<void> _checkProfile() async {
+    // Sync profile from Firestore first
+    await UserProfileManager.syncProfile();
+
     bool hasProfile = await UserProfileManager.hasProfile();
     setState(() {
       _currentPage = hasProfile ? 'Menu' : 'Profile';
