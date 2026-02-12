@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:math'; // For random in preview
-import 'maze_generator.dart'; // Import MazeGenerator for accurate preview
 import 'design_system.dart';
 import 'language_manager.dart';
 import 'ranking_system.dart';
+import 'game_config.dart'; // [NEW]
 
 class MapSelectionPage extends StatefulWidget {
   final Function(String mapId) onMapSelected;
@@ -50,31 +49,11 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
   }
 
   void _scrollToMap(String mapId) {
-    // Estimated item height (Card + Spacing)
-    // Card content height ~150 + Padding 20 = ~170?
-    // Let's approximate based on fixed list.
-    double itemHeight = 200.0;
-    int index = 0;
+    // Dynamically find index
+    int index = GameConfig.stages.indexWhere((s) => s.id == mapId);
+    if (index == -1) return;
 
-    switch (mapId) {
-      case 'zone_1_classic':
-        index = 0;
-        break;
-      case 'zone_2_obstacles':
-        index = 1;
-        break;
-      case 'zone_3_chaos':
-        index = 2;
-        break;
-      case 'zone_4_impossible':
-        index = 3;
-        break;
-      case 'zone_5_maze':
-        index = 4;
-        break;
-      default:
-        return;
-    }
+    double itemHeight = 220.0; // Approx height
 
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -127,54 +106,37 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
   // Step 1: Update build method (lines 48-109).
 
   Widget _buildOfficialMaps() {
-    // Unified List View
-    return ListView(
+    return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 24,
-      ), // More breathing room
-      children: [
-        _buildNeonMapCard(
-          title: LanguageManager.of(context).translate('zone_1_title'),
-          description: LanguageManager.of(context).translate('zone_1_desc'),
-          mapId: "zone_1_classic",
-          color: Colors.cyanAccent, // Blue-ish
-        ),
-        const SizedBox(height: 24), // Increased spacing
-        // Zone 2 -> was Zone 3 (Obstacles)
-        _buildNeonMapCard(
-          title: LanguageManager.of(context).translate('zone_2_title'),
-          description: LanguageManager.of(context).translate('zone_2_desc'),
-          mapId: "zone_2_obstacles",
-          color: Colors.greenAccent, // Green
-        ),
-        const SizedBox(height: 24),
-        // Zone 3 -> was Zone 4 (Chaos)
-        _buildNeonMapCard(
-          title: LanguageManager.of(context).translate('zone_3_title'),
-          description: LanguageManager.of(context).translate('zone_3_desc'),
-          mapId: "zone_3_chaos",
-          color: Colors.amberAccent, // Yellow
-        ),
-        const SizedBox(height: 24),
-        // Zone 4 -> was Zone 5 (Impossible)
-        _buildNeonMapCard(
-          title: LanguageManager.of(context).translate('zone_4_title'),
-          description: LanguageManager.of(context).translate('zone_4_desc'),
-          mapId: "zone_4_impossible",
-          color: Colors.deepOrangeAccent, // Orange/Red
-        ),
-        const SizedBox(height: 24),
-        // Zone 5 -> New MAZE
-        _buildNeonMapCard(
-          title: LanguageManager.of(context).translate('zone_5_title'),
-          description: LanguageManager.of(context).translate('zone_5_desc'),
-          mapId: "zone_5_maze",
-          color: Colors.purpleAccent, // Purple
-        ),
-        const SizedBox(height: 48), // Bottom padding
-      ],
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      itemCount: GameConfig.stages.length + 1, // +1 for bottom padding
+      itemBuilder: (context, index) {
+        if (index == GameConfig.stages.length) {
+          return const SizedBox(height: 48);
+        }
+
+        final stage = GameConfig.stages[index];
+
+        // Define colors per difficulty
+        Color color;
+        if (stage.difficultyLevel == 1) {
+          color = Colors.cyanAccent;
+        } else if (stage.difficultyLevel == 2) {
+          color = Colors.amberAccent;
+        } else {
+          color = Colors.deepOrangeAccent;
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: _buildNeonMapCard(
+            title: LanguageManager.of(context).translate(stage.nameKey),
+            description: LanguageManager.of(context).translate(stage.descKey),
+            mapId: stage.id,
+            color: color,
+          ),
+        );
+      },
     );
   }
 
@@ -305,245 +267,96 @@ class MapPreviewPainter extends CustomPainter {
 
     // Draw obstacles based on map type
     // Map dimensions ratio: 480x768 (15x24 grid)
-    // Canvas is 80x80, so we scale accordingly
     double scaleX = size.width / 480;
-    double scaleY = size.height / 768;
+    double scaleY =
+        size.height /
+        768; // Wait, preview is usually square or aspect? Canvas size is from Container (88x88).
+    // So ratio is 1:1. Map is 480:768 (0.625).
+    // We should fit the map into the square.
+    // scaleX = 88 / 480 = 0.18. scaleY = 88 / 768 = 0.11.
+    // To preserve aspect ratio, we should use the smaller scale and center it?
+    // Or just stretch as before? Previous code used scaleX and scaleY independently.
+    // Let's stick to independent scaling to fill the preview box.
+
     double centerX = size.width / 2;
     double centerY = size.height / 2;
 
     if (mapId == 'zone_1_classic') {
-      // No obstacles
-      canvas.drawCircle(
-        Offset(centerX, centerY),
-        2,
-        Paint()..color = color.withOpacity(0.3),
-      );
-    } else if (mapId == 'zone_2_obstacles') {
-      // Was Zone 3: 4 Pillars
-      double size_ = 100 * scaleX;
-      double dist = 120;
+      // No obstacles, just center dot
+    } else if (mapId == 'zone_2_prism') {
+      // PRISM: Rotated Diamonds
+      // 4 Diamonds around center.
+      double s = 25 * scaleX;
+      double d = 60 * scaleX;
 
-      _drawRect(
-        canvas,
-        paint,
-        centerX + dist * scaleX - size_ / 2,
-        centerY + dist * scaleY - size_ / 2,
-        size_,
-        size_,
-      );
-      _drawRect(
-        canvas,
-        paint,
-        centerX - dist * scaleX - size_ / 2,
-        centerY - dist * scaleY - size_ / 2,
-        size_,
-        size_,
-      );
-      _drawRect(
-        canvas,
-        paint,
-        centerX + dist * scaleX - size_ / 2,
-        centerY - dist * scaleY - size_ / 2,
-        size_,
-        size_,
-      );
-      _drawRect(
-        canvas,
-        paint,
-        centerX - dist * scaleX - size_ / 2,
-        centerY + dist * scaleY - size_ / 2,
-        size_,
-        size_,
-      );
-    } else if (mapId == 'zone_3_chaos') {
-      // Zone 3: The Cross (Preview)
-      double thickness = 30 * scaleX; // Scaled thickness
-      double centerGap = 60 * scaleY; // Scaled gap (vertical reference)
-      // Note: gap needs scaling too.
-      double centerGapX = 60 * scaleX;
-
-      // Vertical Wall (Top)
-      _drawRect(
-        canvas,
-        paint,
-        centerX - thickness / 2,
-        centerY - 384 * scaleY, // Top (0 relative to center 384)
-        // Wait, preview center is 0,0 relative? No, it's center of canvas.
-        // Game coords: 0 to 768.
-        // Preview coords: centerX - (width/2)*s to centerX + ...
-        // Better to calculate relative to center.
-        // Top Wall: CenterX, Top to CenterY - Gap.
-        // Rect: (CenterX - Thick/2, TopEdge, Thick, Height)
-        // TopEdge = centerY - (768/2)*scaleY
-        // Height = (384 - 60) * scaleY = 324 * scaleY
-        thickness,
-        (384 - 60) * scaleY,
-      );
-
-      // Vertical Wall (Bottom)
-      _drawRect(
-        canvas,
-        paint,
-        centerX - thickness / 2,
-        centerY + centerGap, // Start at CenterY + Gap
-        thickness,
-        (384 - 60) * scaleY,
-      );
-
-      // Horizontal Wall (Left)
-      _drawRect(
-        canvas,
-        paint,
-        centerX - 240 * scaleX, // LeftEdge
-        centerY - thickness / 2, // CenterY - Thick/2
-        (240 - 60) * scaleX, // Width
-        thickness * (scaleY / scaleX), // Maintain Aspect Ratio for thickness?
-        // Actually thickness was calculated with scaleX above.
-        // If we want square thickness, usage might vary.
-        // Let's stick to scaleY for height.
-      );
-
-      // Horizontal Wall (Right)
-      _drawRect(
-        canvas,
-        paint,
-        centerX + centerGapX, // Start at CenterX + Gap
-        centerY - thickness / 2,
-        (240 - 60) * scaleX,
-        thickness * (scaleY / scaleX),
-      );
-    } else if (mapId == 'zone_4_impossible') {
-      // Was Zone 5: The Grid
-      double size = 35;
-      double gap = 55;
-      double startOffset = gap / 2;
-      double w = 480;
-      double h = 768; // Based on ratio
-
-      for (double y = startOffset; y < h / 2 - 20; y += size + gap) {
-        for (double x = startOffset; x < w / 2 - 20; x += size + gap) {
-          int ix = ((x - startOffset) / (size + gap)).round();
-          int iy = ((y - startOffset) / (size + gap)).round();
-
-          if ((ix + iy) % 2 == 0) {
-            // Draw Symmetrical directly
-            double sS =
-                size * scaleX; // Approx square if aspect ratio preserved
-            double dx = x * scaleX;
-            double dy = y * scaleY;
-
-            _drawRect(canvas, paint, centerX + dx, centerY + dy, sS, sS);
-            _drawRect(
-              canvas,
-              paint,
-              centerX - dx - sS,
-              centerY - dy - sS,
-              sS,
-              sS,
-            );
-            _drawRect(canvas, paint, centerX + dx, centerY - dy - sS, sS, sS);
-            _drawRect(canvas, paint, centerX - dx - sS, centerY + dy, sS, sS);
-          }
-        }
+      void drawDiamond(double cx, double cy) {
+        Path path = Path();
+        path.moveTo(cx, cy - s); // Top
+        path.lineTo(cx + s, cy); // Right
+        path.lineTo(cx, cy + s); // Bottom
+        path.lineTo(cx - s, cy); // Left
+        path.close();
+        canvas.drawPath(path, paint);
       }
-    } else if (mapId == 'zone_5_maze') {
-      // Zone 5: Maze (Exact Preview)
-      // Mirroring Logic from main.dart
-      double cellSize = 60 * scaleX; // Scaled cell size (Base 60)
-      double wallThickness = 5;
 
-      // Calculate scaled dimensions
-      // Real Map: 480x768.
+      drawDiamond(centerX - d, centerY - d);
+      drawDiamond(centerX + d, centerY - d);
+      drawDiamond(centerX - d, centerY + d);
+      drawDiamond(centerX + d, centerY + d);
+    } else if (mapId == 'zone_3_spiral') {
+      // SPIRAL: Concentric Broken Rings
+      List<double> radii = [80 * scaleX, 160 * scaleX, 240 * scaleX];
 
-      double availableW = 480 - 120; // 60*2 padding
-      double availableH = 768 - 120;
+      for (int i = 0; i < radii.length; i++) {
+        double r = radii[i];
+        // Check bounds
+        if (r > size.width / 2 - 2) r = size.width / 2 - 2;
 
-      int cols = (availableW / 60).floor();
-      int rows = (availableH / 60).floor();
+        Rect rect = Rect.fromCenter(
+          center: Offset(centerX, centerY),
+          width: r * 2,
+          height: r * 2,
+        );
 
-      double offsetX = (480 - (cols * 60)) / 2;
-      double offsetY = (768 - (rows * 60)) / 2;
+        int gap = i % 4;
 
-      // Seeded Generator
-      MazeGenerator generator = MazeGenerator(rows, cols, seed: 12345);
-      List<List<dynamic>> walls = generator.generate();
-
-      Random rng = Random(67890); // Seeded Entrance Random
-
-      for (var wall in walls) {
-        int c = wall[0];
-        int r = wall[1];
-        bool isHorizontal = wall[2];
-
-        bool isBoundary = false;
-        if (isHorizontal) {
-          if (r == 0 || r == rows) isBoundary = true;
-        } else {
-          if (c == 0 || c == cols) isBoundary = true;
-        }
-
-        if (isBoundary && rng.nextDouble() < 0.2) {
-          continue;
-        }
-
-        // Apply Scaling to coordinates
-        double x = (c * 60 + offsetX) * scaleX;
-        double y = (r * 60 + offsetY) * scaleY;
-
-        // Center Safe Zone Check (Base coords)
-        double cx = c * 60 + offsetX;
-        double cy = r * 60 + offsetY;
-        if (cx > 480 / 2 - 80 &&
-            cx < 480 / 2 + 80 &&
-            cy > 768 / 2 - 80 &&
-            cy < 768 / 2 + 80) {
-          continue;
-        }
-
-        if (isHorizontal) {
-          _drawRect(
-            canvas,
-            paint,
-            centerX - 480 / 2 * scaleX + x,
-            centerY - 768 / 2 * scaleY + y,
-            cellSize,
-            wallThickness * scaleY,
+        // Use Lines for "Square Rings" to match game style
+        // Top
+        if (gap != 0)
+          canvas.drawLine(
+            rect.topLeft,
+            rect.topRight,
+            borderPaint..strokeWidth = 3,
           );
-        } else {
-          _drawRect(
-            canvas,
-            paint,
-            centerX - 480 / 2 * scaleX + x,
-            centerY - 768 / 2 * scaleY + y,
-            wallThickness * scaleX,
-            cellSize,
+        // Right
+        if (gap != 1)
+          canvas.drawLine(
+            rect.topRight,
+            rect.bottomRight,
+            borderPaint..strokeWidth = 3,
           );
-        }
+        // Bottom
+        if (gap != 2)
+          canvas.drawLine(
+            rect.bottomRight,
+            rect.bottomLeft,
+            borderPaint..strokeWidth = 3,
+          );
+        // Left
+        if (gap != 3)
+          canvas.drawLine(
+            rect.bottomLeft,
+            rect.topLeft,
+            borderPaint..strokeWidth = 3,
+          );
       }
     }
 
     // Always draw Player Indicator at Center (on top of everything)
     canvas.drawCircle(
       Offset(centerX, centerY),
-      3.0, // Small dot
+      3.0,
       Paint()..color = AppColors.primary,
-    );
-  }
-
-  void _drawRect(
-    Canvas canvas,
-    Paint paint,
-    double x,
-    double y,
-    double width,
-    double height,
-  ) {
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, y, width, height),
-        const Radius.circular(2),
-      ),
-      paint,
     );
   }
 

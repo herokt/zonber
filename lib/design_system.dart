@@ -315,6 +315,8 @@ class _NeonButtonState extends State<NeonButton> {
                     color: baseColor,
                     fontSize: widget.fontSize ?? (widget.isCompact ? 13 : 16),
                     fontWeight: FontWeight.bold,
+                    decoration:
+                        TextDecoration.none, // Fix: Prevent yellow underlines
                     letterSpacing: 0.5,
                     shadows: [
                       Shadow(color: baseColor.withOpacity(0.3), blurRadius: 2),

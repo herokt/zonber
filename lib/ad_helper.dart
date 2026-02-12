@@ -12,7 +12,7 @@ class AdHelper {
   // - true  = Production ads (REAL revenue)
   // - false = Test ads (NO revenue, for development)
   // ============================================================
-  static const bool isReleaseMode = true;  // 👈 Change this to true for production
+  static const bool isReleaseMode = kReleaseMode; // 👈 Auto-detects mode
   // ============================================================
 
   // 📱 PRODUCTION AD IDS (Real Ads)
@@ -30,17 +30,21 @@ class AdHelper {
   static const String iosBannerId = 'ca-app-pub-2067804993393343/8298797345';
   static const String iosInterstitialId =
       'ca-app-pub-2067804993393343/1274030470';
-  static const String iosRewardedId =
-      'ca-app-pub-2067804993393343/8960948805';
+  static const String iosRewardedId = 'ca-app-pub-2067804993393343/8960948805';
 
   // 🧪 TEST AD IDS (Google's official test IDs)
   // These will show "Test Ad" label
-  static const String testAndroidBanner = 'ca-app-pub-3940256099942544/6300978111';
-  static const String testAndroidInterstitial = 'ca-app-pub-3940256099942544/1033173712';
+  static const String testAndroidBanner =
+      'ca-app-pub-3940256099942544/6300978111';
+  static const String testAndroidInterstitial =
+      'ca-app-pub-3940256099942544/1033173712';
   static const String testIOSBanner = 'ca-app-pub-3940256099942544/2934735716';
-  static const String testIOSInterstitial = 'ca-app-pub-3940256099942544/4411468910';
-  static const String testAndroidRewarded = 'ca-app-pub-3940256099942544/5224354917';
-  static const String testIOSRewarded = 'ca-app-pub-3940256099942544/1712485313';
+  static const String testIOSInterstitial =
+      'ca-app-pub-3940256099942544/4411468910';
+  static const String testAndroidRewarded =
+      'ca-app-pub-3940256099942544/5224354917';
+  static const String testIOSRewarded =
+      'ca-app-pub-3940256099942544/1712485313';
   // ============================================================
 
   // Get current mode as string for debugging

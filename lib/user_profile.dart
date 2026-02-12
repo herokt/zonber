@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:country_picker/country_picker.dart';
@@ -28,6 +30,49 @@ class UserProfileManager {
   static const String _keyTotalGamesPlayed = 'stats_total_games_played';
   static const String _keyMapPlayCounts =
       'stats_map_play_counts'; // JSON encoded map
+
+  // Helper method to detect current platform
+  static String _getCurrentPlatform() {
+    if (kIsWeb) {
+      return 'Web';
+    } else if (!kIsWeb) {
+      if (Platform.isAndroid) {
+        return 'Android';
+      } else if (Platform.isIOS) {
+        return 'iOS';
+      } else if (Platform.isMacOS) {
+        return 'macOS';
+      } else if (Platform.isWindows) {
+        return 'Windows';
+      } else if (Platform.isLinux) {
+        return 'Linux';
+      }
+    }
+    return 'Unknown';
+  }
+
+  // Helper method to detect login provider
+  static String _getLoginProvider(User? user) {
+    if (user == null) return 'None';
+
+    if (user.isAnonymous) {
+      return 'Guest';
+    }
+
+    for (var info in user.providerData) {
+      if (info.providerId == 'google.com') {
+        return 'Google';
+      }
+      if (info.providerId == 'apple.com') {
+        return 'Apple';
+      }
+      if (info.providerId == 'password') {
+        return 'Email';
+      }
+    }
+
+    return 'Unknown';
+  }
 
   static Future<bool> hasProfile() async {
     print('=== CHECKING PROFILE ===');
@@ -98,6 +143,17 @@ class UserProfileManager {
           }
 
           await prefs.setBool(_keyInitialSetupDone, true);
+
+          // Update platform and login info on sync
+          try {
+            await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+              'platform': _getCurrentPlatform(),
+              'loginProvider': _getLoginProvider(user),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          } catch (e) {
+            print("Error updating platform info: $e");
+          }
 
           print('Profile synced from Firestore to local');
           return true;
@@ -279,6 +335,9 @@ class UserProfileManager {
             .update({
               'mapPlayCounts.$mapId': FieldValue.increment(1),
               'totalGamesPlayed': FieldValue.increment(1),
+              'platform': _getCurrentPlatform(),
+              'loginProvider': _getLoginProvider(user),
+              'lastUpdated': FieldValue.serverTimestamp(),
             });
       } catch (e) {
         print("Error syncing play count: $e");
@@ -326,6 +385,8 @@ class UserProfileManager {
               characterId ?? prefs.getString(_keyCharacterId) ?? 'neon_green',
           'nicknameTickets': prefs.getInt(_keyNicknameTicket) ?? 0,
           'countryTickets': prefs.getInt(_keyCountryTicket) ?? 0,
+          'platform': _getCurrentPlatform(),
+          'loginProvider': _getLoginProvider(user),
           'lastUpdated': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
         print('Profile synced to Firestore successfully');
@@ -576,6 +637,9 @@ class UserProfileManager {
           'totalPlayTime': currentTotalTime,
           'totalGamesPlayed': currentTotalGames,
           'mapPlayCounts': mapCounts,
+          'platform': _getCurrentPlatform(),
+          'loginProvider': _getLoginProvider(user),
+          'lastUpdated': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (e) {
         print("Error syncing stats: $e");

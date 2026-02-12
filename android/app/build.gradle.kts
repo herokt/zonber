@@ -12,7 +12,7 @@ plugins {
 android {
     namespace = "com.zonber.game"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -63,6 +63,12 @@ android {
             }
         }
     }
+
+    packaging {
+        resources {
+            excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+        }
+    }
 }
 
 dependencies {
@@ -73,3 +79,5 @@ dependencies {
 flutter {
     source = "../.."
 }
+
+

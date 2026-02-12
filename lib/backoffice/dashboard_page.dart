@@ -335,7 +335,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     DataColumn(
                       label: Text(
-                        '플랫폼',
+                        '플랫폼 / 로그인',
                         style: TextStyle(
                           color: Colors.white70,
                           fontWeight: FontWeight.bold,
@@ -398,40 +398,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                         ),
                         DataCell(
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3DD9EB).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: const Color(0xFF3DD9EB).withOpacity(0.3),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.android,
-                                  size: 12,
-                                  color: const Color(
-                                    0xFF3DD9EB,
-                                  ).withOpacity(0.8),
-                                ),
-                                const SizedBox(width: 4),
-                                const Text(
-                                  'Mobile',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFF3DD9EB),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          _buildPlatformInfo(data),
                         ),
                         DataCell(
                           Text(
@@ -522,6 +489,80 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPlatformInfo(Map<String, dynamic> data) {
+    final platform = data['platform'] as String? ?? 'Unknown';
+    final loginProvider = data['loginProvider'] as String? ?? 'Unknown';
+
+    // Determine icon and color based on platform
+    IconData platformIcon;
+    Color platformColor;
+
+    switch (platform) {
+      case 'Android':
+        platformIcon = Icons.android;
+        platformColor = const Color(0xFF3DD9EB);
+        break;
+      case 'iOS':
+        platformIcon = Icons.apple;
+        platformColor = const Color(0xFFFFFFFF);
+        break;
+      case 'Web':
+        platformIcon = Icons.web;
+        platformColor = const Color(0xFFFF9800);
+        break;
+      default:
+        platformIcon = Icons.phone_android;
+        platformColor = const Color(0xFF9E9E9E);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: platformColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: platformColor.withOpacity(0.3),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                platformIcon,
+                size: 12,
+                color: platformColor.withOpacity(0.8),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                platform,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: platformColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          loginProvider,
+          style: const TextStyle(
+            fontSize: 9,
+            color: Colors.white54,
+          ),
+        ),
+      ],
     );
   }
 }

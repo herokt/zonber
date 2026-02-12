@@ -289,7 +289,7 @@ class _UserListPageState extends State<UserListPage> {
                       ),
                       DataColumn(
                         label: Text(
-                          '플랫폼',
+                          '플랫폼 / 로그인',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.white70,
@@ -372,44 +372,7 @@ class _UserListPageState extends State<UserListPage> {
                             ),
                           ),
                           DataCell(
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF3DD9EB,
-                                ).withOpacity(0.1), // Android/Blueish tint
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: const Color(
-                                    0xFF3DD9EB,
-                                  ).withOpacity(0.3),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.android,
-                                    size: 14,
-                                    color: const Color(
-                                      0xFF3DD9EB,
-                                    ).withOpacity(0.8),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    'Mobile',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF3DD9EB),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            _buildPlatformInfo(data),
                           ),
                           DataCell(
                             Text(
@@ -476,6 +439,80 @@ class _UserListPageState extends State<UserListPage> {
           fontWeight: FontWeight.bold,
         ),
       ),
+    );
+  }
+
+  Widget _buildPlatformInfo(Map<String, dynamic> data) {
+    final platform = data['platform'] as String? ?? 'Unknown';
+    final loginProvider = data['loginProvider'] as String? ?? 'Unknown';
+
+    // Determine icon and color based on platform
+    IconData platformIcon;
+    Color platformColor;
+
+    switch (platform) {
+      case 'Android':
+        platformIcon = Icons.android;
+        platformColor = const Color(0xFF3DD9EB);
+        break;
+      case 'iOS':
+        platformIcon = Icons.apple;
+        platformColor = const Color(0xFFFFFFFF);
+        break;
+      case 'Web':
+        platformIcon = Icons.web;
+        platformColor = const Color(0xFFFF9800);
+        break;
+      default:
+        platformIcon = Icons.phone_android;
+        platformColor = const Color(0xFF9E9E9E);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 6,
+          ),
+          decoration: BoxDecoration(
+            color: platformColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: platformColor.withOpacity(0.3),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                platformIcon,
+                size: 14,
+                color: platformColor.withOpacity(0.8),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                platform,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: platformColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          loginProvider,
+          style: const TextStyle(
+            fontSize: 10,
+            color: Colors.white54,
+          ),
+        ),
+      ],
     );
   }
 }
