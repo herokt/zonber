@@ -9,7 +9,22 @@
             "**/.*",
             "**/node_modules/**"
         ],
+        "redirects": [
+            {
+                "source": "/privacy",
+                "destination": "/privacy.html",
+                "type": 301
+            }
+        ],
         "rewrites": [
+            {
+                "source": "/secret_admin",
+                "destination": "/secret_admin/index.html"
+            },
+            {
+                "source": "/secret_admin/**",
+                "destination": "/secret_admin/index.html"
+            },
             {
                 "source": "**",
                 "destination": "/index.html"

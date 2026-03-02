@@ -1,13 +1,12 @@
 class StageConfig {
   final String id;
-  final String nameKey; // Translation key
-  final String descKey; // Translation key
+  final String nameKey;
+  final String descKey;
   final double bulletSpeed;
   final double spawnInterval;
   final int maxBullets;
-  // Visual & Map properties
-  final int difficultyLevel; // 1, 2, 3
-  final List<String> traits; // ["Easy", "Fast"]
+  final int difficultyLevel;
+  final List<String> traits;
 
   const StageConfig({
     required this.id,
@@ -22,36 +21,38 @@ class StageConfig {
 }
 
 class GameConfig {
+  // All stages start with the same bullet speed and spawn interval.
+  // Difficulty increases over time via BulletSpawner's ramping logic.
   static const List<StageConfig> stages = [
     StageConfig(
       id: 'zone_1_classic',
-      nameKey: 'zone_1_title', // "Classic"
-      descKey: 'zone_1_desc', // "Open field, slow bullets"
-      bulletSpeed: 145.0,
-      spawnInterval: 0.1,
-      maxBullets: 50,
+      nameKey: 'zone_1_title',
+      descKey: 'zone_1_desc',
+      bulletSpeed: 150.0,
+      spawnInterval: 0.10,
+      maxBullets: 60,
       difficultyLevel: 1,
       traits: ['BASIC', 'OPEN'],
     ),
     StageConfig(
-      id: 'zone_2_prism',
-      nameKey: 'zone_2_title', // "Prism"
-      descKey: 'zone_2_desc', // "Diamonds & Reflections"
-      bulletSpeed: 180.0,
-      spawnInterval: 0.08,
-      maxBullets: 80,
+      id: 'zone_2_obstacles',
+      nameKey: 'zone_2_title',
+      descKey: 'zone_2_desc',
+      bulletSpeed: 150.0,
+      spawnInterval: 0.10,
+      maxBullets: 60,
       difficultyLevel: 2,
-      traits: ['CHAOS', 'REFLECT'],
+      traits: ['PILLARS', 'COVER'],
     ),
     StageConfig(
-      id: 'zone_3_spiral',
-      nameKey: 'zone_3_title', // "Spiral"
-      descKey: 'zone_3_desc', // "Trapped path, high speed"
-      bulletSpeed: 230.0,
-      spawnInterval: 0.06,
-      maxBullets: 120,
+      id: 'zone_5_maze',
+      nameKey: 'zone_5_title',
+      descKey: 'zone_5_desc',
+      bulletSpeed: 150.0,
+      spawnInterval: 0.10,
+      maxBullets: 90,
       difficultyLevel: 3,
-      traits: ['HARDCORE', 'MAZE'],
+      traits: ['MAZE', 'EXTREME'],
     ),
   ];
 

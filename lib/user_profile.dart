@@ -149,6 +149,7 @@ class UserProfileManager {
             await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
               'platform': _getCurrentPlatform(),
               'loginProvider': _getLoginProvider(user),
+              'email': user.email ?? '',
               'lastUpdated': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
           } catch (e) {
@@ -337,6 +338,7 @@ class UserProfileManager {
               'totalGamesPlayed': FieldValue.increment(1),
               'platform': _getCurrentPlatform(),
               'loginProvider': _getLoginProvider(user),
+              'email': user.email ?? '',
               'lastUpdated': FieldValue.serverTimestamp(),
             });
       } catch (e) {
@@ -387,6 +389,7 @@ class UserProfileManager {
           'countryTickets': prefs.getInt(_keyCountryTicket) ?? 0,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
+          'email': user.email ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
         print('Profile synced to Firestore successfully');
@@ -639,6 +642,7 @@ class UserProfileManager {
           'mapPlayCounts': mapCounts,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
+          'email': user.email ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (e) {

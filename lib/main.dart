@@ -49,8 +49,13 @@ void main() async {
     print("Skipping Firebase/AdMob/IAP init on desktop/web");
   }
 
-  // Fix Status Bar (White Icons for Dark Background)
-  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+  // Status bar/nav bar: transparent + light icons (edge-to-edge compatible)
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
 
   // Moved GameSettings, AudioManager, LanguageManager init to _ZonberAppState
 
@@ -88,6 +93,7 @@ class _ZonberAppState extends State<ZonberApp> {
 
   // Current game instance (for accessing in callbacks)
   ZonberGame? _currentGame;
+  BuildContext? _latestContext; // For back-button pause during game
 
   @override
   void initState() {
@@ -218,8 +224,8 @@ class _ZonberAppState extends State<ZonberApp> {
       return; // Stay on Backoffice
     }
 
-    // Normal App Flow
-    User? user = FirebaseAuth.instance.currentUser;
+    // Normal App Flow — wait for Firebase to restore persisted session
+    User? user = await FirebaseAuth.instance.authStateChanges().first;
     if (user == null) {
       setState(() {
         _currentPage = 'Login';
@@ -277,7 +283,9 @@ class _ZonberAppState extends State<ZonberApp> {
         return;
 
       case 'Game':
-        _navigateTo('Menu'); // Just go to menu for now as fallback
+        if (_currentGame != null && _latestContext != null) {
+          _pauseGame(_latestContext!, _currentGame!);
+        }
         break;
 
       case 'Result':
@@ -336,6 +344,7 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 
   Widget _buildPage(BuildContext context) {
+    _latestContext = context;
     switch (_currentPage) {
       case 'Backoffice':
         return const BackofficeHome();
@@ -384,13 +393,7 @@ class _ZonberAppState extends State<ZonberApp> {
             _handleGameOver(result);
           },
         );
-        return PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (bool didPop, dynamic result) {
-            if (didPop) return;
-            _pauseGame(context, _currentGame!);
-          },
-          child: Scaffold(
+        return Scaffold(
             backgroundColor: const Color(0xFF0B0C10),
             body: SafeArea(
               child: Column(
@@ -417,7 +420,7 @@ class _ZonberAppState extends State<ZonberApp> {
                           valueListenable: _currentGame!.survivalTimeNotifier,
                           builder: (context, value, child) {
                             return Text(
-                              'TIME: ${value.toStringAsFixed(2)}',
+                              'TIME: ${value.toStringAsFixed(3)}',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 32, // Increased Size
@@ -443,7 +446,6 @@ class _ZonberAppState extends State<ZonberApp> {
                 ],
               ),
             ),
-          ),
         );
       case 'Result':
         return ResultPage(
@@ -486,13 +488,7 @@ class _ZonberAppState extends State<ZonberApp> {
           onExit: () => _navigateTo('Editor'), // Abort verification
           onGameOver: _onVerificationGameOver,
         );
-        return PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (bool didPop, dynamic result) {
-            if (didPop) return;
-            _pauseGame(context, game);
-          },
-          child: Scaffold(
+        return Scaffold(
             backgroundColor: const Color(0xFF0B0C10),
             body: SafeArea(
               child: Column(
@@ -516,7 +512,7 @@ class _ZonberAppState extends State<ZonberApp> {
                           valueListenable: game.survivalTimeNotifier,
                           builder: (context, value, child) {
                             return Text(
-                              'TIME: ${value.toStringAsFixed(2)}',
+                              'TIME: ${value.toStringAsFixed(3)}',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 32,
@@ -540,7 +536,6 @@ class _ZonberAppState extends State<ZonberApp> {
                 ],
               ),
             ),
-          ),
         );
       case 'Profile':
         return UserProfilePage(onComplete: () => _navigateTo('Menu'));
@@ -685,7 +680,7 @@ class _ZonberAppState extends State<ZonberApp> {
           title: langManager.translate('verification_failed'),
           titleColor: AppColors.secondary,
           message:
-              "${langManager.translate('verification_fail_message')}: ${time.toStringAsFixed(2)}s\n${langManager.translate('must_survive_30s')}",
+              "${langManager.translate('verification_fail_message')}: ${time.toStringAsFixed(3)}s\n${langManager.translate('must_survive_30s')}",
           actions: [
             NeonButton(
               text: langManager.translate('try_again'),
@@ -1234,81 +1229,91 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     double centerX = w / 2;
     double centerY = h / 2;
 
-    if (mapId == 'zone_2_prism') {
-      // Zone 2: PRISM (Diamonds & Chaos) - REFINED ALIGNMENT
-      // 3x5 Grid Centered
-      double size = 60.0;
-      double colSpacing = 140.0;
-      double rowSpacing = 140.0;
+    // Helper to add symmetrical obstacles (mirrors X and Y around center)
+    void addSymmetrical(double dx, double dy, double width, double height) {
+      mapArea.add(Obstacle(Vector2(centerX + dx, centerY + dy), Vector2(width, height)));
+      mapArea.add(Obstacle(Vector2(centerX - dx - width, centerY - dy - height), Vector2(width, height)));
+      mapArea.add(Obstacle(Vector2(centerX + dx, centerY - dy - height), Vector2(width, height)));
+      mapArea.add(Obstacle(Vector2(centerX - dx - width, centerY + dy), Vector2(width, height)));
+    }
 
-      // Offsets relative to Center (0, 0)
-      List<double> xOffsets = [-colSpacing, 0, colSpacing];
-      List<double> yOffsets = [
-        -rowSpacing * 2,
-        -rowSpacing,
-        0,
-        rowSpacing,
-        rowSpacing * 2,
-      ];
+    if (mapId == 'zone_2_obstacles') {
+      // 4 Pillars (closer to center)
+      double size = 100;
+      double dist = 70;
+      addSymmetrical(dist, dist, size, size);
+    } else if (mapId == 'zone_3_chaos') {
+      // The Cross
+      double thickness = 30;
+      double centerGap = 60;
 
-      for (double dy in yOffsets) {
-        for (double dx in xOffsets) {
-          // Skip center for player safety
-          if (dx == 0 && dy == 0) continue;
+      // Vertical Wall (Top)
+      mapArea.add(Obstacle(Vector2(centerX - thickness / 2, 0), Vector2(thickness, centerY - centerGap)));
+      // Vertical Wall (Bottom)
+      mapArea.add(Obstacle(Vector2(centerX - thickness / 2, centerY + centerGap), Vector2(thickness, h - (centerY + centerGap))));
+      // Horizontal Wall (Left)
+      mapArea.add(Obstacle(Vector2(0, centerY - thickness / 2), Vector2(centerX - centerGap, thickness)));
+      // Horizontal Wall (Right)
+      mapArea.add(Obstacle(Vector2(centerX + centerGap, centerY - thickness / 2), Vector2(w - (centerX + centerGap), thickness)));
+    } else if (mapId == 'zone_4_impossible') {
+      // The Grid
+      double size = 35;
+      double gap = 55;
+      double startOffset = gap / 2;
 
-          // Add Diamond
-          var obs = Obstacle(
-            Vector2(centerX + dx, centerY + dy),
-            Vector2(size, size),
-          );
-          obs.angle = pi / 4; // 45 degrees
-          obs.anchor = Anchor.center;
-          mapArea.add(obs);
+      for (double y = startOffset; y < h / 2 - 20; y += size + gap) {
+        for (double x = startOffset; x < w / 2 - 20; x += size + gap) {
+          int ix = ((x - startOffset) / (size + gap)).round();
+          int iy = ((y - startOffset) / (size + gap)).round();
+          if ((ix + iy) % 2 == 0) {
+            addSymmetrical(x, y, size, size);
+          }
         }
       }
-    } else if (mapId == 'zone_3_spiral') {
-      // Zone 3: MAZE (Deterministic)
-      int cols = 15;
-      int rows = 25;
-      double tileSize = 32.0;
+    } else if (mapId == 'zone_5_maze') {
+      // Connected Maze with Safe Border & Entrances
+      double cellSize = 60;
+      double wallThickness = 5;
 
-      // Instantiate MazeGenerator (Random)
-      var generator = MazeGenerator(rows, cols);
+      double availableW = mapWidth - cellSize * 2;
+      double availableH = mapHeight - cellSize * 2;
+
+      int cols = (availableW / cellSize).floor();
+      int rows = (availableH / cellSize).floor();
+
+      double offsetX = (mapWidth - (cols * cellSize)) / 2;
+      double offsetY = (mapHeight - (rows * cellSize)) / 2;
+
+      MazeGenerator generator = MazeGenerator(rows, cols, seed: 12345);
       List<List<dynamic>> walls = generator.generate();
 
-      double wallThickness = 4.0; // Thin walls for maze
-
-      // Center Safe Zone (Cell check)
-      int cx = cols ~/ 2;
-      int cy = rows ~/ 2;
+      Random rng = Random(67890);
 
       for (var wall in walls) {
-        int c = wall[0] as int;
-        int r = wall[1] as int;
-        bool isHorizontal = wall[2] as bool;
+        int c = wall[0];
+        int r = wall[1];
+        bool isHorizontal = wall[2];
 
-        // Skip walls near center
-        if (c >= cx - 1 && c <= cx + 1 && r >= cy - 1 && r <= cy + 1) continue;
+        bool isBoundary = false;
+        if (isHorizontal) {
+          if (r == 0 || r == rows) isBoundary = true;
+        } else {
+          if (c == 0 || c == cols) isBoundary = true;
+        }
 
-        double wx = c * tileSize;
-        double wy = r * tileSize;
+        if (isBoundary && rng.nextDouble() < 0.2) continue;
+
+        double x = c * cellSize + offsetX;
+        double y = r * cellSize + offsetY;
+
+        if (x > mapWidth / 2 - 80 && x < mapWidth / 2 + 80 && y > mapHeight / 2 - 80 && y < mapHeight / 2 + 80) {
+          continue;
+        }
 
         if (isHorizontal) {
-          // Horizontal Wall at Top of cell (c, r)
-          mapArea.add(
-            Obstacle(
-              Vector2(wx, wy - wallThickness / 2),
-              Vector2(tileSize + wallThickness, wallThickness),
-            ),
-          );
+          mapArea.add(Obstacle(Vector2(x, y), Vector2(cellSize, wallThickness)));
         } else {
-          // Vertical Wall at Left of cell (c, r)
-          mapArea.add(
-            Obstacle(
-              Vector2(wx - wallThickness / 2, wy),
-              Vector2(wallThickness, tileSize + wallThickness),
-            ),
-          );
+          mapArea.add(Obstacle(Vector2(x, y), Vector2(wallThickness, cellSize)));
         }
       }
     }
@@ -1629,11 +1634,11 @@ class Player extends SpriteComponent
     // Increased Player Visual Size (24 -> 36 -> 54) -> Reduced to 45
     size = Vector2(45, 45);
 
-    // Keep hitbox smaller than visual size for fair gameplay (25x25 centered)
+    // Hitbox 40x40, centered in 45x45 sprite: offset = (45-40)/2 = 2.5
     add(
       RectangleHitbox(
-        position: Vector2(10, 10), // Centered: (45-25)/2 = 10
-        size: Vector2(25, 25),
+        position: Vector2(2.5, 2.5),
+        size: Vector2(40, 40),
       ),
     );
 
@@ -1725,169 +1730,75 @@ class Player extends SpriteComponent
         );
       }
 
-      // Separate X and Y axis movement for robust sliding
+      // Player has anchor=Anchor.center, so position = center of the sprite.
+      // Clamp so the hitbox (centered at position, half=12.5) stays within map.
 
-      // 1. Try moving X
-      double nextX = position.x + dragInput.x;
-      nextX = nextX.clamp(0, ZonberGame.mapWidth - width);
-      position.x = nextX;
+      // 1. Move X, then resolve all X overlaps
+      position.x = (position.x + dragInput.x).clamp(_hbHalf, ZonberGame.mapWidth  - _hbHalf);
+      _resolveCollisionsX();
 
-      // Resolve Collision X (MTV)
-      Rect rectX = Rect.fromLTWH(position.x + 10, position.y + 10, 25, 25);
-      Vector2? mtvX = _getMTV(rectX);
-      if (mtvX != null) {
-        position += mtvX;
-      }
-
-      // 2. Try moving Y
-      double nextY = position.y + dragInput.y;
-      nextY = nextY.clamp(0, ZonberGame.mapHeight - height);
-      position.y = nextY;
-
-      // Resolve Collision Y (MTV)
-      Rect rectY = Rect.fromLTWH(position.x + 10, position.y + 10, 25, 25);
-      Vector2? mtvY = _getMTV(rectY);
-      if (mtvY != null) {
-        position += mtvY;
-      }
+      // 2. Move Y, then resolve all Y overlaps
+      position.y = (position.y + dragInput.y).clamp(_hbHalf, ZonberGame.mapHeight - _hbHalf);
+      _resolveCollisionsY();
     }
   }
 
-  // Returns Minimum Translation Vector to resolve collision
-  Vector2? _getMTV(Rect rect) {
-    // Player vertices (Axis Aligned)
-    List<Vector2> playerPoly = [
-      Vector2(rect.left, rect.top),
-      Vector2(rect.right, rect.top),
-      Vector2(rect.right, rect.bottom),
-      Vector2(rect.left, rect.bottom),
-    ];
+  // Player has anchor=Anchor.center, so position = center of the 45x45 sprite.
+  // Hitbox is 40x40 centered at position → half = 20.
+  // LOCAL hitbox offset (2.5, 2.5) from sprite top-left = (pos - 22.5 + 2.5) = pos - 20
+  static const double _hbHalf = 20.0; // half of hitbox size (40/2)
 
-    // Player Center for direction check
-    Vector2 playerCenter = Vector2(rect.center.dx, rect.center.dy);
+  Rect _hitboxRect() => Rect.fromLTWH(
+        position.x - _hbHalf,
+        position.y - _hbHalf,
+        _hbHalf * 2,
+        _hbHalf * 2,
+      );
 
-    for (final other in gameRef.mapArea.children) {
-      if (other is Obstacle) {
-        List<Vector2> obstaclePoly = _getRotatedVertices(other);
+  // Push player out of all overlapping obstacles along X axis only
+  void _resolveCollisionsX() {
+    const double minX = _hbHalf;                              // hitbox left >= 0
+    const double maxX = ZonberGame.mapWidth - _hbHalf;        // hitbox right <= mapWidth
+    for (int pass = 0; pass < 3; pass++) {
+      bool resolved = false;
+      for (final other in gameRef.mapArea.children) {
+        if (other is Obstacle) {
+          final Rect obs = Rect.fromLTWH(other.x, other.y, other.width, other.height);
+          final Rect hb = _hitboxRect();
+          if (!hb.overlaps(obs)) continue;
 
-        // Calculate Obstacle Center (rough approx for direction)
-        Vector2 obsCenter = other.position;
-        if (other.anchor == Anchor.topLeft) obsCenter += other.size / 2;
-
-        Vector2? mtv = _getPolyMTV(
-          playerPoly,
-          obstaclePoly,
-          playerCenter,
-          obsCenter,
-        );
-        if (mtv != null) {
-          return mtv; // Return first significant collision correction
+          final double overlapLeft  = obs.right - hb.left;  // push right
+          final double overlapRight = hb.right  - obs.left; // push left
+          final double push = overlapLeft < overlapRight ? overlapLeft : -overlapRight;
+          position.x = (position.x + push).clamp(minX, maxX);
+          resolved = true;
         }
       }
+      if (!resolved) break;
     }
-    return null;
   }
 
-  List<Vector2> _getRotatedVertices(PositionComponent pc) {
-    Vector2 center;
-    double w = pc.width;
-    double h = pc.height;
+  // Push player out of all overlapping obstacles along Y axis only
+  void _resolveCollisionsY() {
+    const double minY = _hbHalf;                              // hitbox top >= 0
+    const double maxY = ZonberGame.mapHeight - _hbHalf;       // hitbox bottom <= mapHeight
+    for (int pass = 0; pass < 3; pass++) {
+      bool resolved = false;
+      for (final other in gameRef.mapArea.children) {
+        if (other is Obstacle) {
+          final Rect obs = Rect.fromLTWH(other.x, other.y, other.width, other.height);
+          final Rect hb = _hitboxRect();
+          if (!hb.overlaps(obs)) continue;
 
-    if (pc.anchor == Anchor.center) {
-      center = pc.position;
-    } else {
-      center = pc.position + Vector2(w / 2, h / 2);
-    }
-
-    double hw = w / 2;
-    double hh = h / 2;
-
-    List<Vector2> corners = [
-      Vector2(-hw, -hh),
-      Vector2(hw, -hh),
-      Vector2(hw, hh),
-      Vector2(-hw, hh),
-    ];
-
-    double sinA = sin(pc.angle);
-    double cosA = cos(pc.angle);
-
-    return corners.map((p) {
-      double rX = p.x * cosA - p.y * sinA;
-      double rY = p.x * sinA + p.y * cosA;
-      return center + Vector2(rX, rY);
-    }).toList();
-  }
-
-  // Returns MTV if overlap, null if separated
-  Vector2? _getPolyMTV(
-    List<Vector2> polyA,
-    List<Vector2> polyB,
-    Vector2 centerA,
-    Vector2 centerB,
-  ) {
-    List<Vector2> axes = [..._getAxes(polyA), ..._getAxes(polyB)];
-
-    double minOverlap = double.infinity;
-    Vector2 bestAxis = Vector2.zero();
-
-    for (Vector2 axis in axes) {
-      double? overlap = _getProjectionOverlap(axis, polyA, polyB);
-      if (overlap == null) return null; // Found separating axis -> No collision
-
-      if (overlap < minOverlap) {
-        minOverlap = overlap;
-        bestAxis = axis;
+          final double overlapTop    = obs.bottom - hb.top;    // push down
+          final double overlapBottom = hb.bottom  - obs.top;   // push up
+          final double push = overlapTop < overlapBottom ? overlapTop : -overlapBottom;
+          position.y = (position.y + push).clamp(minY, maxY);
+          resolved = true;
+        }
       }
+      if (!resolved) break;
     }
-
-    // Ensure direction points from B to A (Push A out)
-    Vector2 direction = centerA - centerB;
-    if (direction.dot(bestAxis) < 0) {
-      bestAxis = -bestAxis;
-    }
-
-    return bestAxis * minOverlap;
-  }
-
-  List<Vector2> _getAxes(List<Vector2> poly) {
-    List<Vector2> axes = [];
-    for (int i = 0; i < poly.length; i++) {
-      Vector2 p1 = poly[i];
-      Vector2 p2 = poly[(i + 1) % poly.length];
-      Vector2 edge = p1 - p2;
-      axes.add(Vector2(-edge.y, edge.x).normalized());
-    }
-    return axes;
-  }
-
-  double? _getProjectionOverlap(
-    Vector2 axis,
-    List<Vector2> polyA,
-    List<Vector2> polyB,
-  ) {
-    double minA = double.infinity, maxA = double.negativeInfinity;
-    double minB = double.infinity, maxB = double.negativeInfinity;
-
-    for (Vector2 p in polyA) {
-      double proj = p.dot(axis);
-      if (proj < minA) minA = proj;
-      if (proj > maxA) maxA = proj;
-    }
-
-    for (Vector2 p in polyB) {
-      double proj = p.dot(axis);
-      if (proj < minB) minB = proj;
-      if (proj > maxB) maxB = proj;
-    }
-
-    // Check for gap
-    if (maxB < minA || maxA < minB) return null;
-
-    // Overlap amount
-    double overlap1 = maxB - minA;
-    double overlap2 = maxA - minB;
-    return min(overlap1, overlap2);
   }
 
   @override
@@ -1989,8 +1900,14 @@ class Bullet extends PositionComponent
       // Obstacle Check
       for (final other in gameRef.mapArea.children) {
         if (other is Obstacle) {
-          // Precise Check including Rotation
-          if (other.containsPoint(testPos)) {
+          // Check if bullet rect overlaps obstacle (accounts for bullet size)
+          final Rect obsRect = other.toRect();
+          final Rect bulletRect = Rect.fromCenter(
+            center: Offset(testPos.x, testPos.y),
+            width: size.x,
+            height: size.y,
+          );
+          if (bulletRect.overlaps(obsRect)) {
             // Hit!
 
             // Determine Reflection Vector
@@ -2016,29 +1933,42 @@ class Bullet extends PositionComponent
               // Standard Axis-Aligned Reflection
               Rect obs = other.toRect();
               Vector2 prev = position + (ds * ((i - 1) / steps));
+              const double bHalf = 4.5; // bullet half-size (9px / 2)
 
-              // Determine side
-              Rect testX = Rect.fromCenter(
-                center: Offset(testPos.x, prev.y),
-                width: size.x,
-                height: size.y,
-              );
+              // Determine hit side by checking which face the bullet was
+              // OUTSIDE of at the previous sub-step position.
+              final bool fromLeft   = prev.x + bHalf <= obs.left;
+              final bool fromRight  = prev.x - bHalf >= obs.right;
+              final bool fromTop    = prev.y + bHalf <= obs.top;
+              final bool fromBottom = prev.y - bHalf >= obs.bottom;
 
-              if (testX.overlaps(obs)) {
+              final bool horizHit = fromLeft  || fromRight;
+              final bool vertHit  = fromTop   || fromBottom;
+
+              if (horizHit && !vertHit) {
+                // Pure left/right wall hit
                 velocity.x = -velocity.x;
-                // Push out horizontally
-                if (position.x < other.position.x) {
-                  position.x = other.position.x - size.x / 2 - 1;
-                } else {
-                  position.x = other.position.x + other.size.x + size.x / 2 + 1;
-                }
-              } else {
+                position.x = fromLeft
+                    ? obs.left  - bHalf - 1
+                    : obs.right + bHalf + 1;
+              } else if (vertHit && !horizHit) {
+                // Pure top/bottom wall hit
                 velocity.y = -velocity.y;
-                // Push out vertically
-                if (position.y < other.position.y) {
-                  position.y = other.position.y - size.y / 2 - 1;
+                position.y = fromTop
+                    ? obs.top    - bHalf - 1
+                    : obs.bottom + bHalf + 1;
+              } else {
+                // Corner or ambiguous: reflect along dominant movement axis
+                if (ds.x.abs() >= ds.y.abs()) {
+                  velocity.x = -velocity.x;
+                  position.x = (fromLeft || !fromRight)
+                      ? obs.left  - bHalf - 1
+                      : obs.right + bHalf + 1;
                 } else {
-                  position.y = other.position.y + other.size.y + size.y / 2 + 1;
+                  velocity.y = -velocity.y;
+                  position.y = (fromTop || !fromBottom)
+                      ? obs.top    - bHalf - 1
+                      : obs.bottom + bHalf + 1;
                 }
               }
             }
@@ -2123,18 +2053,17 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
     if (gameRef.isGameOver) return;
     if (!gameRef.player.isMounted) return;
 
+    // Player has anchor=Anchor.center, so position IS the center already
     Vector2 playerPos = gameRef.player.position;
 
-    // RAMPING: Increase Limit
-    int currentLimit =
-        _baseLimit + (level * 20); // Add 20 bullets cap per level
+    // RAMPING: Increase bullet cap slightly over time
+    int currentLimit = _baseLimit + (level * 10);
 
     if (gameRef.mapArea.children.whereType<Bullet>().length > currentLimit)
       return;
 
-    // RAMPING: Increase Speed
-    // Add 20 speed per level
-    double currentSpeed = _baseSpeed + (level * 20);
+    // RAMPING: Speed increases +15 per 30s level, capped at 2x base
+    double currentSpeed = (_baseSpeed + (level * 15)).clamp(0, _baseSpeed * 2);
 
     // Reduced Range
     double range = 450.0;

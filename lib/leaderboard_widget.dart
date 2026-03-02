@@ -230,7 +230,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                       children: [
                         Expanded(
                           child: _buildFilterChip(
-                            label: "🌍 GLOBAL",
+                            label: "🌍 ${LanguageManager.of(context).translate('global_tab')}",
                             isSelected: !_isNational,
                             onTap: () {
                               if (_isNational) {
@@ -243,7 +243,7 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: _buildFilterChip(
-                            label: "${_myFlag ?? '🏳️'} NATIONAL",
+                            label: "${_myFlag ?? '🏳️'} ${LanguageManager.of(context).translate('national_tab')}",
                             isSelected: _isNational,
                             isDisabled: _isGuest, // Disable for guests
                             onTap: () {
@@ -454,34 +454,34 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
           children: [
             // Fixed Width Rank
             SizedBox(
-              width: 40,
+              width: 28,
               child: rankIcon != null
-                  ? Icon(rankIcon, color: rankColor, size: 22)
+                  ? Icon(rankIcon, color: rankColor, size: 20)
                   : Text(
                       rankText,
                       style: TextStyle(
                         color: isMe
                             ? AppColors.primary
                             : (rank <= 30 ? Colors.white : Colors.white54),
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
                       ),
                       textAlign: TextAlign.center,
                     ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
 
             // Fixed Width Flag
             SizedBox(
-              width: 32,
+              width: 22,
               child: Text(
                 data['flag'] ?? '🏳️',
-                style: const TextStyle(fontSize: 24),
+                style: const TextStyle(fontSize: 17),
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 8),
 
             // Nickname (Flexible)
             Expanded(
@@ -498,18 +498,16 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                       ? [const Shadow(color: AppColors.primary, blurRadius: 8)]
                       : [],
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
 
-            const SizedBox(width: 16),
+            const SizedBox(width: 8),
 
             // Fixed Width Score (Monospace for Alignment)
             SizedBox(
-              width: 80,
+              width: 85,
               child: Text(
-                "${data['survivalTime'].toStringAsFixed(2)}s",
+                "${data['survivalTime'].toStringAsFixed(3)}s",
                 style: const TextStyle(
                   color: Color(0xFF00FF88), // Consistent Green
                   fontSize: 14,

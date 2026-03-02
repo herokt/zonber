@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:math'; // For MazeGenerator preview
+import 'maze_generator.dart'; // Import MazeGenerator for accurate preview
 import 'design_system.dart';
 import 'language_manager.dart';
 import 'ranking_system.dart';
-import 'game_config.dart'; // [NEW]
 
 class MapSelectionPage extends StatefulWidget {
   final Function(String mapId) onMapSelected;
@@ -49,11 +50,22 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
   }
 
   void _scrollToMap(String mapId) {
-    // Dynamically find index
-    int index = GameConfig.stages.indexWhere((s) => s.id == mapId);
-    if (index == -1) return;
-
+    int index = 0;
     double itemHeight = 220.0; // Approx height
+
+    switch (mapId) {
+      case 'zone_1_classic':
+        index = 0;
+        break;
+      case 'zone_2_obstacles':
+        index = 1;
+        break;
+      case 'zone_5_maze':
+        index = 2;
+        break;
+      default:
+        return;
+    }
 
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -106,37 +118,33 @@ class _MapSelectionPageState extends State<MapSelectionPage> {
   // Step 1: Update build method (lines 48-109).
 
   Widget _buildOfficialMaps() {
-    return ListView.builder(
+    return ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      itemCount: GameConfig.stages.length + 1, // +1 for bottom padding
-      itemBuilder: (context, index) {
-        if (index == GameConfig.stages.length) {
-          return const SizedBox(height: 48);
-        }
-
-        final stage = GameConfig.stages[index];
-
-        // Define colors per difficulty
-        Color color;
-        if (stage.difficultyLevel == 1) {
-          color = Colors.cyanAccent;
-        } else if (stage.difficultyLevel == 2) {
-          color = Colors.amberAccent;
-        } else {
-          color = Colors.deepOrangeAccent;
-        }
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: _buildNeonMapCard(
-            title: LanguageManager.of(context).translate(stage.nameKey),
-            description: LanguageManager.of(context).translate(stage.descKey),
-            mapId: stage.id,
-            color: color,
-          ),
-        );
-      },
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      children: [
+        _buildNeonMapCard(
+          title: LanguageManager.of(context).translate('zone_1_title'),
+          description: LanguageManager.of(context).translate('zone_1_desc'),
+          mapId: "zone_1_classic",
+          color: Colors.cyanAccent,
+        ),
+        const SizedBox(height: 20),
+        _buildNeonMapCard(
+          title: LanguageManager.of(context).translate('zone_2_title'),
+          description: LanguageManager.of(context).translate('zone_2_desc'),
+          mapId: "zone_2_obstacles",
+          color: Colors.greenAccent,
+        ),
+        const SizedBox(height: 20),
+        _buildNeonMapCard(
+          title: LanguageManager.of(context).translate('zone_5_title'),
+          description: LanguageManager.of(context).translate('zone_5_desc'),
+          mapId: "zone_5_maze",
+          color: Colors.purpleAccent,
+        ),
+        const SizedBox(height: 20),
+        const SizedBox(height: 20),
+      ],
     );
   }
 
@@ -282,73 +290,106 @@ class MapPreviewPainter extends CustomPainter {
     double centerY = size.height / 2;
 
     if (mapId == 'zone_1_classic') {
-      // No obstacles, just center dot
-    } else if (mapId == 'zone_2_prism') {
-      // PRISM: Rotated Diamonds
-      // 4 Diamonds around center.
-      double s = 25 * scaleX;
-      double d = 60 * scaleX;
+      // No obstacles
+      canvas.drawCircle(
+        Offset(centerX, centerY),
+        2,
+        Paint()..color = color.withOpacity(0.3),
+      );
+    } else if (mapId == 'zone_2_obstacles') {
+      // 4 Pillars
+      double size_ = 100 * scaleX;
+      double dist = 120;
 
-      void drawDiamond(double cx, double cy) {
-        Path path = Path();
-        path.moveTo(cx, cy - s); // Top
-        path.lineTo(cx + s, cy); // Right
-        path.lineTo(cx, cy + s); // Bottom
-        path.lineTo(cx - s, cy); // Left
-        path.close();
-        canvas.drawPath(path, paint);
+      _drawRect(canvas, paint, centerX + dist * scaleX - size_ / 2, centerY + dist * scaleY - size_ / 2, size_, size_);
+      _drawRect(canvas, paint, centerX - dist * scaleX - size_ / 2, centerY - dist * scaleY - size_ / 2, size_, size_);
+      _drawRect(canvas, paint, centerX + dist * scaleX - size_ / 2, centerY - dist * scaleY - size_ / 2, size_, size_);
+      _drawRect(canvas, paint, centerX - dist * scaleX - size_ / 2, centerY + dist * scaleY - size_ / 2, size_, size_);
+    } else if (mapId == 'zone_3_chaos') {
+      // The Cross
+      double thickness = 30 * scaleX;
+      double centerGap = 60 * scaleY;
+      double centerGapX = 60 * scaleX;
+
+      // Vertical Wall (Top)
+      _drawRect(canvas, paint, centerX - thickness / 2, centerY - 384 * scaleY, thickness, (384 - 60) * scaleY);
+      // Vertical Wall (Bottom)
+      _drawRect(canvas, paint, centerX - thickness / 2, centerY + centerGap, thickness, (384 - 60) * scaleY);
+      // Horizontal Wall (Left)
+      _drawRect(canvas, paint, centerX - 240 * scaleX, centerY - thickness / 2, (240 - 60) * scaleX, thickness * (scaleY / scaleX));
+      // Horizontal Wall (Right)
+      _drawRect(canvas, paint, centerX + centerGapX, centerY - thickness / 2, (240 - 60) * scaleX, thickness * (scaleY / scaleX));
+    } else if (mapId == 'zone_4_impossible') {
+      // The Grid
+      double size = 35;
+      double gap = 55;
+      double startOffset = gap / 2;
+      double w = 480;
+      double h = 768;
+
+      for (double y = startOffset; y < h / 2 - 20; y += size + gap) {
+        for (double x = startOffset; x < w / 2 - 20; x += size + gap) {
+          int ix = ((x - startOffset) / (size + gap)).round();
+          int iy = ((y - startOffset) / (size + gap)).round();
+
+          if ((ix + iy) % 2 == 0) {
+            double sS = size * scaleX;
+            double dx = x * scaleX;
+            double dy = y * scaleY;
+
+            _drawRect(canvas, paint, centerX + dx, centerY + dy, sS, sS);
+            _drawRect(canvas, paint, centerX - dx - sS, centerY - dy - sS, sS, sS);
+            _drawRect(canvas, paint, centerX + dx, centerY - dy - sS, sS, sS);
+            _drawRect(canvas, paint, centerX - dx - sS, centerY + dy, sS, sS);
+          }
+        }
       }
+    } else if (mapId == 'zone_5_maze') {
+      // Zone 5: Maze (Exact Preview)
+      double cellSize = 60 * scaleX;
 
-      drawDiamond(centerX - d, centerY - d);
-      drawDiamond(centerX + d, centerY - d);
-      drawDiamond(centerX - d, centerY + d);
-      drawDiamond(centerX + d, centerY + d);
-    } else if (mapId == 'zone_3_spiral') {
-      // SPIRAL: Concentric Broken Rings
-      List<double> radii = [80 * scaleX, 160 * scaleX, 240 * scaleX];
+      double availableW = 480 - 120;
+      double availableH = 768 - 120;
 
-      for (int i = 0; i < radii.length; i++) {
-        double r = radii[i];
-        // Check bounds
-        if (r > size.width / 2 - 2) r = size.width / 2 - 2;
+      int cols = (availableW / 60).floor();
+      int rows = (availableH / 60).floor();
 
-        Rect rect = Rect.fromCenter(
-          center: Offset(centerX, centerY),
-          width: r * 2,
-          height: r * 2,
-        );
+      double offsetX = (480 - (cols * 60)) / 2;
+      double offsetY = (768 - (rows * 60)) / 2;
 
-        int gap = i % 4;
+      MazeGenerator generator = MazeGenerator(rows, cols, seed: 12345);
+      List<List<dynamic>> walls = generator.generate();
 
-        // Use Lines for "Square Rings" to match game style
-        // Top
-        if (gap != 0)
-          canvas.drawLine(
-            rect.topLeft,
-            rect.topRight,
-            borderPaint..strokeWidth = 3,
-          );
-        // Right
-        if (gap != 1)
-          canvas.drawLine(
-            rect.topRight,
-            rect.bottomRight,
-            borderPaint..strokeWidth = 3,
-          );
-        // Bottom
-        if (gap != 2)
-          canvas.drawLine(
-            rect.bottomRight,
-            rect.bottomLeft,
-            borderPaint..strokeWidth = 3,
-          );
-        // Left
-        if (gap != 3)
-          canvas.drawLine(
-            rect.bottomLeft,
-            rect.topLeft,
-            borderPaint..strokeWidth = 3,
-          );
+      Random rng = Random(67890);
+
+      for (var wall in walls) {
+        int c = wall[0];
+        int r = wall[1];
+        bool isHorizontal = wall[2];
+
+        bool isBoundary = false;
+        if (isHorizontal) {
+          if (r == 0 || r == rows) isBoundary = true;
+        } else {
+          if (c == 0 || c == cols) isBoundary = true;
+        }
+
+        if (isBoundary && rng.nextDouble() < 0.2) continue;
+
+        double x = (c * 60 + offsetX) * scaleX;
+        double y = (r * 60 + offsetY) * scaleY;
+
+        double cx = c * 60 + offsetX;
+        double cy = r * 60 + offsetY;
+        if (cx > 480 / 2 - 80 && cx < 480 / 2 + 80 && cy > 768 / 2 - 80 && cy < 768 / 2 + 80) {
+          continue;
+        }
+
+        if (isHorizontal) {
+          _drawRect(canvas, paint, centerX - 480 / 2 * scaleX + x, centerY - 768 / 2 * scaleY + y, cellSize, 5 * scaleY);
+        } else {
+          _drawRect(canvas, paint, centerX - 480 / 2 * scaleX + x, centerY - 768 / 2 * scaleY + y, 5 * scaleX, cellSize);
+        }
       }
     }
 
@@ -357,6 +398,16 @@ class MapPreviewPainter extends CustomPainter {
       Offset(centerX, centerY),
       3.0,
       Paint()..color = AppColors.primary,
+    );
+  }
+
+  void _drawRect(Canvas canvas, Paint paint, double x, double y, double width, double height) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, width, height),
+        const Radius.circular(2),
+      ),
+      paint,
     );
   }
 
