@@ -46,7 +46,21 @@
       "Bash(flutter pub get:*)",
       "Bash(flutter build:*)",
       "Bash(flutter analyze:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "WebFetch(domain:stayzone-88364.web.app)",
+      "Bash(./gradlew bundleRelease:*)",
+      "Bash(find:*)",
+      "Bash(sort:*)",
+      "Bash(test:*)",
+      "Bash(strings:*)",
+      "Bash(unzip:*)",
+      "Bash(grep:*)",
+      "Bash(echo No Pillow:*)",
+      "Bash(echo No ImageMagick:*)",
+      "Bash(pip install Pillow -q && python -c \"from PIL import Image; print\\('Pillow installed'\\)\" 2>/dev/null || pip3 install Pillow -q && python3 -c \"from PIL import Image; print\\('Pillow installed'\\)\" 2>/dev/null)",
+      "Bash(cmd.exe:*)",
+      "Bash(dart:*)",
+      "Bash(rm /d/zonber/resize_assets.dart && cd /d/zonber && flutter build appbundle --release 2>&1)"
     ],
     "deny": [],
     "ask": []
