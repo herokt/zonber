@@ -453,7 +453,8 @@ class _ZonberAppState extends State<ZonberApp> {
           result: _lastGameResult!,
           onRestart: () => _navigateTo('Game'),
           onExit: () => _navigateTo('Menu'),
-          onRevive: (_reviveCount < 3)
+          onRevive: (_reviveCount < 3 &&
+                  !(FirebaseAuth.instance.currentUser?.isAnonymous ?? true))
               ? () {
                   bool shown = AdManager().showRewardedAd(() {
                     // On Reward: Resume Game
@@ -1383,6 +1384,38 @@ class _ResultPageState extends State<ResultPage> {
   bool _showLeaderboard = false;
   String? _savedRecordId;
 
+  // Shows a disclosure dialog before the rewarded ad (AdMob policy requirement:
+  // must clearly display the required action and reward before each rewarded ad).
+  void _showReviveConfirmDialog(BuildContext context) {
+    showNeonDialog(
+      context: context,
+      title: LanguageManager.of(context).translate('revive_title'),
+      message: LanguageManager.of(context).translate('revive_message'),
+      titleColor: AppColors.primary,
+      barrierDismissible: true,
+      actions: [
+        NeonButton(
+          text: LanguageManager.of(context).translate('cancel'),
+          onPressed: () => Navigator.of(context).pop(),
+          color: AppColors.textDim,
+          isPrimary: false,
+          isCompact: true,
+        ),
+        NeonButton(
+          text: LanguageManager.of(context).translate('watch_ad_button'),
+          onPressed: () {
+            Navigator.of(context).pop();
+            widget.onRevive!();
+          },
+          icon: Icons.videocam,
+          color: AppColors.primary,
+          isPrimary: true,
+          isCompact: true,
+        ),
+      ],
+    );
+  }
+
   void _submitScore() async {
     setState(() => _isSaving = true);
 
@@ -1477,11 +1510,12 @@ class _ResultPageState extends State<ResultPage> {
                       width: double.infinity,
                       child: NeonButton(
                         text:
-                            "${LanguageManager.of(context).translate('revive')} (${widget.revivesLeft})",
-                        onPressed: widget.onRevive!,
-                        icon: Icons.play_arrow,
+                            "${LanguageManager.of(context).translate('revive_watch_ad')} (${widget.revivesLeft})",
+                        onPressed: () =>
+                            _showReviveConfirmDialog(context),
+                        icon: Icons.videocam,
                         color: AppColors.primary,
-                        isPrimary: true, // Make it prominent
+                        isPrimary: true,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -1634,11 +1668,12 @@ class Player extends SpriteComponent
     // Increased Player Visual Size (24 -> 36 -> 54) -> Reduced to 45
     size = Vector2(45, 45);
 
-    // Hitbox 40x40, centered in 45x45 sprite: offset = (45-40)/2 = 2.5
+    // Hitbox 24x24, centered in 45x45 sprite: offset = (45-24)/2 = 10.5
+    // Bullet-hell convention: hitbox much smaller than visual for fair gameplay
     add(
       RectangleHitbox(
-        position: Vector2(2.5, 2.5),
-        size: Vector2(40, 40),
+        position: Vector2(10.5, 10.5),
+        size: Vector2(24, 24),
       ),
     );
 
@@ -1744,9 +1779,9 @@ class Player extends SpriteComponent
   }
 
   // Player has anchor=Anchor.center, so position = center of the 45x45 sprite.
-  // Hitbox is 40x40 centered at position → half = 20.
-  // LOCAL hitbox offset (2.5, 2.5) from sprite top-left = (pos - 22.5 + 2.5) = pos - 20
-  static const double _hbHalf = 20.0; // half of hitbox size (40/2)
+  // Hitbox is 24x24 centered at position → half = 12.
+  // LOCAL hitbox offset (10.5, 10.5) from sprite top-left = (pos - 22.5 + 10.5) = pos - 12
+  static const double _hbHalf = 12.0; // half of hitbox size (24/2)
 
   Rect _hitboxRect() => Rect.fromLTWH(
         position.x - _hbHalf,
@@ -1879,7 +1914,8 @@ class Bullet extends PositionComponent
 
   @override
   Future<void> onLoad() async {
-    add(CircleHitbox());
+    // Radius 3.5 (vs default 4.5) — matches the visible inner ring more closely
+    add(CircleHitbox(radius: 3.5, position: Vector2(4.5, 4.5), anchor: Anchor.center));
   }
 
   @override

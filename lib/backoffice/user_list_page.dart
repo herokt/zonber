@@ -297,6 +297,15 @@ class _UserListPageState extends State<UserListPage> {
                         ),
                       ),
                       DataColumn(
+                        label: Text(
+                          '이메일 / UID',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                      DataColumn(
                         numeric: true, // Right align numbers
                         label: Text(
                           '총 게임 수',
@@ -374,6 +383,7 @@ class _UserListPageState extends State<UserListPage> {
                           DataCell(
                             _buildPlatformInfo(data),
                           ),
+                          DataCell(_buildEmailCell(data, doc.id)),
                           DataCell(
                             Text(
                               NumberFormat(
@@ -442,6 +452,44 @@ class _UserListPageState extends State<UserListPage> {
     );
   }
 
+  Widget _buildEmailCell(Map<String, dynamic> data, String docId) {
+    final email = data['email'] as String? ?? '';
+    final hasEmail = email.isNotEmpty;
+    final displayText = hasEmail ? email : docId;
+    final loginProvider = data['loginProvider'] as String? ?? '';
+
+    Color providerColor = Colors.white30;
+    if (loginProvider == 'Google') providerColor = const Color(0xFF4285F4);
+    if (loginProvider == 'Apple') providerColor = Colors.white70;
+
+    return Tooltip(
+      message: 'UID: $docId',
+      child: SizedBox(
+        width: 180,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              displayText,
+              style: TextStyle(
+                color: hasEmail ? providerColor : Colors.white24,
+                fontSize: 11,
+                fontFamily: 'monospace',
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (!hasEmail)
+              const Text(
+                '이메일 미등록',
+                style: TextStyle(color: Colors.white24, fontSize: 10),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlatformInfo(Map<String, dynamic> data) {
     final platform = data['platform'] as String? ?? 'Unknown';
     final loginProvider = data['loginProvider'] as String? ?? 'Unknown';
@@ -464,7 +512,7 @@ class _UserListPageState extends State<UserListPage> {
         platformColor = const Color(0xFFFF9800);
         break;
       default:
-        platformIcon = Icons.phone_android;
+        platformIcon = Icons.help_outline_rounded;
         platformColor = const Color(0xFF9E9E9E);
     }
 

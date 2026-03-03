@@ -29,10 +29,12 @@ const Map<String, Map<String, String>> appTranslations = {
     'game_over': 'GAME OVER',
     'survival_time': 'SURVIVAL TIME',
     'revive_title': 'REVIVE?',
-    'revive_message': 'Watch an ad to revive and continue?',
+    'revive_message': 'Watch a short ad to revive and continue from where you left off.',
     'revives_left': 'revives left',
     'give_up': 'GIVE UP',
     'revive': 'REVIVE',
+    'revive_watch_ad': 'Watch Ad & Revive',
+    'watch_ad_button': 'Watch Ad',
     'ad_not_ready': 'Ad not ready yet. Try again later.',
 
     // Map Selection
@@ -240,10 +242,12 @@ const Map<String, Map<String, String>> appTranslations = {
     'game_over': '게임 오버',
     'survival_time': '생존 시간',
     'revive_title': '부활하기?',
-    'revive_message': '광고를 보고 부활하시겠습니까?',
+    'revive_message': '짧은 광고를 시청하면 현재 기록에서 이어서 플레이할 수 있습니다.',
     'revives_left': '회 남음',
     'give_up': '포기',
     'revive': '부활',
+    'revive_watch_ad': '광고 보고 부활',
+    'watch_ad_button': '광고 보기',
     'ad_not_ready': '광고가 아직 준비되지 않았습니다. 나중에 다시 시도하세요.',
 
     // Map Selection
