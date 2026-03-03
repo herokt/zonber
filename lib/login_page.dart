@@ -29,30 +29,10 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = false);
 
     if (credential != null) {
-      // Try to sync existing profile from Firestore
+      // Sync existing profile from Firestore (returning user).
+      // Do NOT auto-create a profile here — let _checkProfile() route to
+      // InitialSetupPage if no profile exists, so the user can pick a country.
       await UserProfileManager.syncProfile();
-
-      // Check if profile exists
-      bool hasProfile = await UserProfileManager.hasProfile();
-
-      if (!hasProfile) {
-        // Auto-create profile from Google account
-        final user = credential.user;
-        String nickname = user?.displayName?.split(' ').first ?? 'Player';
-
-        // Limit nickname to 8 characters
-        if (nickname.length > 8) {
-          nickname = nickname.substring(0, 8);
-        }
-
-        await UserProfileManager.saveProfile(
-          nickname,
-          '', // Empty flag, user can set later
-          '', // Empty country name
-        );
-
-        print('✅ Auto-created profile from Google: $nickname');
-      }
 
       widget.onLoginSuccess();
     } else {
@@ -74,30 +54,10 @@ class _LoginPageState extends State<LoginPage> {
       final fullName = result['fullName'] as String?;
 
       if (credential != null) {
-        // Try to sync existing profile from Firestore
+        // Sync existing profile from Firestore (returning user).
+        // Do NOT auto-create a profile here — let _checkProfile() route to
+        // InitialSetupPage if no profile exists, so the user can pick a country.
         await UserProfileManager.syncProfile();
-
-        // Check if profile exists
-        bool hasProfile = await UserProfileManager.hasProfile();
-
-        if (!hasProfile) {
-          // Auto-create profile from Apple account
-          String nickname =
-              fullName ?? credential.user?.displayName ?? 'Player';
-
-          // Limit nickname to 8 characters
-          if (nickname.length > 8) {
-            nickname = nickname.substring(0, 8);
-          }
-
-          await UserProfileManager.saveProfile(
-            nickname,
-            '', // Empty flag, user can set later
-            '', // Empty country name
-          );
-
-          print('✅ Auto-created profile from Apple: $nickname');
-        }
 
         widget.onLoginSuccess();
       }
