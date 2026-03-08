@@ -1,10 +1,10 @@
-import 'dart:io'; // Add dart:io
-import 'package:flutter/foundation.dart'; // Add kIsWeb
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'ad_helper.dart';
 
-import 'user_profile.dart'; // Add import
+import 'user_profile.dart';
 
 class AdManager {
   static final AdManager _instance = AdManager._internal();
@@ -22,38 +22,25 @@ class AdManager {
   bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   Future<void> initialize() async {
-    if (_isMobile) {
-      // Request App Tracking Transparency permission (iOS only)
-      // if (Platform.isIOS) {
-      //   try {
-      //     final status = await AppTrackingTransparency.requestTrackingAuthorization();
-      //     debugPrint('📍 ATT Status: $status');
-      //   } catch (e) {
-      //     debugPrint('⚠️ ATT request error: $e');
-      //   }
-      // }
+    if (!_isMobile) return;
 
-      // Print ad mode configuration
-      AdHelper.printAdMode();
+    AdHelper.printAdMode();
 
-      await _checkAdsStatus();
-      if (_adsDisabled) {
-        debugPrint('🚫 Ads disabled - user purchased ad removal');
-        return;
-      }
-
-      // Configure AdMob for Family Policy Compliance
-      RequestConfiguration configuration = RequestConfiguration(
-        maxAdContentRating: MaxAdContentRating.g,
-        tagForChildDirectedTreatment: TagForChildDirectedTreatment.yes,
-        tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.yes,
-      );
-      await MobileAds.instance.updateRequestConfiguration(configuration);
-
-      await MobileAds.instance.initialize();
-      _loadInterstitial();
-      _loadRewardedAd();
+    await _checkAdsStatus();
+    if (_adsDisabled) {
+      debugPrint('🚫 Ads disabled - user purchased ad removal');
+      return;
     }
+
+    RequestConfiguration configuration = RequestConfiguration(
+      tagForChildDirectedTreatment: TagForChildDirectedTreatment.unspecified,
+      tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.unspecified,
+    );
+    await MobileAds.instance.updateRequestConfiguration(configuration);
+
+    await MobileAds.instance.initialize();
+    _loadInterstitial();
+    _loadRewardedAd();
   }
 
   Future<void> _checkAdsStatus() async {

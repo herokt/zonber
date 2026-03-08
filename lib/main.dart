@@ -1363,7 +1363,6 @@ class ResultPage extends StatefulWidget {
   final VoidCallback onExit;
   final VoidCallback? onRevive; // Optional Revive Callback
   final int revivesLeft;
-
   const ResultPage({
     super.key,
     required this.mapId,
@@ -1416,7 +1415,35 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
+  void _showGuestRankingAlert() {
+    showNeonDialog(
+      context: context,
+      title: LanguageManager.of(context).translate('guest_ranking_title'),
+      message: LanguageManager.of(context).translate('guest_ranking_message'),
+      titleColor: AppColors.primary,
+      barrierDismissible: true,
+      actions: [
+        NeonButton(
+          text: LanguageManager.of(context).translate('confirm'),
+          onPressed: () {
+            Navigator.of(context).pop();
+            widget.onExit();
+          },
+          color: AppColors.primary,
+          isPrimary: true,
+          isCompact: true,
+        ),
+      ],
+    );
+  }
+
   void _submitScore() async {
+    final isGuest = FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
+    if (isGuest) {
+      _showGuestRankingAlert();
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {

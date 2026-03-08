@@ -37,6 +37,10 @@ const Map<String, Map<String, String>> appTranslations = {
     'watch_ad_button': 'Watch Ad',
     'ad_not_ready': 'Ad not ready yet. Try again later.',
 
+    // Guest Ranking Alert
+    'guest_ranking_title': 'LOGIN REQUIRED',
+    'guest_ranking_message': 'Log in to register your score and compete with players around the world.\nBecome a world ranker!',
+
     // Map Selection
     'select_zone': 'SELECT ZONE',
     'official_maps': 'OFFICIAL',
@@ -249,6 +253,10 @@ const Map<String, Map<String, String>> appTranslations = {
     'revive_watch_ad': '광고 보고 부활',
     'watch_ad_button': '광고 보기',
     'ad_not_ready': '광고가 아직 준비되지 않았습니다. 나중에 다시 시도하세요.',
+
+    // Guest Ranking Alert
+    'guest_ranking_title': '로그인이 필요해요',
+    'guest_ranking_message': '로그인하면 점수를 등록하고\n전 세계 플레이어들과 경쟁할 수 있어요.\n지금 로그인하고 세계 랭커가 되어보세요!',
 
     // Map Selection
     'select_zone': '맵 선택',
