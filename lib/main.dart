@@ -453,6 +453,7 @@ class _ZonberAppState extends State<ZonberApp> {
           result: _lastGameResult!,
           onRestart: () => _navigateTo('Game'),
           onExit: () => _navigateTo('Menu'),
+          onNavigateToLogin: () => _navigateTo('Login'),
           onRevive: (_reviveCount < 3 &&
                   !(FirebaseAuth.instance.currentUser?.isAnonymous ?? true))
               ? () {
@@ -1362,6 +1363,7 @@ class ResultPage extends StatefulWidget {
   final VoidCallback onRestart;
   final VoidCallback onExit;
   final VoidCallback? onRevive; // Optional Revive Callback
+  final VoidCallback? onNavigateToLogin; // Navigate to Login Page
   final int revivesLeft;
   const ResultPage({
     super.key,
@@ -1370,6 +1372,7 @@ class ResultPage extends StatefulWidget {
     required this.onRestart,
     required this.onExit,
     this.onRevive,
+    this.onNavigateToLogin,
     this.revivesLeft = 0,
   });
 
@@ -1427,7 +1430,7 @@ class _ResultPageState extends State<ResultPage> {
           text: LanguageManager.of(context).translate('confirm'),
           onPressed: () {
             Navigator.of(context).pop();
-            widget.onExit();
+            widget.onNavigateToLogin?.call();
           },
           color: AppColors.primary,
           isPrimary: true,
