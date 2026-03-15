@@ -246,6 +246,25 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 
   void _navigateTo(String page, {String? mapId, double initialTime = 0.0}) {
+    // Create the game object here (before setState) so that build() always
+    // reuses the same instance. Creating it inside build() causes a new game
+    // to be instantiated on every rebuild (e.g. when the banner ad loads),
+    // which makes Flame's GameWidget restart the game mid-session.
+    if (page == 'Game') {
+      final effectiveMapId = mapId ?? _currentMapId;
+      _currentGame = ZonberGame(
+        mapId: effectiveMapId,
+        initialSurvivalTime: initialTime,
+        onExit: () {
+          AdManager().showInterstitialIfReady();
+          _navigateTo('MapSelect');
+        },
+        onGameOver: (result) {
+          _handleGameOver(result);
+        },
+      );
+    }
+
     setState(() {
       _currentPage = page;
       _initialSurvivalTime = initialTime;
@@ -382,17 +401,6 @@ class _ZonberAppState extends State<ZonberApp> {
           },
         );
       case 'Game':
-        _currentGame = ZonberGame(
-          mapId: _currentMapId,
-          initialSurvivalTime: _initialSurvivalTime,
-          onExit: () {
-            AdManager().showInterstitialIfReady();
-            _navigateTo('MapSelect');
-          },
-          onGameOver: (result) {
-            _handleGameOver(result);
-          },
-        );
         return Scaffold(
             backgroundColor: const Color(0xFF0B0C10),
             body: SafeArea(
@@ -743,8 +751,9 @@ class _ZonberAppState extends State<ZonberApp> {
     setState(() {
       _lastGameResult = result;
       _currentPage = 'Result';
-      AdManager().showInterstitialIfReady();
     });
+    // Show interstitial after state update, not inside setState callback
+    AdManager().showInterstitialIfReady();
   }
 }
 

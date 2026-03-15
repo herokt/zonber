@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'design_system.dart';
 import 'services/auth_service.dart';
@@ -110,31 +112,33 @@ class _LoginPageState extends State<LoginPage> {
                   _handleAppleSignIn,
                   Icons.apple,
                 ),
-                const SizedBox(height: 32),
-                // Guest Mode Divider
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(color: AppColors.textDim.withOpacity(0.3)),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        LanguageManager.of(context).translate('or'),
-                        style: TextStyle(
-                          color: AppColors.textDim,
-                          fontSize: 12,
-                          letterSpacing: 1.5,
+                if (!kIsWeb && Platform.isIOS) ...[
+                  const SizedBox(height: 32),
+                  // Guest Mode Divider (iOS only)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(color: AppColors.textDim.withOpacity(0.3)),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          LanguageManager.of(context).translate('or'),
+                          style: TextStyle(
+                            color: AppColors.textDim,
+                            fontSize: 12,
+                            letterSpacing: 1.5,
+                          ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: Divider(color: AppColors.textDim.withOpacity(0.3)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _buildGuestButton(),
+                      Expanded(
+                        child: Divider(color: AppColors.textDim.withOpacity(0.3)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _buildGuestButton(),
+                ],
               ],
             ],
           ),
