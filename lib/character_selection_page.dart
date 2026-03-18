@@ -149,9 +149,8 @@ class _StatBars extends StatelessWidget {
     final s = char.stats;
     final ratings = [
       (
-        label: '판정',
+        label: '피지컬',
         rating: CharacterData.hitboxRating(s.hitboxSize),
-        // 판정은 역방향: 작을수록 유리 → 별 많을수록 좋음
       ),
       (
         label: '속도',
@@ -162,7 +161,7 @@ class _StatBars extends StatelessWidget {
         rating: CharacterData.shieldRating(s.shieldCount, s.shieldCooldown),
       ),
       (
-        label: '반발',
+        label: '기력',
         rating: CharacterData.repelRating(s.repelRadius),
       ),
     ];

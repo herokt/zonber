@@ -1810,14 +1810,17 @@ class Player extends SpriteComponent
 
   @override
   Future<void> onLoad() async {
-    size = Vector2(45, 45);
-
     // 캐릭터 스탯 먼저 로드
     final profile = await UserProfileManager.getProfile();
     characterId = profile['characterId'] ?? 'neon_green';
     final char = CharacterData.getCharacter(characterId);
     final stats = char.stats;
     trailColor = char.color;
+
+    // 피지컬 스탯에 비례한 시각적 크기 (hitbox 14→30 을 sprite 36→54 로 매핑)
+    // 작은 캐릭터는 실제로 화면에서 작게 보임
+    final double visualSize = 36 + (stats.hitboxSize - 14) / 16 * 18;
+    size = Vector2(visualSize, visualSize);
 
     // 스탯 적용
     _hbHalf = stats.hitboxSize / 2;
@@ -1826,10 +1829,10 @@ class Player extends SpriteComponent
     _shieldCooldown = stats.shieldCooldown;
     _repelRadius = stats.repelRadius;
     _repelForce = stats.repelForce;
-    _currentShields = _maxShields; // 게임 시작 시 실드 가득
+    _currentShields = _maxShields;
 
-    // 히트박스: 스탯 기반 동적 크기, 45×45 스프라이트 중앙 배치
-    final double hbOffset = (45 - stats.hitboxSize) / 2;
+    // 히트박스: 시각 크기 중앙에 배치
+    final double hbOffset = (visualSize - stats.hitboxSize) / 2;
     add(
       RectangleHitbox(
         position: Vector2(hbOffset, hbOffset),
