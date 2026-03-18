@@ -145,11 +145,11 @@ class CharacterData {
   }
 
   static int shieldRating(int count, double cooldown) {
-    if (count == 0) return 1;
-    if (count == 1 && cooldown >= 20) return 2;
-    if (count == 1 && cooldown >= 12) return 3;
-    if (count == 2 && cooldown >= 10) return 4;
-    return 5;
+    if (count == 0) return 1;                           // Blue  ★
+    if (count == 1 && cooldown >= 20) return 2;         // Green ★★
+    if (count == 1 && cooldown < 20) return 3;          // Red   ★★★
+    if (count == 2 && cooldown >= 12) return 4;         //       ★★★★
+    return 5;                                           // Purple★★★★★
   }
 
   static int repelRating(double radius) {

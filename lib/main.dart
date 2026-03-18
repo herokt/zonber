@@ -444,8 +444,8 @@ class _ZonberAppState extends State<ZonberApp> {
                             );
                           },
                         ),
-                        // Pause Button Removed - Placeholder to keep Time centered
-                        const SizedBox(width: 48), // Match IconButton size
+                        // 에너지 HUD
+                        _EnergyHud(notifier: _currentGame!.energyNotifier),
                       ],
                     ),
                   ),
@@ -1124,6 +1124,15 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   // UI Logic
   final ValueNotifier<double> survivalTimeNotifier = ValueNotifier(0.0);
 
+  /// 에너지(실드) 상태 — Player가 매 프레임 업데이트
+  final ValueNotifier<({int current, int max, double chargeProgress, Color color})>
+      energyNotifier = ValueNotifier((
+    current: 0,
+    max: 0,
+    chargeProgress: 0.0,
+    color: AppColors.primary,
+  ));
+
   double survivalTime = 0.0;
   bool isGameOver = false;
   String? lastRecordId; // Last saved record ID
@@ -1366,6 +1375,92 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   }
 }
 
+// ── 게임 화면 에너지 HUD ────────────────────────────────────
+class _EnergyHud extends StatelessWidget {
+  final ValueNotifier<({int current, int max, double chargeProgress, Color color})> notifier;
+
+  const _EnergyHud({required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: notifier,
+      builder: (context, energy, _) {
+        // 실드 없는 캐릭터(Electric Blue)는 빈 공간
+        if (energy.max == 0) return const SizedBox(width: 56);
+
+        return SizedBox(
+          width: 56,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'ENERGY',
+                style: TextStyle(
+                  color: energy.color.withOpacity(0.7),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Orbitron',
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: List.generate(energy.max, (i) {
+                  final isFull = i < energy.current;
+                  // i == energy.current → 충전 중인 슬롯
+                  final isCharging = i == energy.current;
+
+                  return Container(
+                    width: 20,
+                    height: 8,
+                    margin: const EdgeInsets.only(left: 3),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Stack(
+                        children: [
+                          // 배경
+                          Container(
+                            color: energy.color.withOpacity(0.12),
+                          ),
+                          // 채워진 부분
+                          FractionallySizedBox(
+                            widthFactor: isFull
+                                ? 1.0
+                                : isCharging
+                                    ? energy.chargeProgress
+                                    : 0.0,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isFull
+                                    ? energy.color
+                                    : energy.color.withOpacity(0.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: energy.color.withOpacity(0.6),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 class ResultPage extends StatefulWidget {
   final String mapId;
   final Map<String, dynamic> result;
@@ -1754,6 +1849,21 @@ class Player extends SpriteComponent
 
     paint.filterQuality = FilterQuality.medium;
     paint.isAntiAlias = true;
+
+    // 초기 에너지 상태 HUD에 반영
+    _notifyEnergy();
+  }
+
+  void _notifyEnergy() {
+    final double progress = (_maxShields > 0 && _shieldCooldown > 0)
+        ? (_shieldChargeTimer / _shieldCooldown).clamp(0.0, 1.0)
+        : 0.0;
+    gameRef.energyNotifier.value = (
+      current: _currentShields,
+      max: _maxShields,
+      chargeProgress: progress,
+      color: trailColor,
+    );
   }
 
   @override
@@ -1836,6 +1946,9 @@ class Player extends SpriteComponent
         }
       }
     }
+
+    // --- 에너지 HUD 업데이트 (매 프레임: 충전 진행도 반영) ---
+    _notifyEnergy();
 
     // --- ROTATION EFFECT ---
     double rotationSpeed = 2.0;
@@ -1977,6 +2090,7 @@ class Player extends SpriteComponent
         _shieldChargeTimer = 0; // 충전 타이머 리셋
         _isInvincible = true;
         _invincibleTimer = 0;
+        _notifyEnergy(); // 즉시 HUD 반영
         other.removeFromParent();
         if (GameSettings().vibrationEnabled) {
           HapticFeedback.mediumImpact();

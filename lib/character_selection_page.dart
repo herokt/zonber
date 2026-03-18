@@ -158,7 +158,7 @@ class _StatBars extends StatelessWidget {
         rating: CharacterData.speedRating(s.speedMultiplier),
       ),
       (
-        label: '체력',
+        label: '에너지',
         rating: CharacterData.shieldRating(s.shieldCount, s.shieldCooldown),
       ),
       (
