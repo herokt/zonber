@@ -26,6 +26,55 @@ class _DashboardPageState extends State<DashboardPage> {
     _loadStats();
   }
 
+  Future<void> _migrateCreatedAt() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2C),
+        title: const Text("가입일 마이그레이션", style: TextStyle(color: Colors.white)),
+        content: const Text(
+          "createdAt 필드가 없는 유저에게 현재 시간으로 가입일을 설정합니다.\n계속하시겠습니까?",
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소", style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00FF88), foregroundColor: Colors.black),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("실행"),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('users').get();
+      final now = Timestamp.now();
+      int updated = 0;
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        if (!data.containsKey('createdAt')) {
+          batch.update(doc.reference, {'createdAt': now});
+          updated++;
+        }
+      }
+      if (updated > 0) await batch.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("완료: $updated명 업데이트됨"), backgroundColor: const Color(0xFF00FF88)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("오류: $e"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
   Future<void> _loadStats() async {
     setState(() => _loading = true);
     try {
@@ -63,10 +112,10 @@ class _DashboardPageState extends State<DashboardPage> {
             .where('loginProvider', isEqualTo: 'Guest')
             .count()
             .get(),
-        // 7. Recent users
+        // 7. Recent users (by registration date)
         FirebaseFirestore.instance
             .collection('users')
-            .orderBy('lastUpdated', descending: true)
+            .orderBy('createdAt', descending: true)
             .limit(10)
             .get(),
       ]);
@@ -150,11 +199,12 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ],
         ),
-        _buildActionButton(
-          "새로고침",
-          Icons.refresh_rounded,
-          const Color(0xFF00FF88),
-          _loadStats,
+        Row(
+          children: [
+            _buildActionButton("가입일 복구", Icons.healing_rounded, const Color(0xFFFF9800), _migrateCreatedAt),
+            const SizedBox(width: 12),
+            _buildActionButton("새로고침", Icons.refresh_rounded, const Color(0xFF00FF88), _loadStats),
+          ],
         ),
       ],
     );
@@ -396,7 +446,7 @@ class _DashboardPageState extends State<DashboardPage> {
           const Padding(
             padding: EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
-              "최근 활동 사용자",
+              "최근 가입 사용자",
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70),
             ),
           ),
@@ -431,17 +481,25 @@ class _DashboardPageState extends State<DashboardPage> {
                         DataColumn(label: Text('닉네임', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
                         DataColumn(label: Text('이메일 / UID', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
                         DataColumn(label: Text('플랫폼', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(label: Text('총 플레이', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(label: Text('최근 활동', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
+                        DataColumn(label: Text('가입일', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
+                        DataColumn(label: Text('최근 플레이', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
+                        DataColumn(numeric: true, label: Text('총', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
+                        DataColumn(numeric: true, label: Text('S1', style: TextStyle(color: Color(0xFF4FACFE), fontWeight: FontWeight.bold, fontSize: 13))),
+                        DataColumn(numeric: true, label: Text('S2', style: TextStyle(color: Color(0xFF43E97B), fontWeight: FontWeight.bold, fontSize: 13))),
+                        DataColumn(numeric: true, label: Text('S3', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13))),
                       ],
                       rows: _recentUsers.map((doc) {
                         final data = doc.data() as Map<String, dynamic>;
+                        final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
                         final lastUpdated = (data['lastUpdated'] as Timestamp?)?.toDate();
-                        final dateStr = lastUpdated != null
-                            ? DateFormat('MM/dd HH:mm').format(lastUpdated)
-                            : '-';
+                        final createdStr = createdAt != null ? DateFormat('yy/MM/dd HH:mm').format(createdAt) : '-';
+                        final lastStr = lastUpdated != null ? DateFormat('yy/MM/dd HH:mm').format(lastUpdated) : '-';
                         final email = data['email'] as String? ?? '';
                         final displayId = email.isNotEmpty ? email : doc.id;
+                        final mapCounts = data['mapPlayCounts'] as Map<String, dynamic>? ?? {};
+                        final zone1 = mapCounts['zone_1_classic'] as int? ?? 0;
+                        final zone2 = mapCounts['zone_2_hard'] as int? ?? 0;
+                        final zone3 = mapCounts['zone_3_obstacles'] as int? ?? 0;
                         return DataRow(cells: [
                           DataCell(Row(
                             mainAxisSize: MainAxisSize.min,
@@ -472,14 +530,15 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                           ),
                           DataCell(_buildPlatformIcon(data)),
+                          DataCell(Text(createdStr, style: const TextStyle(color: Colors.white54, fontSize: 12))),
+                          DataCell(Text(lastStr, style: const TextStyle(color: Colors.white54, fontSize: 12))),
                           DataCell(Text(
                             NumberFormat('#,###').format(data['totalGamesPlayed'] ?? 0),
                             style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                           )),
-                          DataCell(Text(
-                            dateStr,
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
-                          )),
+                          DataCell(_buildDashStageCount(zone1, const Color(0xFF4FACFE))),
+                          DataCell(_buildDashStageCount(zone2, const Color(0xFF43E97B))),
+                          DataCell(_buildDashStageCount(zone3, const Color(0xFFFFD700))),
                         ]);
                       }).toList(),
                     ),
@@ -515,6 +574,14 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDashStageCount(int count, Color color) {
+    if (count == 0) return const Text('-', style: TextStyle(color: Colors.white24, fontSize: 12));
+    return Text(
+      NumberFormat('#,###').format(count),
+      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
     );
   }
 

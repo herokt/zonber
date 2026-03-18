@@ -379,7 +379,9 @@ class UserProfileManager {
     if (user != null) {
       try {
         print('Syncing to Firestore...');
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final existingDoc = await docRef.get();
+        final Map<String, dynamic> profileData = {
           'nickname': nickname,
           'flag': flag,
           'countryName': countryName,
@@ -391,7 +393,11 @@ class UserProfileManager {
           'loginProvider': _getLoginProvider(user),
           'email': user.email ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+        if (!existingDoc.exists || (existingDoc.data() as Map?)?.containsKey('createdAt') != true) {
+          profileData['createdAt'] = FieldValue.serverTimestamp();
+        }
+        await docRef.set(profileData, SetOptions(merge: true));
         print('Profile synced to Firestore successfully');
       } catch (e) {
         print("ERROR saving to Firestore: $e");
@@ -636,7 +642,8 @@ class UserProfileManager {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final Map<String, dynamic> statsData = {
           'totalPlayTime': currentTotalTime,
           'totalGamesPlayed': currentTotalGames,
           'mapPlayCounts': mapCounts,
@@ -644,7 +651,13 @@ class UserProfileManager {
           'loginProvider': _getLoginProvider(user),
           'email': user.email ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        };
+        // createdAt이 없는 문서(게스트 등)에 최초 1회 저장
+        final docSnap = await docRef.get();
+        if (!docSnap.exists || !(docSnap.data() as Map).containsKey('createdAt')) {
+          statsData['createdAt'] = FieldValue.serverTimestamp();
+        }
+        await docRef.set(statsData, SetOptions(merge: true));
       } catch (e) {
         print("Error syncing stats: $e");
       }
