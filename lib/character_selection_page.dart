@@ -33,8 +33,6 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
     setState(() {
       _selectedId = id;
     });
-
-    // Save immediately
     final profile = await UserProfileManager.getProfile();
     await UserProfileManager.saveProfile(
       profile['nickname']!,
@@ -51,12 +49,12 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
       showBackButton: true,
       onBack: widget.onBack,
       body: GridView.builder(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          crossAxisSpacing: 20,
-          mainAxisSpacing: 20,
-          childAspectRatio: 0.75,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.62,
         ),
         itemCount: CharacterData.availableCharacters.length,
         itemBuilder: (context, index) {
@@ -66,25 +64,25 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
           return GestureDetector(
             onTap: () => _selectCharacter(char.id),
             child: NeonCard(
-              borderColor: isSelected ? AppColors.primary : Colors.transparent,
+              borderColor: isSelected ? char.color : Colors.transparent,
               backgroundColor: isSelected
-                  ? AppColors.primary.withOpacity(0.1)
+                  ? char.color.withOpacity(0.08)
                   : AppColors.surfaceGlass,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Preview
+                  // 캐릭터 이미지
                   Container(
-                    width: 80,
-                    height: 80,
+                    width: 68,
+                    height: 68,
                     decoration: BoxDecoration(
-                      // color: char.color.withOpacity(0.2), // Removed background color
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: char.color.withOpacity(isSelected ? 0.8 : 0.4),
-                          blurRadius: isSelected ? 20 : 10,
+                          color: char.color.withOpacity(isSelected ? 0.7 : 0.3),
+                          blurRadius: isSelected ? 18 : 8,
                         ),
                       ],
                       border: Border.all(
@@ -96,52 +94,150 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
                       child: char.imagePath != null
                           ? Image.asset(
                               char.imagePath!,
-                              width: 60,
-                              height: 60,
+                              width: 48,
+                              height: 48,
                               fit: BoxFit.contain,
                               errorBuilder: (ctx, _, __) => Icon(
                                 Icons.rocket_launch,
                                 color: char.color,
-                                size: 40,
+                                size: 34,
                               ),
                             )
                           : Icon(
                               Icons.rocket_launch,
                               color: char.color,
-                              size: 40,
+                              size: 34,
                             ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
+
+                  // 캐릭터 이름
                   Text(
                     LanguageManager.of(context).translate('char_${char.id}'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: isSelected ? AppColors.primary : Colors.white,
-                      fontSize: 16,
+                      color: isSelected ? char.color : Colors.white,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: Text(
-                      LanguageManager.of(
-                        context,
-                      ).translate('char_${char.id}_desc'),
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.body.copyWith(
-                        color: AppColors.textDim,
-                        fontSize: 12,
-                      ),
-                      overflow: TextOverflow.fade,
-                    ),
-                  ),
+                  const SizedBox(height: 12),
+
+                  // 스탯 바 4개
+                  _StatBars(char: char, accentColor: char.color),
                 ],
               ),
             ),
           );
         },
       ),
+    );
+  }
+}
+
+// ── 스탯 4개 바 ──────────────────────────────────────────
+class _StatBars extends StatelessWidget {
+  final Character char;
+  final Color accentColor;
+
+  const _StatBars({required this.char, required this.accentColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = char.stats;
+    final ratings = [
+      (
+        label: '판정',
+        rating: CharacterData.hitboxRating(s.hitboxSize),
+        // 판정은 역방향: 작을수록 유리 → 별 많을수록 좋음
+      ),
+      (
+        label: '속도',
+        rating: CharacterData.speedRating(s.speedMultiplier),
+      ),
+      (
+        label: '체력',
+        rating: CharacterData.shieldRating(s.shieldCount, s.shieldCooldown),
+      ),
+      (
+        label: '반발',
+        rating: CharacterData.repelRating(s.repelRadius),
+      ),
+    ];
+
+    return Column(
+      children: ratings
+          .map((r) => Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: _SingleStatBar(
+                  label: r.label,
+                  rating: r.rating,
+                  maxRating: 5,
+                  color: accentColor,
+                ),
+              ))
+          .toList(),
+    );
+  }
+}
+
+class _SingleStatBar extends StatelessWidget {
+  final String label;
+  final int rating;
+  final int maxRating;
+  final Color color;
+
+  const _SingleStatBar({
+    required this.label,
+    required this.rating,
+    required this.maxRating,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 28,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textDim,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Row(
+            children: List.generate(maxRating, (i) {
+              final filled = i < rating;
+              return Expanded(
+                child: Container(
+                  height: 6,
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  decoration: BoxDecoration(
+                    color: filled ? color : color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(3),
+                    boxShadow: filled
+                        ? [
+                            BoxShadow(
+                              color: color.withOpacity(0.5),
+                              blurRadius: 4,
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 }

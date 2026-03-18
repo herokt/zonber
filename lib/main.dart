@@ -1695,36 +1695,55 @@ class GridBackground extends Component {
 
 class Player extends SpriteComponent
     with CollisionCallbacks, HasGameRef<ZonberGame> {
-  // Removed Paint objects as we now use Sprites.
-  // Removed unused speed variable.
-
-  // Track Character ID for rendering
   String characterId = 'neon_green';
-  Color trailColor = AppColors.primary; // Default trail color
+  Color trailColor = AppColors.primary;
+
+  // --- 캐릭터 스탯 (onLoad에서 CharacterStats로부터 설정) ---
+  double _hbHalf = 12.0;       // 히트박스 절반 크기
+  double _speedMult = 1.0;     // 이동 속도 배수
+  int _maxShields = 0;         // 최대 실드 개수
+  double _shieldCooldown = 0;  // 실드 1개 충전 대기 시간 (초)
+  double _repelRadius = 0;     // 반발력 유효 반경 (px)
+  double _repelForce = 0;      // 반발 힘 (px/s)
+
+  // --- 런타임 상태 ---
+  int _currentShields = 0;
+  double _shieldChargeTimer = 0; // _shieldCooldown 도달 시 실드 +1
+  bool _isInvincible = false;
+  double _invincibleTimer = 0;
+  static const double _invincibleDuration = 1.5; // 실드 소모 후 무적 시간
 
   @override
   Future<void> onLoad() async {
-    // Increased Player Visual Size (24 -> 36 -> 54) -> Reduced to 45
     size = Vector2(45, 45);
 
-    // Hitbox 24x24, centered in 45x45 sprite: offset = (45-24)/2 = 10.5
-    // Bullet-hell convention: hitbox much smaller than visual for fair gameplay
+    // 캐릭터 스탯 먼저 로드
+    final profile = await UserProfileManager.getProfile();
+    characterId = profile['characterId'] ?? 'neon_green';
+    final char = CharacterData.getCharacter(characterId);
+    final stats = char.stats;
+    trailColor = char.color;
+
+    // 스탯 적용
+    _hbHalf = stats.hitboxSize / 2;
+    _speedMult = stats.speedMultiplier;
+    _maxShields = stats.shieldCount;
+    _shieldCooldown = stats.shieldCooldown;
+    _repelRadius = stats.repelRadius;
+    _repelForce = stats.repelForce;
+    _currentShields = _maxShields; // 게임 시작 시 실드 가득
+
+    // 히트박스: 스탯 기반 동적 크기, 45×45 스프라이트 중앙 배치
+    final double hbOffset = (45 - stats.hitboxSize) / 2;
     add(
       RectangleHitbox(
-        position: Vector2(10.5, 10.5),
-        size: Vector2(24, 24),
+        position: Vector2(hbOffset, hbOffset),
+        size: Vector2(stats.hitboxSize, stats.hitboxSize),
       ),
     );
 
-    // Load Character Skin
-    final profile = await UserProfileManager.getProfile();
-    characterId = profile['characterId'] ?? 'neon_green';
-    Character char = CharacterData.getCharacter(characterId);
-    trailColor = char.color; // Set trail color to character color
-
+    // 스프라이트 로드
     if (char.imagePath != null) {
-      // Flame expects path relative to assets/images/
-      // Our path is assets/images/characters/..., so we strip the prefix
       final spritePath = char.imagePath!.replaceFirst('assets/images/', '');
       try {
         sprite = await gameRef.loadSprite(spritePath);
@@ -1733,28 +1752,98 @@ class Player extends SpriteComponent
       }
     }
 
-    // Scale Optimization: Set filter quality for smoother downsampling
     paint.filterQuality = FilterQuality.medium;
     paint.isAntiAlias = true;
   }
 
   @override
   void render(Canvas canvas) {
-    super.render(canvas); // Draw Sprite
-    // Optional: Add a subtle glow/shadow if needed in future
+    // 실드 링 — 실드 보유 중일 때 플레이어 주변에 네온 링 표시
+    if (_currentShields > 0) {
+      final double ringRadius = size.x / 2 + 6;
+      final center = Offset(size.x / 2, size.y / 2);
+
+      // 실드 개수에 따라 밝기 조절
+      final double opacity = _isInvincible
+          ? (0.4 + 0.6 * (1 - _invincibleTimer / _invincibleDuration))
+          : 0.85;
+
+      canvas.drawCircle(
+        center,
+        ringRadius,
+        Paint()
+          ..color = trailColor.withOpacity(opacity * 0.35)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+      canvas.drawCircle(
+        center,
+        ringRadius,
+        Paint()
+          ..color = trailColor.withOpacity(opacity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8,
+      );
+
+      // 실드 2개일 때 바깥 링 추가
+      if (_currentShields >= 2) {
+        canvas.drawCircle(
+          center,
+          ringRadius + 5,
+          Paint()
+            ..color = trailColor.withOpacity(opacity * 0.5)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0,
+        );
+      }
+    }
+
+    super.render(canvas);
   }
 
   @override
   void update(double dt) {
     super.update(dt);
 
+    // --- 무적 타이머 (실드 소모 후) ---
+    if (_isInvincible) {
+      _invincibleTimer += dt;
+      if (_invincibleTimer >= _invincibleDuration) {
+        _isInvincible = false;
+        _invincibleTimer = 0;
+      }
+    }
+
+    // --- 실드 충전 타이머 ---
+    if (_maxShields > 0 && _currentShields < _maxShields) {
+      _shieldChargeTimer += dt;
+      if (_shieldChargeTimer >= _shieldCooldown) {
+        _currentShields++;
+        _shieldChargeTimer = 0;
+      }
+    }
+
+    // --- 반발력: 반경 내 총알 밀어내기 ---
+    if (_repelRadius > 0 && _repelForce > 0) {
+      for (final child in gameRef.mapArea.children) {
+        if (child is Bullet) {
+          final Vector2 diff = child.position - position;
+          final double dist = diff.length;
+          if (dist > 0 && dist < _repelRadius) {
+            // 가까울수록 강하게 — 선형 감쇠
+            final double strength = (1 - dist / _repelRadius) * _repelForce;
+            child.velocity.add(diff.normalized() * strength * dt * 60);
+          }
+        }
+      }
+    }
+
     // --- ROTATION EFFECT ---
-    // Base rotation speed (radians per second)
     double rotationSpeed = 2.0;
 
     // Check if moving
-    Vector2 dragInput = gameRef.consumeDragDelta();
-    bool isMoving = !dragInput.isZero();
+    Vector2 rawDrag = gameRef.consumeDragDelta();
+    Vector2 dragInput = rawDrag * _speedMult;
+    bool isMoving = !rawDrag.isZero();
 
     // Spin faster when moving
     if (isMoving) {
@@ -1817,11 +1906,6 @@ class Player extends SpriteComponent
     }
   }
 
-  // Player has anchor=Anchor.center, so position = center of the 45x45 sprite.
-  // Hitbox is 24x24 centered at position → half = 12.
-  // LOCAL hitbox offset (10.5, 10.5) from sprite top-left = (pos - 22.5 + 10.5) = pos - 12
-  static const double _hbHalf = 12.0; // half of hitbox size (24/2)
-
   Rect _hitboxRect() => Rect.fromLTWH(
         position.x - _hbHalf,
         position.y - _hbHalf,
@@ -1831,8 +1915,8 @@ class Player extends SpriteComponent
 
   // Push player out of all overlapping obstacles along X axis only
   void _resolveCollisionsX() {
-    const double minX = _hbHalf;                              // hitbox left >= 0
-    const double maxX = ZonberGame.mapWidth - _hbHalf;        // hitbox right <= mapWidth
+    final double minX = _hbHalf;
+    final double maxX = ZonberGame.mapWidth - _hbHalf;
     for (int pass = 0; pass < 3; pass++) {
       bool resolved = false;
       for (final other in gameRef.mapArea.children) {
@@ -1854,8 +1938,8 @@ class Player extends SpriteComponent
 
   // Push player out of all overlapping obstacles along Y axis only
   void _resolveCollisionsY() {
-    const double minY = _hbHalf;                              // hitbox top >= 0
-    const double maxY = ZonberGame.mapHeight - _hbHalf;       // hitbox bottom <= mapHeight
+    final double minY = _hbHalf;
+    final double maxY = ZonberGame.mapHeight - _hbHalf;
     for (int pass = 0; pass < 3; pass++) {
       bool resolved = false;
       for (final other in gameRef.mapArea.children) {
@@ -1882,6 +1966,24 @@ class Player extends SpriteComponent
   ) {
     super.onCollisionStart(intersectionPoints, other);
     if (other is Bullet) {
+      if (_isInvincible) {
+        // 무적 중 — 총알만 제거
+        other.removeFromParent();
+        return;
+      }
+      if (_currentShields > 0) {
+        // 실드 소모
+        _currentShields--;
+        _shieldChargeTimer = 0; // 충전 타이머 리셋
+        _isInvincible = true;
+        _invincibleTimer = 0;
+        other.removeFromParent();
+        if (GameSettings().vibrationEnabled) {
+          HapticFeedback.mediumImpact();
+        }
+        return;
+      }
+      // 실드 없음 — 게임 오버
       gameRef.gameOver();
       if (GameSettings().vibrationEnabled) {
         HapticFeedback.heavyImpact();
