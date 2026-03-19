@@ -5,16 +5,12 @@ class CharacterStats {
   final double speedMultiplier; // dragInput 배수
   final int shieldCount;        // 보유 가능한 실드 개수
   final double shieldCooldown;  // 실드 1개 충전 대기 시간 (초)
-  final double repelRadius;     // 반발력 유효 반경 (px)
-  final double repelForce;      // 반발 힘 (px/s)
 
   const CharacterStats({
     required this.hitboxSize,
     required this.speedMultiplier,
     required this.shieldCount,
     required this.shieldCooldown,
-    required this.repelRadius,
-    required this.repelForce,
   });
 }
 
@@ -40,7 +36,7 @@ class CharacterData {
   static const List<Character> availableCharacters = [
     // ──────────────────────────────────────────
     // 🟢 Neon Green — 올라운더 (초보자 추천)
-    // 덩치 ★★☆  속도 ★★★★☆  체력 ★★☆  반발력 ★★☆
+    // 피지컬 ★★★  속도 ★★★  에너지 ★★★
     // ──────────────────────────────────────────
     Character(
       id: 'neon_green',
@@ -49,38 +45,16 @@ class CharacterData {
       description: 'Balanced operator. No weakness, no peak.',
       imagePath: 'assets/images/characters/neon_green.png',
       stats: CharacterStats(
-        hitboxSize: 18,
-        speedMultiplier: 1.2,
+        hitboxSize: 22,
+        speedMultiplier: 1.0,
         shieldCount: 1,
-        shieldCooldown: 20,
-        repelRadius: 40,
-        repelForce: 20,
+        shieldCooldown: 15,
       ),
     ),
 
     // ──────────────────────────────────────────
-    // 🔴 Cyber Red — 반발력 특화 (고급)
-    // 덩치 ★★★★★  속도 ★☆  체력 ★★★☆  반발력 ★★★★★
-    // ──────────────────────────────────────────
-    Character(
-      id: 'cyber_red',
-      name: 'Cyber Red',
-      color: Color(0xFFF21D1D),
-      description: 'Biggest target, but bullets bend away.',
-      imagePath: 'assets/images/characters/cyber_red.png',
-      stats: CharacterStats(
-        hitboxSize: 30,
-        speedMultiplier: 0.70,
-        shieldCount: 1,
-        shieldCooldown: 12,
-        repelRadius: 100,
-        repelForce: 70,
-      ),
-    ),
-
-    // ──────────────────────────────────────────
-    // 🔵 Electric Blue — 속도 특화 (중급)
-    // 덩치 ★☆  속도 ★★★★★  체력 ★☆  반발력 ★★★★☆
+    // 🔵 Electric Blue — 속도+피지컬 특화 (중급)
+    // 피지컬 ★★★★★  속도 ★★★★  에너지 ★
     // ──────────────────────────────────────────
     Character(
       id: 'electric_blue',
@@ -90,17 +64,15 @@ class CharacterData {
       imagePath: 'assets/images/characters/electric_blue.png',
       stats: CharacterStats(
         hitboxSize: 14,
-        speedMultiplier: 1.4,
+        speedMultiplier: 1.2,
         shieldCount: 0,
         shieldCooldown: 0,
-        repelRadius: 80,
-        repelForce: 50,
       ),
     ),
 
     // ──────────────────────────────────────────
-    // 🟣 Plasma Purple — 체력 특화 (중급)
-    // 덩치 ★★★★☆  속도 ★★☆  체력 ★★★★★  반발력 ★★★☆
+    // 🟣 Plasma Purple — 에너지 탱커 (중급)
+    // 피지컬 ★★  속도 ★★  에너지 ★★★★★
     // ──────────────────────────────────────────
     Character(
       id: 'plasma_purple',
@@ -113,8 +85,60 @@ class CharacterData {
         speedMultiplier: 0.85,
         shieldCount: 2,
         shieldCooldown: 10,
-        repelRadius: 60,
-        repelForce: 35,
+      ),
+    ),
+
+    // ──────────────────────────────────────────
+    // 🔴 Cyber Red — 대형 속도형 (고급)
+    // 피지컬 ★  속도 ★★★★★  에너지 ★★★
+    // ──────────────────────────────────────────
+    Character(
+      id: 'cyber_red',
+      name: 'Cyber Red',
+      color: Color(0xFFF21D1D),
+      description: 'Biggest target, but pure speed carries you through.',
+      imagePath: 'assets/images/characters/cyber_red.png',
+      stats: CharacterStats(
+        hitboxSize: 30,
+        speedMultiplier: 1.4,
+        shieldCount: 1,
+        shieldCooldown: 15,
+      ),
+    ),
+
+    // ──────────────────────────────────────────
+    // 🟡 Solar Gold — 초소형 방어형 (고급)
+    // 피지컬 ★★★★★  속도 ★  에너지 ★★★
+    // ──────────────────────────────────────────
+    Character(
+      id: 'solar_gold',
+      name: 'Solar Gold',
+      color: Color(0xFFFFD700),
+      description: 'Micro-body with heavy armor. Nearly impossible to hit.',
+      imagePath: 'assets/images/characters/neon_green.png', // TODO: replace with solar_gold.png
+      stats: CharacterStats(
+        hitboxSize: 14,
+        speedMultiplier: 0.70,
+        shieldCount: 1,
+        shieldCooldown: 15,
+      ),
+    ),
+
+    // ──────────────────────────────────────────
+    // 🔷 Void Dark — 에너지+속도 균형 (고급)
+    // 피지컬 ★★  속도 ★★★  에너지 ★★★★★
+    // ──────────────────────────────────────────
+    Character(
+      id: 'void_dark',
+      name: 'Void Dark',
+      color: Color(0xFF6366F1),
+      description: 'Swift and double-shielded. The hardest to master.',
+      imagePath: 'assets/images/characters/plasma_purple.png', // TODO: replace with void_dark.png
+      stats: CharacterStats(
+        hitboxSize: 24,
+        speedMultiplier: 1.0,
+        shieldCount: 2,
+        shieldCooldown: 8,
       ),
     ),
   ];
@@ -127,7 +151,7 @@ class CharacterData {
   }
 
   /// 스탯 등급 (1~5) — UI 스탯 바 표시용
-  /// 덩치는 역방향: 히트박스가 작을수록 높은 등급
+  /// 피지컬은 역방향: 히트박스가 작을수록 높은 등급
   static int hitboxRating(double hitboxSize) {
     if (hitboxSize <= 14) return 5;
     if (hitboxSize <= 18) return 4;
@@ -145,18 +169,10 @@ class CharacterData {
   }
 
   static int shieldRating(int count, double cooldown) {
-    if (count == 0) return 1;                           // Blue  ★
-    if (count == 1 && cooldown >= 20) return 2;         // Green ★★
-    if (count == 1 && cooldown < 20) return 3;          // Red   ★★★
-    if (count == 2 && cooldown >= 12) return 4;         //       ★★★★
-    return 5;                                           // Purple★★★★★
-  }
-
-  static int repelRating(double radius) {
-    if (radius <= 0) return 1;
-    if (radius <= 40) return 2;
-    if (radius <= 60) return 3;
-    if (radius <= 80) return 4;
-    return 5;
+    if (count == 0) return 1;                           // ★
+    if (count == 1 && cooldown >= 20) return 2;         // ★★
+    if (count == 1 && cooldown < 20) return 3;          // ★★★
+    if (count == 2 && cooldown >= 12) return 4;         // ★★★★
+    return 5;                                           // ★★★★★
   }
 }

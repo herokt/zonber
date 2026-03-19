@@ -60,7 +60,17 @@
       "Bash(pip install Pillow -q && python -c \"from PIL import Image; print\\('Pillow installed'\\)\" 2>/dev/null || pip3 install Pillow -q && python3 -c \"from PIL import Image; print\\('Pillow installed'\\)\" 2>/dev/null)",
       "Bash(cmd.exe:*)",
       "Bash(dart:*)",
-      "Bash(rm /d/zonber/resize_assets.dart && cd /d/zonber && flutter build appbundle --release 2>&1)"
+      "Bash(rm /d/zonber/resize_assets.dart && cd /d/zonber && flutter build appbundle --release 2>&1)",
+      "Bash(sed:*)",
+      "Bash(adb install:*)",
+      "Bash(flutter install:*)",
+      "Bash(MSYS_NO_PATHCONV=1 flutter build:*)",
+      "Bash(cp:*)",
+      "Bash(taskkill /F /IM \"java.exe\" 2>&1; echo \"done\")",
+      "Bash(taskkill //F //IM java.exe 2>&1; echo \"done\")",
+      "Bash(wc:*)",
+      "Bash(ls D:/zonber/*.json)",
+      "Bash(keytool:*)"
     ],
     "deny": [],
     "ask": []

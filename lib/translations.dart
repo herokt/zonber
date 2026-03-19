@@ -115,11 +115,15 @@ const Map<String, Map<String, String>> appTranslations = {
     'char_neon_green': 'Neon Green',
     'char_neon_green_desc': 'The classic Zonber operator.',
     'char_cyber_red': 'Cyber Red',
-    'char_cyber_red_desc': 'Aggressive and dangerous.',
+    'char_cyber_red_desc': 'Huge target, pure velocity.',
     'char_electric_blue': 'Electric Blue',
     'char_electric_blue_desc': 'Fast as lightning.',
     'char_plasma_purple': 'Plasma Purple',
     'char_plasma_purple_desc': 'Mysterious energy.',
+    'char_solar_gold': 'Solar Gold',
+    'char_solar_gold_desc': 'Micro-body, heavy armor.',
+    'char_void_dark': 'Void Dark',
+    'char_void_dark_desc': 'Swift and double-shielded.',
 
     // Editor
     'walls': 'WALLS',
@@ -338,11 +342,15 @@ const Map<String, Map<String, String>> appTranslations = {
     'char_neon_green': '네온 그린',
     'char_neon_green_desc': '기본적인\n존버 요원입니다.',
     'char_cyber_red': '사이버 레드',
-    'char_cyber_red_desc': '공격적이고\n위험합니다.',
+    'char_cyber_red_desc': '덩치는 크지만\n속도가 최고입니다.',
     'char_electric_blue': '일렉트릭 블루',
     'char_electric_blue_desc': '번개처럼\n빠릅니다.',
     'char_plasma_purple': '플라즈마 퍼플',
     'char_plasma_purple_desc': '신비로운\n에너지를 가졌습니다.',
+    'char_solar_gold': '솔라 골드',
+    'char_solar_gold_desc': '초소형 몸에\n방어력이 탁월합니다.',
+    'char_void_dark': '보이드 다크',
+    'char_void_dark_desc': '빠르고 실드가\n두 개입니다.',
 
     // Editor
     'walls': '벽',

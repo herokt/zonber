@@ -1798,9 +1798,6 @@ class Player extends SpriteComponent
   double _speedMult = 1.0;     // 이동 속도 배수
   int _maxShields = 0;         // 최대 실드 개수
   double _shieldCooldown = 0;  // 실드 1개 충전 대기 시간 (초)
-  double _repelRadius = 0;     // 반발력 유효 반경 (px)
-  double _repelForce = 0;      // 반발 힘 (px/s)
-
   // --- 런타임 상태 ---
   int _currentShields = 0;
   double _shieldChargeTimer = 0; // _shieldCooldown 도달 시 실드 +1
@@ -1827,8 +1824,6 @@ class Player extends SpriteComponent
     _speedMult = stats.speedMultiplier;
     _maxShields = stats.shieldCount;
     _shieldCooldown = stats.shieldCooldown;
-    _repelRadius = stats.repelRadius;
-    _repelForce = stats.repelForce;
     _currentShields = _maxShields;
 
     // 히트박스: 시각 크기 중앙에 배치
@@ -1932,21 +1927,6 @@ class Player extends SpriteComponent
       if (_shieldChargeTimer >= _shieldCooldown) {
         _currentShields++;
         _shieldChargeTimer = 0;
-      }
-    }
-
-    // --- 반발력: 반경 내 총알 밀어내기 ---
-    if (_repelRadius > 0 && _repelForce > 0) {
-      for (final child in gameRef.mapArea.children) {
-        if (child is Bullet) {
-          final Vector2 diff = child.position - position;
-          final double dist = diff.length;
-          if (dist > 0 && dist < _repelRadius) {
-            // 가까울수록 강하게 — 선형 감쇠
-            final double strength = (1 - dist / _repelRadius) * _repelForce;
-            child.velocity.add(diff.normalized() * strength * dt * 60);
-          }
-        }
       }
     }
 
