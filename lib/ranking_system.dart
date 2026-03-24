@@ -159,15 +159,14 @@ class RankingSystem {
 
       Query query = _db!.collection('maps').doc(mapId).collection('records');
 
-      if (period != RankingPeriod.allTime) {
-        query = query.where(
-          'timestamp',
-          isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart),
-        );
-      }
+      // allTime also uses year filter (Jan 1 of current year)
+      query = query.where(
+        'timestamp',
+        isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart),
+      );
 
       // Fetch more records and sort in memory to avoid composite index
-      QuerySnapshot snapshot = await query.limit(200).get();
+      QuerySnapshot snapshot = await query.limit(500).get();
 
       List<Map<String, dynamic>> records = snapshot.docs.map((doc) {
         var data = doc.data() as Map<String, dynamic>;
@@ -255,7 +254,7 @@ class RankingSystem {
     try {
       final periodStart = _getPeriodStart(period);
 
-      // 1. Find my records
+      // 1. Find my records — no timestamp filter here to avoid composite index issue
       Query query = _db!
           .collection('maps')
           .doc(mapId)
@@ -266,20 +265,21 @@ class RankingSystem {
         query = query.where('flag', isEqualTo: flag);
       }
 
-      if (period != RankingPeriod.allTime) {
-        query = query.where(
-          'timestamp',
-          isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart),
-        );
-      }
-
       QuerySnapshot myRecordSnapshot = await query.get();
 
       if (myRecordSnapshot.docs.isEmpty) return null;
 
-      // In-memory sort to find best record
-      var docs = myRecordSnapshot.docs.toList();
-      print("Found ${docs.length} records for $nickname");
+      // In-memory period filter (avoids Firestore composite index requirement)
+      var docs = myRecordSnapshot.docs.where((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+        Timestamp? ts = data['timestamp'] as Timestamp?;
+        if (ts == null) return false;
+        return !ts.toDate().isBefore(periodStart);
+      }).toList();
+
+      if (docs.isEmpty) return null;
+
+      print("Found ${docs.length} records for $nickname in period");
 
       docs.sort((a, b) {
         var dataA = a.data() as Map<String, dynamic>;

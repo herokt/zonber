@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 
 class CharacterStats {
-  final double hitboxSize;      // 히트박스 한 변 길이 (px) — 작을수록 유리
-  final double speedMultiplier; // dragInput 배수
-  final int shieldCount;        // 보유 가능한 실드 개수
-  final double shieldCooldown;  // 실드 1개 충전 대기 시간 (초)
+  final int maxEnergy;          // 체력: 총 에너지량 (1~5)
+  final double speedMultiplier; // 속도: dragInput 배수
+  final double energyCooldown;  // 기력: 에너지 1 회복 대기 시간 (초, 0=회복없음)
 
   const CharacterStats({
-    required this.hitboxSize,
+    required this.maxEnergy,
     required this.speedMultiplier,
-    required this.shieldCount,
-    required this.shieldCooldown,
+    required this.energyCooldown,
   });
 }
 
@@ -36,7 +34,7 @@ class CharacterData {
   static const List<Character> availableCharacters = [
     // ──────────────────────────────────────────
     // 🟢 Neon Green — 올라운더 (초보자 추천)
-    // 피지컬 ★★★  속도 ★★★  에너지 ★★★
+    // 체력 ★★★  속도 ★★★  기력 ★★★
     // ──────────────────────────────────────────
     Character(
       id: 'neon_green',
@@ -45,100 +43,94 @@ class CharacterData {
       description: 'Balanced operator. No weakness, no peak.',
       imagePath: 'assets/images/characters/neon_green.png',
       stats: CharacterStats(
-        hitboxSize: 22,
+        maxEnergy: 3,
         speedMultiplier: 1.0,
-        shieldCount: 1,
-        shieldCooldown: 15,
+        energyCooldown: 25,
       ),
     ),
 
     // ──────────────────────────────────────────
-    // 🔵 Electric Blue — 속도+피지컬 특화 (중급)
-    // 피지컬 ★★★★★  속도 ★★★★  에너지 ★
+    // 🔵 Electric Blue — 속도 특화 (중급)
+    // 체력 ★★  속도 ★★★★★  기력 ★
     // ──────────────────────────────────────────
     Character(
       id: 'electric_blue',
       name: 'Electric Blue',
       color: Color(0xFF1D8CF2),
-      description: 'Smallest and fastest. One hit means death.',
+      description: 'Blazing speed. Fragile and slow to recover.',
       imagePath: 'assets/images/characters/electric_blue.png',
       stats: CharacterStats(
-        hitboxSize: 14,
-        speedMultiplier: 1.2,
-        shieldCount: 0,
-        shieldCooldown: 0,
+        maxEnergy: 2,
+        speedMultiplier: 1.4,
+        energyCooldown: 50,
       ),
     ),
 
     // ──────────────────────────────────────────
-    // 🟣 Plasma Purple — 에너지 탱커 (중급)
-    // 피지컬 ★★  속도 ★★  에너지 ★★★★★
+    // 🟣 Plasma Purple — 기력 특화 (중급)
+    // 체력 ★★  속도 ★★  기력 ★★★★★
     // ──────────────────────────────────────────
     Character(
       id: 'plasma_purple',
       name: 'Plasma Purple',
       color: Color(0xFFD91DF2),
-      description: 'Slow and large, but survives two mistakes.',
+      description: 'Slow and fragile, but energy refills fastest.',
       imagePath: 'assets/images/characters/plasma_purple.png',
       stats: CharacterStats(
-        hitboxSize: 26,
+        maxEnergy: 2,
         speedMultiplier: 0.85,
-        shieldCount: 2,
-        shieldCooldown: 10,
+        energyCooldown: 10,
       ),
     ),
 
     // ──────────────────────────────────────────
-    // 🔴 Cyber Red — 대형 속도형 (고급)
-    // 피지컬 ★  속도 ★★★★★  에너지 ★★★
+    // 🔴 Cyber Red — 체력+속도 (고급)
+    // 체력 ★★★★  속도 ★★★★  기력 ★
     // ──────────────────────────────────────────
     Character(
       id: 'cyber_red',
       name: 'Cyber Red',
       color: Color(0xFFF21D1D),
-      description: 'Biggest target, but pure speed carries you through.',
+      description: 'Tanky and fast, but energy barely recovers.',
       imagePath: 'assets/images/characters/cyber_red.png',
       stats: CharacterStats(
-        hitboxSize: 30,
-        speedMultiplier: 1.4,
-        shieldCount: 1,
-        shieldCooldown: 15,
+        maxEnergy: 4,
+        speedMultiplier: 1.2,
+        energyCooldown: 55,
       ),
     ),
 
     // ──────────────────────────────────────────
-    // 🟡 Solar Gold — 초소형 방어형 (고급)
-    // 피지컬 ★★★★★  속도 ★  에너지 ★★★
+    // 🟡 Solar Gold — 체력 생존가 (고급)
+    // 체력 ★★★★★  속도 ★  기력 ★★★
     // ──────────────────────────────────────────
     Character(
       id: 'solar_gold',
       name: 'Solar Gold',
       color: Color(0xFFFFD700),
-      description: 'Micro-body with heavy armor. Nearly impossible to hit.',
-      imagePath: 'assets/images/characters/neon_green.png', // TODO: replace with solar_gold.png
+      description: 'Maximum energy. Sluggish, but nearly unkillable.',
+      imagePath: 'assets/images/characters/solar_gold.png',
       stats: CharacterStats(
-        hitboxSize: 14,
+        maxEnergy: 5,
         speedMultiplier: 0.70,
-        shieldCount: 1,
-        shieldCooldown: 15,
+        energyCooldown: 35,
       ),
     ),
 
     // ──────────────────────────────────────────
-    // 🔷 Void Dark — 에너지+속도 균형 (고급)
-    // 피지컬 ★★  속도 ★★★  에너지 ★★★★★
+    // 🤍 Wraith — 속도+기력 (고급)
+    // 체력 ★  속도 ★★★★  기력 ★★★★
     // ──────────────────────────────────────────
     Character(
       id: 'void_dark',
-      name: 'Void Dark',
-      color: Color(0xFF6366F1),
-      description: 'Swift and double-shielded. The hardest to master.',
-      imagePath: 'assets/images/characters/plasma_purple.png', // TODO: replace with void_dark.png
+      name: 'Wraith',
+      color: Color(0xFFD1D5DB),
+      description: 'One hit kills. Compensates with speed and fast recovery.',
+      imagePath: 'assets/images/characters/void_dark.png',
       stats: CharacterStats(
-        hitboxSize: 24,
-        speedMultiplier: 1.0,
-        shieldCount: 2,
-        shieldCooldown: 8,
+        maxEnergy: 1,
+        speedMultiplier: 1.25,
+        energyCooldown: 18,
       ),
     ),
   ];
@@ -151,28 +143,21 @@ class CharacterData {
   }
 
   /// 스탯 등급 (1~5) — UI 스탯 바 표시용
-  /// 피지컬은 역방향: 히트박스가 작을수록 높은 등급
-  static int hitboxRating(double hitboxSize) {
-    if (hitboxSize <= 14) return 5;
-    if (hitboxSize <= 18) return 4;
-    if (hitboxSize <= 22) return 3;
-    if (hitboxSize <= 26) return 2;
-    return 1;
-  }
+  static int energyRating(int maxEnergy) => maxEnergy.clamp(1, 5);
 
   static int speedRating(double mult) {
     if (mult >= 1.4) return 5;
     if (mult >= 1.2) return 4;
     if (mult >= 1.0) return 3;
-    if (mult >= 0.85) return 2;
+    if (mult >= 0.80) return 2;
     return 1;
   }
 
-  static int shieldRating(int count, double cooldown) {
-    if (count == 0) return 1;                           // ★
-    if (count == 1 && cooldown >= 20) return 2;         // ★★
-    if (count == 1 && cooldown < 20) return 3;          // ★★★
-    if (count == 2 && cooldown >= 12) return 4;         // ★★★★
-    return 5;                                           // ★★★★★
+  static int cooldownRating(double cooldown) {
+    if (cooldown >= 45) return 1;  // 매우 느림 (50~55초)
+    if (cooldown >= 30) return 2;  // 느림 (35초)
+    if (cooldown >= 22) return 3;  // 보통 (25초)
+    if (cooldown >= 14) return 4;  // 빠름 (18초)
+    return 5;                      // 매우 빠름 (10초)
   }
 }
