@@ -17,7 +17,7 @@ class AdManager {
 
   // Counter to show interstitial every N times
   int _gameOverCounter = 0;
-  final int _interstitialFrequency = 3;
+  final int _interstitialFrequency = 5;
 
   bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 

@@ -29,7 +29,7 @@ class LeaderboardWidget extends StatefulWidget {
 
 class _LeaderboardWidgetState extends State<LeaderboardWidget> {
   bool _isNational = false; // false = Global, true = National
-  RankingPeriod _period = RankingPeriod.daily; // Default to daily
+  RankingPeriod _period = RankingPeriod.weekly; // Default to weekly
   List<Map<String, dynamic>> _records = [];
   Map<String, dynamic>? _myRankData;
   bool _isLoading = true;
@@ -160,12 +160,10 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
     }
 
     final screenSize = MediaQuery.of(context).size;
-    final dialogWidth = screenSize.width * 0.9 > 400
-        ? 400.0
-        : screenSize.width * 0.9;
-    final dialogHeight = screenSize.height * 0.8 > 600
-        ? 600.0
-        : screenSize.height * 0.8;
+    final dialogWidth = screenSize.width - 20;
+    final dialogHeight = screenSize.height * 0.88 > 700
+        ? 700.0
+        : screenSize.height * 0.88;
 
     return Center(
       child: SizedBox(
@@ -206,14 +204,23 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                         maxLines: 1,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      RankingSystem.getPeriodLabel(_period).toUpperCase(),
-                      style: AppTextStyles.body.copyWith(
-                        color: Colors.orange,
-                        letterSpacing: 1.2,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.orange.withOpacity(0.6), width: 1.5),
+                      ),
+                      child: Text(
+                        RankingSystem.getPeriodLabel(_period).toUpperCase(),
+                        style: AppTextStyles.body.copyWith(
+                          color: Colors.orange,
+                          letterSpacing: 2.0,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          shadows: [Shadow(color: Colors.orange.withOpacity(0.6), blurRadius: 8)],
+                        ),
                       ),
                     ),
                   ],
@@ -262,20 +269,15 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
                     Row(
                       children: [
                         _buildPeriodChip(
-                          RankingPeriod.daily,
-                          LanguageManager.of(context).translate('day'),
-                        ),
-                        const SizedBox(width: 6),
-                        _buildPeriodChip(
                           RankingPeriod.weekly,
                           LanguageManager.of(context).translate('week'),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         _buildPeriodChip(
                           RankingPeriod.monthly,
                           LanguageManager.of(context).translate('month'),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         _buildPeriodChip(
                           RankingPeriod.allTime,
                           LanguageManager.of(context).translate('year'),
@@ -485,18 +487,23 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
 
             // Nickname (Flexible)
             Expanded(
-              child: Text(
-                data['nickname'] ?? 'Unknown',
-                style: TextStyle(
-                  color: isMe ? AppColors.primary : Colors.white,
-                  fontSize: 15,
-                  fontWeight: (isMe || isTop3)
-                      ? FontWeight.bold
-                      : FontWeight.w500,
-                  fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
-                  shadows: isMe
-                      ? [const Shadow(color: AppColors.primary, blurRadius: 8)]
-                      : [],
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  data['nickname'] ?? 'Unknown',
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: isMe ? AppColors.primary : Colors.white,
+                    fontSize: 15,
+                    fontWeight: (isMe || isTop3)
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                    fontStyle: isMe ? FontStyle.italic : FontStyle.normal,
+                    shadows: isMe
+                        ? [const Shadow(color: AppColors.primary, blurRadius: 8)]
+                        : [],
+                  ),
                 ),
               ),
             ),
@@ -590,26 +597,28 @@ class _LeaderboardWidgetState extends State<LeaderboardWidget> {
           }
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isSelected
-                ? Colors.orange.withOpacity(0.2)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+                ? Colors.orange.withOpacity(0.25)
+                : AppColors.surface,
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected
-                  ? Colors.orange
-                  : AppColors.primaryDim.withOpacity(0.4),
-              width: 1,
+              color: isSelected ? Colors.orange : Colors.white24,
+              width: isSelected ? 2 : 1,
             ),
+            boxShadow: isSelected
+                ? [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 6)]
+                : null,
           ),
           child: Center(
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.orange : AppColors.textDim,
-                fontSize: 11,
+                color: isSelected ? Colors.orange : Colors.white60,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
               ),
             ),
           ),

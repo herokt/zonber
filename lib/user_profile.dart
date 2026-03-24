@@ -898,12 +898,14 @@ class MyProfilePage extends StatefulWidget {
   final VoidCallback onBack;
   final VoidCallback onOpenShop;
   final Future<void> Function() onLogout;
+  final VoidCallback? onStatistics;
 
   const MyProfilePage({
     super.key,
     required this.onBack,
     required this.onOpenShop,
     required this.onLogout,
+    this.onStatistics,
   });
 
   @override
@@ -1221,59 +1223,41 @@ class _MyProfilePageState extends State<MyProfilePage> {
                     LanguageManager.of(context).translate("settings"),
                     Icons.settings,
                   ),
-                  const SizedBox(height: 16),
-                  // Language Toggle
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.language,
-                            color: AppColors.primary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            LanguageManager.of(context).translate("language"),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          _buildLanguageOption(context, "en"),
-                          const SizedBox(width: 12),
-                          _buildLanguageOption(context, "ko"),
-                        ],
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  _buildCellRow(
+                    icon: Icons.language,
+                    label: LanguageManager.of(context).translate("language"),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildLanguageOption(context, "en"),
+                        const SizedBox(width: 12),
+                        _buildLanguageOption(context, "ko"),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // _buildSettingRow(
-                  //   Icons.volume_up,
-                  //   LanguageManager.of(context).translate("sound"),
-                  //   _soundEnabled,
-                  //   (v) async {
-                  //     setState(() => _soundEnabled = v);
-                  //     await GameSettings().setSound(v);
-                  //     AudioManager().refreshBgm();
-                  //   },
-                  // ),
-                  // const SizedBox(height: 8),
-                  _buildSettingRow(
-                    Icons.vibration,
-                    LanguageManager.of(context).translate("vibration"),
-                    _vibrationEnabled,
-                    (v) async {
-                      setState(() => _vibrationEnabled = v);
-                      await GameSettings().setVibration(v);
-                    },
+                  _buildCellRow(
+                    icon: Icons.vibration,
+                    label: LanguageManager.of(context).translate("vibration"),
+                    trailing: Switch(
+                      value: _vibrationEnabled,
+                      onChanged: (v) async {
+                        setState(() => _vibrationEnabled = v);
+                        await GameSettings().setVibration(v);
+                      },
+                      activeColor: AppColors.primary,
+                      activeTrackColor: AppColors.primary.withOpacity(0.3),
+                      inactiveThumbColor: AppColors.textDim,
+                      inactiveTrackColor: AppColors.textDim.withOpacity(0.3),
+                    ),
                   ),
+                  if (widget.onStatistics != null)
+                    _buildCellRow(
+                      icon: Icons.bar_chart_rounded,
+                      label: LanguageManager.of(context).translate("statistics"),
+                      onTap: widget.onStatistics,
+                      trailing: const Icon(Icons.chevron_right, color: AppColors.textDim, size: 20),
+                    ),
                 ],
               ),
             ),
@@ -1383,6 +1367,33 @@ class _MyProfilePageState extends State<MyProfilePage> {
     return LanguageManager.of(context).translate('provider_unknown');
   }
 
+  Widget _buildCellRow({
+    required IconData icon,
+    required String label,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.primary, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ),
+            if (trailing != null) trailing,
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, IconData icon, {Color? color}) {
     return Row(
       children: [
@@ -1410,29 +1421,32 @@ class _MyProfilePageState extends State<MyProfilePage> {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.textDim, size: 18),
-          const SizedBox(width: 12),
-          Text(
-            "$label:",
-            style: TextStyle(color: AppColors.textDim, fontSize: 14),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                color: valueColor ?? Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-              overflow: TextOverflow.ellipsis,
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.textDim, size: 18),
+            const SizedBox(width: 12),
+            Text(
+              "$label:",
+              style: const TextStyle(color: AppColors.textDim, fontSize: 14),
             ),
-          ),
-          if (onTap != null)
-            Icon(Icons.arrow_forward_ios, color: AppColors.primary, size: 14),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                style: TextStyle(
+                  color: valueColor ?? Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (onTap != null)
+              const Icon(Icons.arrow_forward_ios, color: AppColors.primary, size: 14),
+          ],
+        ),
       ),
     );
   }
@@ -1446,52 +1460,55 @@ class _MyProfilePageState extends State<MyProfilePage> {
     bool isFirstEdit = false,
     bool isEditDisabled = false,
   }) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.textDim, size: 18),
-        const SizedBox(width: 12),
-        Text(
-          "$label:",
-          style: TextStyle(color: AppColors.textDim, fontSize: 14),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            overflow: TextOverflow.ellipsis,
+    return SizedBox(
+      height: 52,
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.textDim, size: 18),
+          const SizedBox(width: 12),
+          Text(
+            "$label:",
+            style: const TextStyle(color: AppColors.textDim, fontSize: 14),
           ),
-        ),
-        if (onEdit != null && !isEditDisabled)
-          GestureDetector(
-            onTap: onEdit,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.primary.withOpacity(0.5)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.edit, color: AppColors.primary, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    isFirstEdit ? "FREE" : "EDIT",
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              overflow: TextOverflow.ellipsis,
             ),
-          )
-        else
-          Icon(Icons.lock, color: AppColors.textDim.withOpacity(0.5), size: 16),
-      ],
+          ),
+          if (onEdit != null && !isEditDisabled)
+            GestureDetector(
+              onTap: onEdit,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.5)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.edit, color: AppColors.primary, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      isFirstEdit ? "FREE" : "EDIT",
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Icon(Icons.lock, color: AppColors.textDim.withOpacity(0.5), size: 16),
+        ],
+      ),
     );
   }
 

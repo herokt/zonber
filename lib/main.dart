@@ -284,6 +284,7 @@ class _ZonberAppState extends State<ZonberApp> {
       context: dialogContext,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
         child: LeaderboardWidget(
           mapId: mapId,
           onClose: () => Navigator.of(context).pop(),
@@ -408,44 +409,54 @@ class _ZonberAppState extends State<ZonberApp> {
                 children: [
                   // Top Header Bar
                   Container(
-                    height: 80, // Increased height for larger text
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     color: const Color(0xFF0B0C10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Back Button (Acts as Pause)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: AppColors.primary,
-                            size: 28,
-                          ),
-                          onPressed: () => _pauseGame(context, _currentGame!),
-                        ),
-                        // Time Display
-                        ValueListenableBuilder<double>(
-                          valueListenable: _currentGame!.survivalTimeNotifier,
-                          builder: (context, value, child) {
-                            return Text(
-                              'TIME: ${value.toStringAsFixed(3)}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32, // Increased Size
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Orbitron',
-                                shadows: [
-                                  Shadow(
+                        SizedBox(
+                          height: 64,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Back Button (Acts as Pause)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_back,
                                     color: AppColors.primary,
-                                    blurRadius: 10,
+                                    size: 28,
                                   ),
-                                ],
-                              ),
-                            );
-                          },
+                                  onPressed: () => _pauseGame(context, _currentGame!),
+                                ),
+                                // Time Display
+                                ValueListenableBuilder<double>(
+                                  valueListenable: _currentGame!.survivalTimeNotifier,
+                                  builder: (context, value, child) {
+                                    return Text(
+                                      'TIME: ${value.toStringAsFixed(3)}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'Orbitron',
+                                        shadows: [
+                                          Shadow(
+                                            color: AppColors.primary,
+                                            blurRadius: 10,
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 48),
+                              ],
+                            ),
+                          ),
                         ),
-                        // Pause Button Removed - Placeholder to keep Time centered
-                        const SizedBox(width: 48), // Match IconButton size
+                        // 에너지 HUD — 타이머 아래 전체 너비
+                        _EnergyHud(notifier: _currentGame!.energyNotifier),
                       ],
                     ),
                   ),
@@ -462,7 +473,7 @@ class _ZonberAppState extends State<ZonberApp> {
           onRestart: () => _navigateTo('Game'),
           onExit: () => _navigateTo('Menu'),
           onNavigateToLogin: () => _navigateTo('Login'),
-          onRevive: (_reviveCount < 3 &&
+          onRevive: (_reviveCount < 1 &&
                   !(FirebaseAuth.instance.currentUser?.isAnonymous ?? true))
               ? () {
                   bool shown = AdManager().showRewardedAd(() {
@@ -485,7 +496,7 @@ class _ZonberAppState extends State<ZonberApp> {
                   }
                 }
               : null,
-          revivesLeft: 3 - _reviveCount,
+          revivesLeft: 1 - _reviveCount,
         );
       case 'EditorVerify':
         final game = ZonberGame(
@@ -553,6 +564,7 @@ class _ZonberAppState extends State<ZonberApp> {
         return MyProfilePage(
           onBack: () => _navigateTo('Menu'),
           onOpenShop: () => _navigateTo('Shop'),
+          onStatistics: () => _navigateTo('Statistics'),
           onLogout: () async {
             print('Main: onLogout called');
 
@@ -609,7 +621,7 @@ class _ZonberAppState extends State<ZonberApp> {
           onPurchaseReset: refreshPurchaseStatus,
         );
       case 'Statistics':
-        return StatisticsPage(onBack: () => _navigateTo('Menu'));
+        return StatisticsPage(onBack: () => _navigateTo('MyProfile'));
       case 'Editor':
         return MapEditorPage(
           onVerify: _startVerification,
@@ -617,22 +629,23 @@ class _ZonberAppState extends State<ZonberApp> {
         );
       case 'MapSelect':
         return MapSelectionPage(
-          onMapSelected: (mapId) => _navigateTo('Game', mapId: mapId),
+          onMapSelected: (mapId) => _navigateTo('Menu', mapId: mapId),
           onShowRanking: (ctx, mapId) => _showRankingDialog(ctx, mapId),
           onBack: () => _navigateTo('Menu'),
-          initialMapId: _currentMapId, // Pass current map ID for scrolling
+          initialMapId: _currentMapId,
         );
       case 'CharacterSelect':
         return CharacterSelectionPage(onBack: () => _navigateTo('Menu'));
       case 'Menu':
       default:
         return MainMenu(
-          onStartGame: () => _navigateTo('MapSelect'),
+          onStartGame: () => _navigateTo('Game'),
           onOpenEditor: () => _navigateTo('Editor'),
           onProfile: () => _navigateTo('MyProfile'),
-          onCharacter: () => _navigateTo('CharacterSelect'),
-          // onOpenShop: () => _navigateTo('Shop'),
           onStatistics: () => _navigateTo('Statistics'),
+          onMapSelect: () => _navigateTo('MapSelect'),
+          onCharacterSelect: () => _navigateTo('CharacterSelect'),
+          selectedMapId: _currentMapId,
         );
     }
   }
@@ -761,18 +774,20 @@ class MainMenu extends StatefulWidget {
   final VoidCallback onStartGame;
   final VoidCallback onOpenEditor;
   final VoidCallback onProfile;
-  final VoidCallback onCharacter;
-  final VoidCallback? onOpenShop;
   final VoidCallback onStatistics;
+  final VoidCallback onMapSelect;
+  final VoidCallback onCharacterSelect;
+  final String selectedMapId;
 
   const MainMenu({
     super.key,
     required this.onStartGame,
     required this.onOpenEditor,
     required this.onProfile,
-    required this.onCharacter,
-    this.onOpenShop,
     required this.onStatistics,
+    required this.onMapSelect,
+    required this.onCharacterSelect,
+    required this.selectedMapId,
   });
 
   @override
@@ -784,6 +799,12 @@ class _MainMenuState extends State<MainMenu>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   Map<String, String> _profile = {};
+  String _selectedCharacterId = 'neon_green';
+
+  static const _stages = [
+    ('zone_1_classic',   'zone_1_title',  Colors.cyanAccent),
+    ('zone_2_obstacles', 'zone_2_title',  Colors.greenAccent),
+  ];
 
   @override
   void initState() {
@@ -803,7 +824,9 @@ class _MainMenuState extends State<MainMenu>
     if (mounted) {
       setState(() {
         _profile = profile;
+        _selectedCharacterId = profile['characterId'] ?? 'neon_green';
       });
+
     }
   }
 
@@ -813,14 +836,148 @@ class _MainMenuState extends State<MainMenu>
     super.dispose();
   }
 
+
+  void _showSettingsSheet(BuildContext context) {
+    final lm = LanguageManager.of(context);
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textDim.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _settingsTile(
+              icon: Icons.bar_chart_rounded,
+              label: lm.translate('statistics'),
+              color: const Color(0xFF00BFFF),
+              onTap: () {
+                Navigator.pop(context);
+                widget.onStatistics();
+              },
+            ),
+            const SizedBox(height: 10),
+            _settingsTile(
+              icon: Icons.edit_rounded,
+              label: lm.translate('editor'),
+              color: Colors.orangeAccent,
+              onTap: () {
+                Navigator.pop(context);
+                widget.onOpenEditor();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _settingsTile({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const Spacer(),
+            Icon(Icons.chevron_right, color: color.withOpacity(0.6), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.textDim,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2,
+          ),
+        ),
+      );
+
+  Widget _selectorCard({
+    required Widget child,
+    required Color color,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          height: 58,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.55), width: 1.5),
+          ),
+          child: Row(children: [
+            Expanded(child: child),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: color.withOpacity(0.7),
+              size: 22,
+            ),
+          ]),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    return NeonScaffold(
-      // bannerAd handled globally by AppScaffold
+    final lm = LanguageManager.of(context);
+    final currentStage = _stages.firstWhere((s) => s.$1 == widget.selectedMapId, orElse: () => _stages[0]);
+    final currentChar = CharacterData.getCharacter(_selectedCharacterId);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          // Background Elements
-          Positioned.fill(
+          IgnorePointer(
             child: Container(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
@@ -834,48 +991,37 @@ class _MainMenuState extends State<MainMenu>
               ),
             ),
           ),
-          // Grid Pattern (Optional Simplistic)
-          Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+          IgnorePointer(child: CustomPaint(painter: _GridPainter())),
 
-          // Content
           SafeArea(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // TOP BAR: Profile Pill (Left) & Settings (Right)
+                // ── 상단 바 ──
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Left: Profile Info
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: widget.onProfile,
                         child: NeonCard(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           borderRadius: 30,
                           backgroundColor: AppColors.surfaceGlass,
                           borderColor: AppColors.primary.withOpacity(0.5),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                _profile['flag'] ?? '',
-                                style: const TextStyle(fontSize: 20),
-                              ),
+                              Text(_profile['flag'] ?? '', style: const TextStyle(fontSize: 18)),
                               const SizedBox(width: 8),
                               Text(
-                                (_profile['nickname'] ?? 'Player')
-                                    .toUpperCase(),
-                                style: TextStyle(
+                                (_profile['nickname'] ?? 'Player').toUpperCase(),
+                                style: const TextStyle(
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                                  fontSize: 13,
                                   letterSpacing: 1.0,
                                 ),
                               ),
@@ -883,179 +1029,144 @@ class _MainMenuState extends State<MainMenu>
                           ),
                         ),
                       ),
-
-                      // Right: Settings Button
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: widget.onProfile,
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceGlass,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.textDim.withOpacity(0.5),
-                            ),
+                            border: Border.all(color: AppColors.textDim.withOpacity(0.5)),
                           ),
-                          child: const Icon(
-                            Icons.settings,
-                            color: AppColors.textDim,
-                            size: 24,
-                          ),
+                          child: const Icon(Icons.settings, color: AppColors.textDim, size: 22),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                const Spacer(),
-
-                // CENTER: Title & Start Button
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      LanguageManager.of(context).translate('title'),
-                      style: AppTextStyles.header.copyWith(
-                        fontSize: 64,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 20,
-                            color: AppColors.primary,
-                            offset: Offset(0, 0),
-                          ),
-                          Shadow(
-                            blurRadius: 40,
-                            color: AppColors.primary.withOpacity(0.5),
-                            offset: Offset(0, 0),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      LanguageManager.of(context).translate('subtitle'),
-                      style: AppTextStyles.body.copyWith(
-                        color: AppColors.primaryDim,
-                        letterSpacing: 6.0,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 80),
-                    ScaleTransition(
-                      scale: _pulseAnimation,
-                      child: GestureDetector(
-                        onTap: widget.onStartGame,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 48,
-                            vertical: 24,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.primary,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withOpacity(0.4),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            LanguageManager.of(context).translate('start_game'),
-                            style: AppTextStyles.header.copyWith(
-                              fontSize: 24,
-                              color: Colors.white,
-                              letterSpacing: 2.0,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                // ── 타이틀 ──
+                const Spacer(flex: 1),
+                Text(
+                  lm.translate('title'),
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.header.copyWith(
+                    fontSize: 52,
+                    shadows: [
+                      Shadow(blurRadius: 20, color: AppColors.primary, offset: Offset.zero),
+                      Shadow(blurRadius: 40, color: AppColors.primary.withOpacity(0.5), offset: Offset.zero),
+                    ],
+                  ),
+                ),
+                Text(
+                  lm.translate('subtitle'),
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.primaryDim,
+                    letterSpacing: 6.0,
+                    fontSize: 12,
+                  ),
                 ),
 
-                const Spacer(),
+                const Spacer(flex: 1),
 
-                // BOTTOM: Secondary Menu (Row)
+                // ── 스테이지 선택 ──
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 40),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildMenuIcon(
-                        context,
-                        Icons.person_outline,
-                        'character',
-                        widget.onCharacter,
-                        const Color(0xFFD91DF2),
+                      _sectionLabel(lm.translate('stage')),
+                      _selectorCard(
+                        color: currentStage.$3 as Color,
+                        onTap: widget.onMapSelect,
+                        child: Text(
+                          lm.translate(currentStage.$2),
+                          style: TextStyle(
+                            color: currentStage.$3 as Color,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
                       ),
-                      _buildMenuIcon(
-                        context,
-                        Icons.bar_chart,
-                        'statistics', // key needs to be added to language manager or just use literal for now if key not exists
-                        widget.onStatistics,
-                        const Color(0xFF00BFFF), // Deep Sky Blue
-                      ),
-                      // Map Editor Removed (Local change respected)
-                      // _buildMenuIcon(
-                      //   context,
-                      //   Icons.shopping_bag_outlined,
-                      //   'shop',
-                      //   widget.onOpenShop,
-                      //   const Color(0xFFFFD700),
-                      // ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildMenuIcon(
-    BuildContext context,
-    IconData icon,
-    String labelKey,
-    VoidCallback onTap,
-    Color color,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.5), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.2),
-                  blurRadius: 10,
-                  spreadRadius: 0,
+                const SizedBox(height: 14),
+
+                // ── 캐릭터 선택 ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel(lm.translate('character')),
+                      _selectorCard(
+                        color: currentChar.color,
+                        onTap: widget.onCharacterSelect,
+                        child: Row(
+                          children: [
+                            currentChar.imagePath != null
+                                ? Image.asset(currentChar.imagePath!, width: 32, height: 32, fit: BoxFit.contain)
+                                : Icon(Icons.rocket_launch, color: currentChar.color, size: 28),
+                            const SizedBox(width: 10),
+                            Text(
+                              lm.translate('char_${currentChar.id}'),
+                              style: TextStyle(
+                                color: currentChar.color,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(flex: 1),
+
+                // ── 게임 시작 버튼 ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                  child: ScaleTransition(
+                    scale: _pulseAnimation,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: widget.onStartGame,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.primary, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(0.35),
+                              blurRadius: 18,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          lm.translate('start_game'),
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.header.copyWith(
+                            fontSize: 20,
+                            color: Colors.white,
+                            letterSpacing: 2.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            LanguageManager.of(context).translate(labelKey),
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.0,
             ),
           ),
         ],
@@ -1123,6 +1234,15 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
   // UI Logic
   final ValueNotifier<double> survivalTimeNotifier = ValueNotifier(0.0);
+
+  /// 에너지(실드) 상태 — Player가 매 프레임 업데이트
+  final ValueNotifier<({int current, int max, double chargeProgress, Color color})>
+      energyNotifier = ValueNotifier((
+    current: 0,
+    max: 0,
+    chargeProgress: 0.0,
+    color: AppColors.primary,
+  ));
 
   double survivalTime = 0.0;
   bool isGameOver = false;
@@ -1366,6 +1486,77 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   }
 }
 
+// ── 게임 화면 에너지 HUD ────────────────────────────────────
+class _EnergyHud extends StatelessWidget {
+  final ValueNotifier<({int current, int max, double chargeProgress, Color color})> notifier;
+
+  const _EnergyHud({required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: notifier,
+      builder: (context, energy, _) {
+        // 실드 없는 캐릭터는 빈 슬림 바
+        if (energy.max == 0) return const SizedBox(height: 28);
+
+        final fillRatio = ((energy.current + energy.chargeProgress) / energy.max).clamp(0.0, 1.0);
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'ENERGY',
+                style: TextStyle(
+                  color: energy.color,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Orbitron',
+                  letterSpacing: 1.2,
+                  shadows: [Shadow(color: energy.color, blurRadius: 6)],
+                ),
+              ),
+              const SizedBox(height: 5),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: energy.color.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: energy.color.withOpacity(0.3), width: 1),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: fillRatio,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: energy.color,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: energy.color.withOpacity(0.8),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 class ResultPage extends StatefulWidget {
   final String mapId;
   final Map<String, dynamic> result;
@@ -1695,36 +1886,56 @@ class GridBackground extends Component {
 
 class Player extends SpriteComponent
     with CollisionCallbacks, HasGameRef<ZonberGame> {
-  // Removed Paint objects as we now use Sprites.
-  // Removed unused speed variable.
-
-  // Track Character ID for rendering
   String characterId = 'neon_green';
-  Color trailColor = AppColors.primary; // Default trail color
+  Color trailColor = AppColors.primary;
+
+  // --- 캐릭터 스탯 (onLoad에서 CharacterStats로부터 설정) ---
+  double _hbHalf = 12.0;       // 히트박스 절반 크기
+  double _speedMult = 1.0;     // 이동 속도 배수
+  int _maxShields = 0;         // 최대 실드 개수
+  double _shieldCooldown = 0;  // 기력 기반 회복 속도 (낮을수록 빠름)
+  // --- 런타임 상태 ---
+  double _energy = 0;       // 현재 에너지 (0.0 ~ _maxShields)
+  bool _isInvincible = false;
+  double _invincibleTimer = 0;
+  static const double _invincibleDuration = 1.5; // 실드 소모 후 무적 시간
+  bool _isBlinking = false;
+  double _blinkTimer = 0;
+  int _blinkCount = 0;
+  bool _blinkVisible = true;
 
   @override
   Future<void> onLoad() async {
-    // Increased Player Visual Size (24 -> 36 -> 54) -> Reduced to 45
-    size = Vector2(45, 45);
+    // 캐릭터 스탯 먼저 로드
+    final profile = await UserProfileManager.getProfile();
+    characterId = profile['characterId'] ?? 'neon_green';
+    final char = CharacterData.getCharacter(characterId);
+    final stats = char.stats;
+    trailColor = char.color;
 
-    // Hitbox 24x24, centered in 45x45 sprite: offset = (45-24)/2 = 10.5
-    // Bullet-hell convention: hitbox much smaller than visual for fair gameplay
+    // 모든 캐릭터 동일한 시각 크기 및 히트박스
+    const double visualSize = 42;
+    const double hitboxSize = 22;
+    size = Vector2(visualSize, visualSize);
+
+    // 스탯 적용
+    _hbHalf = 11.0; // 고정 히트박스 22px의 절반
+    _speedMult = stats.speedMultiplier;
+    _maxShields = stats.maxEnergy;
+    _shieldCooldown = stats.energyCooldown;
+    _energy = _maxShields.toDouble();
+
+    // 히트박스: 시각 크기 중앙에 배치
+    const double hbOffset = (visualSize - hitboxSize) / 2;
     add(
       RectangleHitbox(
-        position: Vector2(10.5, 10.5),
-        size: Vector2(24, 24),
+        position: Vector2(hbOffset, hbOffset),
+        size: Vector2(hitboxSize, hitboxSize),
       ),
     );
 
-    // Load Character Skin
-    final profile = await UserProfileManager.getProfile();
-    characterId = profile['characterId'] ?? 'neon_green';
-    Character char = CharacterData.getCharacter(characterId);
-    trailColor = char.color; // Set trail color to character color
-
+    // 스프라이트 로드
     if (char.imagePath != null) {
-      // Flame expects path relative to assets/images/
-      // Our path is assets/images/characters/..., so we strip the prefix
       final spritePath = char.imagePath!.replaceFirst('assets/images/', '');
       try {
         sprite = await gameRef.loadSprite(spritePath);
@@ -1733,28 +1944,76 @@ class Player extends SpriteComponent
       }
     }
 
-    // Scale Optimization: Set filter quality for smoother downsampling
     paint.filterQuality = FilterQuality.medium;
     paint.isAntiAlias = true;
+
+    // 초기 에너지 상태 HUD에 반영
+    _notifyEnergy();
+  }
+
+  void _notifyEnergy() {
+    final int current = _energy.floor().clamp(0, _maxShields);
+    final double progress = _energy - current;
+    gameRef.energyNotifier.value = (
+      current: current,
+      max: _maxShields,
+      chargeProgress: progress,
+      color: trailColor,
+    );
   }
 
   @override
   void render(Canvas canvas) {
-    super.render(canvas); // Draw Sprite
-    // Optional: Add a subtle glow/shadow if needed in future
+    // 깜빡임 중 비가시 프레임이면 스킵
+    if (_isBlinking && !_blinkVisible) return;
+
+    super.render(canvas);
   }
 
   @override
   void update(double dt) {
     super.update(dt);
 
+    // --- 무적 타이머 (실드 소모 후) ---
+    if (_isInvincible) {
+      _invincibleTimer += dt;
+      if (_invincibleTimer >= _invincibleDuration) {
+        _isInvincible = false;
+        _invincibleTimer = 0;
+      }
+    }
+
+    // --- 깜빡임 타이머 (충돌 후 3회) ---
+    if (_isBlinking) {
+      _blinkTimer += dt;
+      if (_blinkTimer >= 0.1) {
+        _blinkTimer = 0;
+        _blinkVisible = !_blinkVisible;
+        _blinkCount++;
+        if (_blinkCount >= 6) {
+          _isBlinking = false;
+          _blinkVisible = true;
+          _blinkCount = 0;
+        }
+      }
+    }
+
+    // --- 에너지 회복 ---
+    if (_maxShields > 0 && _shieldCooldown > 0 && _energy < _maxShields) {
+      _energy += dt / _shieldCooldown;
+      if (_energy > _maxShields) _energy = _maxShields.toDouble();
+    }
+
+    // --- 에너지 HUD 업데이트 (매 프레임: 충전 진행도 반영) ---
+    _notifyEnergy();
+
     // --- ROTATION EFFECT ---
-    // Base rotation speed (radians per second)
     double rotationSpeed = 2.0;
 
     // Check if moving
-    Vector2 dragInput = gameRef.consumeDragDelta();
-    bool isMoving = !dragInput.isZero();
+    Vector2 rawDrag = gameRef.consumeDragDelta();
+    Vector2 dragInput = rawDrag * _speedMult;
+    bool isMoving = !rawDrag.isZero();
 
     // Spin faster when moving
     if (isMoving) {
@@ -1765,38 +2024,61 @@ class Player extends SpriteComponent
     angle += rotationSpeed * dt;
     angle %= 2 * pi; // Keep angle within 0~2PI range
 
-    // --- MOVEMENT LOGIC (Existing) ---
-    if (isMoving) {
-      // PARTICLE TRAIL EFFECT
-      // Emit particle every few frames (or random chance) to optimize
-      if (Random().nextDouble() < 0.3) {
-        // 30% chance per frame (~20 particles/sec)
-        Vector2 trailPos = position.clone();
-        // Add random slight offset for natural spread
-        trailPos.add(
-          Vector2(
-            (Random().nextDouble() - 0.5) * 10,
-            (Random().nextDouble() - 0.5) * 10,
+    // --- 아이들 연기 (항상, 캐릭터 뒤편 perimeter에서 사방으로 뿜음) ---
+    if (Random().nextDouble() < 0.35) {
+      final idleAngle = Random().nextDouble() * 2 * pi;
+      final edgeRadius = 10.0 + Random().nextDouble() * 4.0;
+      final spawnPos = position + Vector2(cos(idleAngle) * edgeRadius, sin(idleAngle) * edgeRadius);
+      final burstSpeed = 45.0 + Random().nextDouble() * 65.0;
+      gameRef.mapArea.add(
+        ParticleSystemComponent(
+          priority: 0,
+          particle: AcceleratedParticle(
+            lifespan: 0.6 + Random().nextDouble() * 0.5,
+            position: spawnPos,
+            speed: Vector2(cos(idleAngle) * burstSpeed, sin(idleAngle) * burstSpeed),
+            child: ComputedParticle(
+              renderer: (canvas, particle) {
+                final sz = 6.0 * (1.0 - particle.progress);
+                canvas.drawCircle(
+                  Offset.zero,
+                  sz / 2,
+                  Paint()
+                    ..color = trailColor.withOpacity((1.0 - particle.progress) * 0.6)
+                    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
+                );
+              },
+            ),
           ),
-        );
+        ),
+      );
+    }
 
+    // --- MOVEMENT LOGIC ---
+    if (isMoving) {
+      // 이동 트레일 (적당히 — 뒤쪽에서 뿜음)
+      if (Random().nextDouble() < 0.28) {
+        // 이동 방향의 반대(뒤쪽)에 편향된 각도
+        final backAngle = atan2(-rawDrag.y, -rawDrag.x) + (Random().nextDouble() - 0.5) * pi;
+        final trailSpeed = 20.0 + Random().nextDouble() * 30.0;
+        final spawnOffset = Vector2(cos(backAngle) * 8, sin(backAngle) * 8);
         gameRef.mapArea.add(
           ParticleSystemComponent(
-            priority: 0, // Lower than player (10)
+            priority: 0,
             particle: AcceleratedParticle(
-              lifespan: 0.6,
-              position: trailPos,
-              speed: Vector2.zero(), // Stays where it was dropped
+              lifespan: 0.35 + Random().nextDouble() * 0.25,
+              position: position + spawnOffset,
+              speed: Vector2(cos(backAngle) * trailSpeed, sin(backAngle) * trailSpeed),
               child: ComputedParticle(
                 renderer: (canvas, particle) {
-                  // Draw fading neon square/circle
-                  final paint = Paint()
-                    ..color = trailColor.withOpacity(1.0 - particle.progress)
-                    ..style = PaintingStyle.fill;
-
-                  // Shrinking size
-                  double size = 6.0 * (1.0 - particle.progress);
-                  canvas.drawCircle(Offset.zero, size / 2, paint);
+                  final sz = 6.0 * (1.0 - particle.progress);
+                  canvas.drawCircle(
+                    Offset.zero,
+                    sz / 2,
+                    Paint()
+                      ..color = trailColor.withOpacity(0.85 * (1.0 - particle.progress))
+                      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+                  );
                 },
               ),
             ),
@@ -1817,11 +2099,6 @@ class Player extends SpriteComponent
     }
   }
 
-  // Player has anchor=Anchor.center, so position = center of the 45x45 sprite.
-  // Hitbox is 24x24 centered at position → half = 12.
-  // LOCAL hitbox offset (10.5, 10.5) from sprite top-left = (pos - 22.5 + 10.5) = pos - 12
-  static const double _hbHalf = 12.0; // half of hitbox size (24/2)
-
   Rect _hitboxRect() => Rect.fromLTWH(
         position.x - _hbHalf,
         position.y - _hbHalf,
@@ -1831,8 +2108,8 @@ class Player extends SpriteComponent
 
   // Push player out of all overlapping obstacles along X axis only
   void _resolveCollisionsX() {
-    const double minX = _hbHalf;                              // hitbox left >= 0
-    const double maxX = ZonberGame.mapWidth - _hbHalf;        // hitbox right <= mapWidth
+    final double minX = _hbHalf;
+    final double maxX = ZonberGame.mapWidth - _hbHalf;
     for (int pass = 0; pass < 3; pass++) {
       bool resolved = false;
       for (final other in gameRef.mapArea.children) {
@@ -1854,8 +2131,8 @@ class Player extends SpriteComponent
 
   // Push player out of all overlapping obstacles along Y axis only
   void _resolveCollisionsY() {
-    const double minY = _hbHalf;                              // hitbox top >= 0
-    const double maxY = ZonberGame.mapHeight - _hbHalf;       // hitbox bottom <= mapHeight
+    final double minY = _hbHalf;
+    final double maxY = ZonberGame.mapHeight - _hbHalf;
     for (int pass = 0; pass < 3; pass++) {
       bool resolved = false;
       for (final other in gameRef.mapArea.children) {
@@ -1882,9 +2159,31 @@ class Player extends SpriteComponent
   ) {
     super.onCollisionStart(intersectionPoints, other);
     if (other is Bullet) {
+      if (_isInvincible) {
+        // 무적 중 — 총알만 제거
+        other.removeFromParent();
+        return;
+      }
+      if (_energy >= 1.0) {
+        // 에너지 1 소모 (모든 캐릭터 동일)
+        _energy -= 1.0;
+        _isInvincible = true;
+        _invincibleTimer = 0;
+        _isBlinking = true;
+        _blinkTimer = 0;
+        _blinkCount = 0;
+        _blinkVisible = false;
+        _notifyEnergy();
+        other.removeFromParent();
+        if (GameSettings().vibrationEnabled) HapticFeedback.heavyImpact();
+        return;
+      }
+      // 에너지 부족 — 게임 오버
       gameRef.gameOver();
       if (GameSettings().vibrationEnabled) {
         HapticFeedback.heavyImpact();
+        Future.delayed(const Duration(milliseconds: 120), () => HapticFeedback.heavyImpact());
+        Future.delayed(const Duration(milliseconds: 240), () => HapticFeedback.heavyImpact());
       }
       removeFromParent();
     }
