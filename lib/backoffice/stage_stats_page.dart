@@ -141,7 +141,7 @@ class _StageStatsPageState extends State<StageStatsPage> {
     if (mapId == 'zone_2_obstacles') return 'Zone 2 — Obstacles';
     if (mapId == 'zone_3_chaos') return 'Zone 3 — Chaos';
     if (mapId == 'zone_4_impossible') return 'Zone 4 — Impossible';
-    if (mapId == 'zone_5_maze') return 'Zone 5 — Maze';
+    if (mapId == 'zone_5_maze') return 'Zone 3 — Maze';
     if (mapId.startsWith('stage_')) return 'Stage ${mapId.split('_').last}';
     return mapId;
   }

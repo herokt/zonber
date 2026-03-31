@@ -54,7 +54,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'zone_3_desc': '',
     'zone_4_title': 'ZONE 4: MATRIX',
     'zone_4_desc': '',
-    'zone_5_title': 'ZONE 5: LABYRINTH',
+    'zone_5_title': 'ZONE 3: LABYRINTH',
     'zone_5_desc': '',
 
     // Editor
@@ -276,7 +276,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'zone_3_desc': '',
     'zone_4_title': 'ZONE 4: 매트릭스',
     'zone_4_desc': '',
-    'zone_5_title': 'ZONE 5: 래버린스',
+    'zone_5_title': 'ZONE 3: 래버린스',
     'zone_5_desc': '',
 
     // Initial Setup - FIXED & ADDED

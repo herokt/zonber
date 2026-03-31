@@ -676,7 +676,7 @@ class InitialSetupPage extends StatefulWidget {
 
 class _InitialSetupPageState extends State<InitialSetupPage> {
   final TextEditingController _nicknameController = TextEditingController();
-  String _selectedFlag = '🏳️'; // Default to White Flag
+  String _selectedFlag = '';
   String _selectedCountryName = '';
 
   Future<void> _saveAndContinue() async {
@@ -686,7 +686,12 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
       ).showSnackBar(const SnackBar(content: Text('Please enter a nickname')));
       return;
     }
-    // Flag validation removed as it defaults to White Flag
+    if (_selectedCountryName.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select your country')));
+      return;
+    }
 
 
     // Grant Initial Tickets (1 of each)

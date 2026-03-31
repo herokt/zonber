@@ -1923,7 +1923,7 @@ class Player extends SpriteComponent
     _speedMult = stats.speedMultiplier;
     _maxShields = stats.maxEnergy;
     _shieldCooldown = stats.energyCooldown;
-    _energy = _maxShields.toDouble();
+    _energy = 0;
 
     // 히트박스: 시각 크기 중앙에 배치
     const double hbOffset = (visualSize - hitboxSize) / 2;

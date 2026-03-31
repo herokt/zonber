@@ -347,8 +347,8 @@ class _UserListPageState extends State<UserListPage> {
                       final data = doc.data() as Map<String, dynamic>;
                       final mapCounts = data['mapPlayCounts'] as Map<String, dynamic>? ?? {};
                       final zone1 = mapCounts['zone_1_classic'] as int? ?? 0;
-                      final zone2 = mapCounts['zone_2_hard'] as int? ?? 0;
-                      final zone3 = mapCounts['zone_3_obstacles'] as int? ?? 0;
+                      final zone2 = mapCounts['zone_2_obstacles'] as int? ?? 0;
+                      final zone3 = mapCounts['zone_5_maze'] as int? ?? 0;
                       final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
                       final lastUpdated = (data['lastUpdated'] as Timestamp?)?.toDate();
                       return DataRow(
