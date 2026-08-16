@@ -70,9 +70,85 @@
       "Bash(taskkill //F //IM java.exe 2>&1; echo \"done\")",
       "Bash(wc:*)",
       "Bash(ls D:/zonber/*.json)",
-      "Bash(keytool:*)"
+      "Bash(keytool:*)",
+      "Bash(ls D:zonber/*.json)",
+      "Bash(npm --version)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(node:*)",
+      "Bash(explorer:*)",
+      "Bash(start:*)",
+      "Bash(git rm:*)",
+      "Bash(git:*)",
+      "Read(//d/zonber/**)",
+      "Bash(head -5 scripts/*.mjs)",
+      "Skill(update-config)",
+      "Bash(echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"D:\\\\\\\\\\\\\\\\zonber\\\\\\\\\\\\\\\\lib\\\\\\\\\\\\\\\\translations.dart\",\"old_string\":\"a\",\"new_string\":\"a\"}}')",
+      "Bash(bash -c 'cat | grep -q \"translations\\\\.dart\" && echo \"MATCH\" || echo \"NO MATCH\"')",
+      "Bash(echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"D:\\\\\\\\\\\\\\\\zonber\\\\\\\\\\\\\\\\lib\\\\\\\\\\\\\\\\game_config.dart\",\"old_string\":\"a\",\"new_string\":\"a\"}}')",
+      "Bash(bash -c 'cat | grep -q \"game_config\\\\.dart\" && echo \"MATCH\" || echo \"NO MATCH\"')",
+      "Bash(echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"D:\\\\\\\\\\\\\\\\zonber\\\\\\\\\\\\\\\\lib\\\\\\\\\\\\\\\\other.dart\",\"old_string\":\"a\",\"new_string\":\"a\"}}')",
+      "Bash(echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"D:\\\\\\\\\\\\\\\\zonber\\\\\\\\\\\\\\\\lib\\\\\\\\\\\\\\\\translations.dart\"}}')",
+      "Bash(bash -c 'cat | grep -q \"translations\\\\.dart\" && \\(node scripts/check_translations.mjs\\) || true')",
+      "Skill(schedule)",
+      "Bash(Out-Null)",
+      "Bash(Add-Content -Path \"C:\\\\Users\\\\herok\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--zonber\\\\6592af03-f54c-49ed-9bd3-127bb314d80b\\\\tasks\\\\b7ywthquj.input\" -Value \"R\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"done\")",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb devices)",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb -s R3CWC0BTA0T uninstall com.zonber.game)",
+      "PowerShell(adb devices *)",
+      "PowerShell($env:LOCALAPPDATA + \"\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" + \" devices\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" -s R3CWC0BTA0T install -r \"D:\\\\zonber\\\\build\\\\app\\\\outputs\\\\flutter-apk\\\\app-debug.apk\" 2>&1)",
+      "PowerShell(flutter analyze *)",
+      "PowerShell(node scripts/check_translations.mjs 2>&1 | Select-Object -Last 30)",
+      "PowerShell(node scripts/weekly_check.mjs 2>&1 | Select-Object -Last 60)",
+      "PowerShell(Get-ChildItem -Recurse -Path lib -File | Select-Object @{n='Path';e={$_.FullName.Replace\\('D:\\\\zonber\\\\',''\\)}}, @{n='Lines';e={\\(Get-Content $_.FullName | Measure-Object -Line\\).Lines}} | Sort-Object Lines -Descending | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path . -File | Where-Object { $_.Name -match '^\\(firebase|firestore|\\\\.firebaserc|pubspec|analysis\\)' } | Select-Object Name; echo \"--- root dirs ---\"; Get-ChildItem -Directory | Select-Object Name; echo \"--- scripts ---\"; Get-ChildItem scripts -File | Select-Object Name)",
+      "PowerShell(Get-ChildItem docs -Recurse -File | Select-Object @{n='Path';e={$_.FullName.Replace\\('D:\\\\zonber\\\\',''\\)}}, Length; echo \"--- assets ---\"; Get-ChildItem assets -Recurse -File | Select-Object @{n='Path';e={$_.FullName.Replace\\('D:\\\\zonber\\\\',''\\)}}, Length; echo \"--- test/tool ---\"; Get-ChildItem test,tool -Recurse -File | Select-Object @{n='Path';e={$_.FullName.Replace\\('D:\\\\zonber\\\\',''\\)}})",
+      "PowerShell(try { $j = Get-Content .claude/settings.local.json -Raw | ConvertFrom-Json; \"JSON OK - hooks: \" + $j.hooks.PostToolUse[0].hooks.Count } catch { \"JSON INVALID: $_\" })",
+      "PowerShell(git rm *)",
+      "PowerShell(\\(Get-Content lib/main.dart | Measure-Object -Line\\).Lines; \\(Get-Content lib/ranking_system.dart | Measure-Object -Line\\).Lines)",
+      "PowerShell(node scripts/check_translations.mjs; echo \"=== GREP 잔여 4초 확인 ===\"; Select-String -Path lib/translations.dart -Pattern '4 seconds|4초간|20–40|20~40' | ForEach-Object { $_.Line.Trim\\(\\) }; if \\($LASTEXITCODE -ne 0\\) { \"\" })",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(node scripts/check_translations.mjs)",
+      "PowerShell(Select-String -Path ARCHITECTURE.md -Pattern '^### 6\\\\.|^## ' | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
+      "PowerShell(node scripts/weekly_check.mjs 2>&1 | Select-Object -Last 25)",
+      "PowerShell(flutter devices *)",
+      "PowerShell(flutter emulators *)",
+      "PowerShell(flutter pub *)",
+      "PowerShell(firebase *)",
+      "PowerShell(node scripts/audit_no_country.mjs)",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(awk '{print $5, $9}')"
     ],
     "deny": [],
     "ask": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | grep -q 'translations\\.dart' && (cd /d/zonber && node scripts/check_translations.mjs) || true",
+            "timeout": 30,
+            "statusMessage": "번역 키 검사 중..."
+          },
+          {
+            "type": "command",
+            "command": "cat | grep -q 'game_config\\.dart' && printf '{\"systemMessage\": \"\\ud83d\\udccb 스테이지 체크리스트:\\n  [ ] translations.dart에 nameKey, descKey 추가 (EN + KO)\\n  [ ] main.dart _spawnFixedObstacles()에 장애물 레이아웃 분기 추가\\n  [ ] map_selection_page.dart MapPreviewPainter 프리뷰 분기 추가\\n  [ ] backoffice _allStageIds / _stageOrder / _stageNames 3곳 갱신\\n  [ ] Firestore maps/{stageId} 문서 생성\\n  [ ] node scripts/weekly_check.mjs 실행\"}' || true",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "cat | grep -q 'character_data\\.dart' && printf '{\"systemMessage\": \"\\ud83d\\udccb 캐릭터 체크리스트 (Player.render() 수정 불필요 — 스프라이트 기반):\\n  [ ] assets/images/characters/{id}.png 에셋 추가\\n  [ ] character_selection_page.dart UI 확인\\n  [ ] statistics_page.dart _characterName() / _characterIcon() 분기 추가\\n  [ ] backoffice/play_stats_page.dart _characterNames 추가\\n  [ ] translations.dart에 이름/설명 키 추가 (EN + KO)\\n  [ ] shop_page.dart에 IAP 항목 추가 (유료 캐릭터인 경우)\"}' || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

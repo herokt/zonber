@@ -10,6 +10,9 @@ service cloud.firestore {
       match /records/{recordId} {
         allow read: if true;
         allow create: if request.auth != null;
+        // 광고 부활로 판이 이어질 때 직전에 제출된 기록을 지운다 — 본인 기록만
+        allow delete: if request.auth != null &&
+                         resource.data.userId == request.auth.uid;
       }
     }
 

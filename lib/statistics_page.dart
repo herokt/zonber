@@ -224,19 +224,46 @@ class _StatisticsPageState extends State<StatisticsPage> {
                       _buildStatCard(
                         LanguageManager.of(context).translate('avg_survival'),
                         _formatDuration(
-                          (_stats['totalGamesPlayed'] ?? 0) > 0 
-                            ? (_stats['totalPlayTime'] ?? 0.0) / (_stats['totalGamesPlayed'] ?? 1) 
+                          (_stats['totalGamesPlayed'] ?? 0) > 0
+                            ? (_stats['totalPlayTime'] ?? 0.0) / (_stats['totalGamesPlayed'] ?? 1)
                             : 0
                         ),
                         Icons.functions,
-                        const Color(0xFFFFD700), // Yellow
-                      )
+                        const Color(0xFFFFD700),
+                      ),
+                      // Favorite Character
+                      _buildStatCard(
+                        LanguageManager.of(context).translate('favorite_character'),
+                        _characterName(_stats['favoriteCharacter'] ?? '-'),
+                        _characterIcon(_stats['favoriteCharacter'] ?? '-'),
+                        const Color(0xFFE040FB),
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
     );
+  }
+
+  String _characterName(String id) {
+    switch (id) {
+      case 'neon_green':    return 'NEON GREEN';
+      case 'electric_blue': return 'ELECTRIC';
+      case 'cyber_red':     return 'CYBER RED';
+      case 'plasma_purple': return 'PLASMA';
+      default:              return '-';
+    }
+  }
+
+  IconData _characterIcon(String id) {
+    switch (id) {
+      case 'neon_green':    return Icons.crop_square;
+      case 'electric_blue': return Icons.circle_outlined;
+      case 'cyber_red':     return Icons.change_history;
+      case 'plasma_purple': return Icons.rocket_launch;
+      default:              return Icons.person;
+    }
   }
 
   Widget _buildStatCard(String label, String value, IconData icon, Color color) {

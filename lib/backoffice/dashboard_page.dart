@@ -12,6 +12,9 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _totalUsers = 0;
   int _totalGames = 0;
+  int _zone1Plays = 0;
+  int _zone2Plays = 0;
+  int _zone3Plays = 0;
   int _customMapCount = 0;
   int _todayActiveUsers = 0;
   int _androidUsers = 0;
@@ -26,20 +29,20 @@ class _DashboardPageState extends State<DashboardPage> {
     _loadStats();
   }
 
-  Future<void> _migrateCreatedAt() async {
+  Future<void> _migrateDefaultCountry() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2C),
-        title: const Text("가입일 마이그레이션", style: TextStyle(color: Colors.white)),
+        title: const Text("국가 기본값 설정", style: TextStyle(color: Colors.white)),
         content: const Text(
-          "createdAt 필드가 없는 유저에게 현재 시간으로 가입일을 설정합니다.\n계속하시겠습니까?",
+          "국가(flag)가 없는 유저를 대한민국(🇰🇷)으로 설정합니다.\n계속하시겠습니까?",
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소", style: TextStyle(color: Colors.white54))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00FF88), foregroundColor: Colors.black),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DE9B6), foregroundColor: Colors.black),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text("실행"),
           ),
@@ -50,20 +53,118 @@ class _DashboardPageState extends State<DashboardPage> {
 
     try {
       final snapshot = await FirebaseFirestore.instance.collection('users').get();
-      final now = Timestamp.now();
       int updated = 0;
-      final batch = FirebaseFirestore.instance.batch();
+      WriteBatch batch = FirebaseFirestore.instance.batch();
       for (final doc in snapshot.docs) {
         final data = doc.data();
-        if (!data.containsKey('createdAt')) {
-          batch.update(doc.reference, {'createdAt': now});
+        final flag = (data['flag'] as String? ?? '').trim();
+        if (flag.isEmpty) {
+          batch.update(doc.reference, {'flag': '🇰🇷', 'countryName': 'South Korea'});
           updated++;
+          if (updated % 500 == 0) {
+            await batch.commit();
+            batch = FirebaseFirestore.instance.batch();
+          }
         }
       }
-      if (updated > 0) await batch.commit();
+      if (updated % 500 != 0 && updated > 0) await batch.commit();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("완료: $updated명 업데이트됨"), backgroundColor: const Color(0xFF00FF88)),
+          SnackBar(content: Text("완료: $updated명 업데이트됨"), backgroundColor: const Color(0xFF1DE9B6)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("오류: $e"), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  static const _allStageIds = [
+    'zone_1_classic',
+    'zone_2_obstacles',
+    'zone_5_maze',
+  ];
+
+  Future<void> _migrateRecordFlags() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2C),
+        title: const Text("레코드 국가 마이그레이션", style: TextStyle(color: Colors.white)),
+        content: const Text(
+          "flag가 없는 레코드를 유저 정보 기준으로 업데이트합니다.\n계속하시겠습니까?",
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소", style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B0FF), foregroundColor: Colors.black),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("실행"),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      // Build lookup maps from users collection
+      final usersSnap = await FirebaseFirestore.instance.collection('users').get();
+      final Map<String, String> uidToFlag = {};     // uid → flag
+      final Map<String, String> nicknameToFlag = {}; // nickname → flag
+      for (final doc in usersSnap.docs) {
+        final data = doc.data();
+        final flag = (data['flag'] as String? ?? '').trim();
+        if (flag.isEmpty) continue;
+        uidToFlag[doc.id] = flag;
+        final nickname = (data['nickname'] as String? ?? '').trim();
+        if (nickname.isNotEmpty) nicknameToFlag[nickname] = flag;
+      }
+
+      int updated = 0;
+      WriteBatch batch = FirebaseFirestore.instance.batch();
+
+      for (final stageId in _allStageIds) {
+        final recordsSnap = await FirebaseFirestore.instance
+            .collection('maps')
+            .doc(stageId)
+            .collection('records')
+            .get();
+
+        for (final doc in recordsSnap.docs) {
+          final data = doc.data();
+          final flag = (data['flag'] as String? ?? '').trim();
+          if (flag.isNotEmpty) continue; // already has flag
+
+          final uid = (data['userId'] as String? ?? '').trim();
+          final nickname = (data['nickname'] as String? ?? '').trim();
+
+          String? resolvedFlag;
+          if (uid.isNotEmpty && uidToFlag.containsKey(uid)) {
+            resolvedFlag = uidToFlag[uid];
+          } else if (nickname.isNotEmpty && nicknameToFlag.containsKey(nickname)) {
+            resolvedFlag = nicknameToFlag[nickname];
+          }
+
+          if (resolvedFlag != null) {
+            batch.update(doc.reference, {'flag': resolvedFlag});
+            updated++;
+            if (updated % 500 == 0) {
+              await batch.commit();
+              batch = FirebaseFirestore.instance.batch();
+            }
+          }
+        }
+      }
+
+      if (updated % 500 != 0 && updated > 0) await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("완료: $updated개 레코드 업데이트됨"), backgroundColor: const Color(0xFF00B0FF)),
         );
       }
     } catch (e) {
@@ -123,8 +224,13 @@ class _DashboardPageState extends State<DashboardPage> {
       final totalUsers = (results[0] as AggregateQuerySnapshot).count ?? 0;
 
       int totalGames = 0;
+      int zone1Plays = 0, zone2Plays = 0, zone3Plays = 0;
       for (var doc in (results[1] as QuerySnapshot).docs) {
-        totalGames += (doc.data() as Map<String, dynamic>)['playCount'] as int? ?? 0;
+        final count = (doc.data() as Map<String, dynamic>)['playCount'] as int? ?? 0;
+        totalGames += count;
+        if (doc.id == 'zone_1_classic') zone1Plays = count;
+        else if (doc.id == 'zone_2_obstacles') zone2Plays = count;
+        else if (doc.id == 'zone_5_maze') zone3Plays = count;
       }
 
       final customMapCount = (results[2] as AggregateQuerySnapshot).count ?? 0;
@@ -138,6 +244,9 @@ class _DashboardPageState extends State<DashboardPage> {
         setState(() {
           _totalUsers = totalUsers;
           _totalGames = totalGames;
+          _zone1Plays = zone1Plays;
+          _zone2Plays = zone2Plays;
+          _zone3Plays = zone3Plays;
           _customMapCount = customMapCount;
           _todayActiveUsers = todayActiveUsers;
           _androidUsers = androidUsers;
@@ -201,7 +310,9 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         Row(
           children: [
-            _buildActionButton("가입일 복구", Icons.healing_rounded, const Color(0xFFFF9800), _migrateCreatedAt),
+            _buildActionButton("국가 기본값", Icons.flag_rounded, const Color(0xFF1DE9B6), _migrateDefaultCountry),
+            const SizedBox(width: 12),
+            _buildActionButton("레코드 국가", Icons.map_rounded, const Color(0xFF00B0FF), _migrateRecordFlags),
             const SizedBox(width: 12),
             _buildActionButton("새로고침", Icons.refresh_rounded, const Color(0xFF00FF88), _loadStats),
           ],
@@ -225,7 +336,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _buildModernCard(
           title: "총 플레이",
           value: NumberFormat('#,###').format(_totalGames),
-          subtitle: "Total Plays",
+          subtitle: "S1:${NumberFormat('#,###').format(_zone1Plays)}  S2:${NumberFormat('#,###').format(_zone2Plays)}  S3:${NumberFormat('#,###').format(_zone3Plays)}",
           icon: Icons.games_rounded,
           gradientColors: [const Color(0xFF43E97B), const Color(0xFF38F9D7)],
         ),

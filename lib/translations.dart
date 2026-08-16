@@ -50,11 +50,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'zone_1_desc': '',
     'zone_2_title': 'ZONE 2: ARENA',
     'zone_2_desc': '',
-    'zone_3_title': 'ZONE 3: FORTRESS',
-    'zone_3_desc': '',
-    'zone_4_title': 'ZONE 4: MATRIX',
-    'zone_4_desc': '',
-    'zone_5_title': 'ZONE 3: LABYRINTH',
+    'zone_5_title': 'ZONE 3: ABYSS',
     'zone_5_desc': '',
 
     // Editor
@@ -109,6 +105,12 @@ const Map<String, Map<String, String>> appTranslations = {
     'select_country': 'SELECT COUNTRY',
     'start': 'START',
     'setup_warning': 'This cannot be changed later\nwithout a change ticket',
+    'setup_nickname_label': 'NICKNAME',
+    'setup_nickname_hint': 'Enter nickname',
+    'setup_country_label': 'SELECT COUNTRY',
+    'tap_to_select': 'Tap to select',
+    'please_enter_nickname': 'Please enter a nickname',
+    'please_select_country': 'Please select a country',
 
     // Character Select
     // Character Select
@@ -172,6 +174,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'restore_success_message_multiple': '{count} purchases have been restored.',
     'restore_no_items': 'No purchases to restore.',
     'no_purchases': 'No purchases found',
+    'shop_coming_soon': 'Coming Soon!',
 
     // Verification
     'verification_success': 'VERIFICATION SUCCESS',
@@ -197,6 +200,8 @@ const Map<String, Map<String, String>> appTranslations = {
     'share': 'SHARE',
     'replay': 'REPLAY',
     'statistics': 'STATISTICS',
+    'my_rank': 'MY RANK',
+    'app_version': 'App Version',
     'titles_section': 'TITLES (Top 30)',
     'no_titles': 'No Titles Yet',
     'no_titles_desc': 'Rank in the Top 30 to earn titles!',
@@ -205,9 +210,53 @@ const Map<String, Map<String, String>> appTranslations = {
     'games_played': 'GAMES PLAYED',
     'favorite_map': 'FAVORITE MAP',
     'avg_survival': 'AVG SURVIVAL',
+    'favorite_character': 'FAV CHARACTER',
+    'ranking': 'RANKING',
+
+    // Character stats
+    'stat_energy': 'ENERGY',
+    'stat_speed': 'SPEED',
+    'stat_recovery': 'RECOVERY',
+    'stat_evasion': 'EVASION',
+
+    // Character unlock
+    'locked': 'LOCKED',
+    'unlock_requirement': 'Unlocks with: {name}',
+    'character_locked_message': 'Earn the "{name}" achievement to unlock this character.',
+
+    // Settings
+    'sensitivity': 'DRAG SENSITIVITY',
+    'sensitivity_desc': 'How far the character moves per finger movement',
+
+    // Achievements — peak label
+    'peak_record': 'Peak',
+
     'Daily Ranker': 'Daily Ranker',
     'Weekly Ranker': 'Weekly Ranker',
     'Monthly Ranker': 'Monthly Ranker',
+
+    // Achievements
+    'achievements': 'ACHIEVEMENTS',
+    'no_achievements': 'No achievements yet',
+    'ach_survivor': 'Survivor',
+    'ach_survivor_desc': 'Survived for 1 minute',
+    'ach_veteran': 'Veteran',
+    'ach_veteran_desc': 'Survived for 2 minutes',
+    'ach_elite': 'Elite',
+    'ach_elite_desc': 'Survived for 3 minutes',
+    'ach_master': 'Master',
+    'ach_master_desc': 'Survived for 4 minutes',
+    'ach_legend': 'Legend',
+    'ach_legend_desc': 'Survived for 5 minutes',
+    'ach_nat_champion': 'National Champion',
+    'ach_nat_champion_desc': 'Reached #1 in national ranking',
+    'ach_glob_top30': 'Global Ranker',
+    'ach_glob_top30_desc': 'Entered Top 30 in global ranking',
+    'ach_glob_top10': 'Global Top 10',
+    'ach_glob_top10_desc': 'Entered Top 10 in global ranking',
+    'ach_glob_champion': 'World Champion',
+    'ach_glob_champion_desc': 'Reached #1 in global ranking',
+
     'no_ticket_title': 'NO TICKET',
     'ticket_required': 'You need a {type}.\n\nVisit the Shop to purchase one.',
     'Legendary Survivor': 'Legendary Survivor',
@@ -220,6 +269,38 @@ const Map<String, Map<String, String>> appTranslations = {
         'I invite you to my crew!\nPlay together and earn rewards.\n\nInvite Code: {code}',
     'download_link':
         'Download:\nhttps://play.google.com/store/apps/details?id=com.zonber.game',
+
+    // Power-ups
+    'powerup_speed': 'SPEED',
+    'powerup_shield': 'ENERGY',
+    'powerup_clear': 'CLEAR',
+    'powerup_slow': 'SLOW',
+    'powerup_speed_desc': 'Move 60% faster for 8 seconds',
+    'powerup_shield_desc':
+        'Restores 1 Energy. If you are already full it turns into extra invincibility instead.',
+    'powerup_clear_desc': 'Wipes every bullet currently on screen',
+    'powerup_slow_desc':
+        'All bullets drop to half speed for 8 seconds — even the ones already in flight',
+
+    // Game Guide
+    'guide_rules_title': 'HOW TO PLAY',
+    'guide_items_title': 'ITEMS',
+    'guide_rule_1': 'Stay inside the glowing zone',
+    'guide_rule_2': 'Dodge the incoming bullets',
+    'guide_rule_3': 'Survive as long as possible',
+    'guide_rule_4': 'Each bullet hit drains 1 Energy',
+    'guide_rule_5': 'Zero Energy = Game Over',
+    'guide_energy_title': 'ENERGY',
+    'guide_energy_desc': 'Your life force. The gauge is split into one segment per Energy, and how many you get depends on your character. It also refills slowly on its own.',
+    'guide_speed_title': 'MOVEMENT',
+    'guide_speed_desc': 'Drag anywhere on screen — your finger does not need to be on the character. Adjust the ratio in Settings › Drag Sensitivity.',
+    'guide_iframe_title': 'I-FRAMES',
+    'guide_iframe_desc': 'After a hit you are invincible for a moment and bullets you touch are destroyed. Duration varies by character.',
+    'guide_warning_title': 'EDGE WARNING',
+    'guide_warning_desc': 'Red marks on the arena border show where off-screen bullets are about to enter.',
+    'guide_items_intro': 'Items spawn on the map every 8–40 seconds, up to two at a time. Each one lasts 15 seconds and blinks before it disappears. Every item fires the instant you touch it — there is nothing to store or tap.',
+    'guide_active_title': 'ACTIVE ITEMS',
+    'guide_active_desc': 'Whatever is active shows at the top center of the stage. Timed items drain a ring clockwise so you can read the time left at a glance; instant items flash briefly so you know what you picked up.',
   },
   'ko': {
     // Main Menu
@@ -272,11 +353,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'zone_1_desc': '',
     'zone_2_title': 'ZONE 2: 아레나',
     'zone_2_desc': '',
-    'zone_3_title': 'ZONE 3: 포트리스',
-    'zone_3_desc': '',
-    'zone_4_title': 'ZONE 4: 매트릭스',
-    'zone_4_desc': '',
-    'zone_5_title': 'ZONE 3: 래버린스',
+    'zone_5_title': 'ZONE 3: 어비스',
     'zone_5_desc': '',
 
     // Initial Setup - FIXED & ADDED
@@ -426,6 +503,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'replay': '다시 보기',
     'my_rank': '내 순위',
     'statistics': '통계',
+    'app_version': '앱 버전',
     'titles_section': '칭호 (상위 30위)',
     'no_titles': '획득한 칭호 없음',
     'no_titles_desc': '상위 30위에 들어 칭호를 획득하세요!',
@@ -434,12 +512,55 @@ const Map<String, Map<String, String>> appTranslations = {
     'games_played': '플레이 횟수',
     'favorite_map': '선호하는 맵',
     'avg_survival': '평균 생존 시간',
+    'favorite_character': '선호 캐릭터',
+    'ranking': '랭킹',
+
+    // Character stats
+    'stat_energy': '체력',
+    'stat_speed': '속도',
+    'stat_recovery': '기력',
+    'stat_evasion': '회피',
+
+    // Character unlock
+    'locked': '잠김',
+    'unlock_requirement': '해금 조건: {name}',
+    'character_locked_message': '"{name}" 업적을 달성하면 해금됩니다.',
+
+    // Settings
+    'sensitivity': '조작 감도',
+    'sensitivity_desc': '손가락 이동 대비 캐릭터가 움직이는 거리',
+
+    // Achievements — peak label
+    'peak_record': '역대 최고',
+
     'no_ticket_title': '티켓 부족',
     'ticket_required': '{type}이(가) 필요합니다.\n\n상점에서 구매하세요.',
     'Daily Ranker': '일일 랭커',
     'Weekly Ranker': '주간 랭커',
     'Monthly Ranker': '월간 랭커',
     'Legendary Survivor': '전설의 생존자',
+
+    // Achievements
+    'achievements': '업적',
+    'no_achievements': '아직 업적 없음',
+    'ach_survivor': '서바이버',
+    'ach_survivor_desc': '1분 이상 생존했습니다',
+    'ach_veteran': '베테랑',
+    'ach_veteran_desc': '2분 이상 생존했습니다',
+    'ach_elite': '엘리트',
+    'ach_elite_desc': '3분 이상 생존했습니다',
+    'ach_master': '마스터',
+    'ach_master_desc': '4분 이상 생존했습니다',
+    'ach_legend': '레전드',
+    'ach_legend_desc': '5분 이상 생존했습니다',
+    'ach_nat_champion': '국내 챔피언',
+    'ach_nat_champion_desc': '국내 랭킹 1위를 달성했습니다',
+    'ach_glob_top30': '글로벌 랭커',
+    'ach_glob_top30_desc': '글로벌 랭킹 TOP 30에 진입했습니다',
+    'ach_glob_top10': '글로벌 TOP 10',
+    'ach_glob_top10_desc': '글로벌 랭킹 TOP 10에 진입했습니다',
+    'ach_glob_champion': '글로벌 챔피언',
+    'ach_glob_champion_desc': '글로벌 랭킹 1위를 달성했습니다',
 
     // Invite
     'invite_crew': '크루 초대',
@@ -448,5 +569,35 @@ const Map<String, Map<String, String>> appTranslations = {
     'invite_message_body': '크루에 초대합니다!\n같이 플레이하고 보상을 받으세요.\n\n초대 코드: {code}',
     'download_link':
         '다운로드:\nhttps://play.google.com/store/apps/details?id=com.zonber.game',
+
+    // Power-ups
+    'powerup_speed': '속도 증가',
+    'powerup_shield': '에너지 추가',
+    'powerup_clear': '탄막 소멸',
+    'powerup_slow': '시간 감속',
+    'powerup_speed_desc': '8초간 이동 속도 60% 증가',
+    'powerup_shield_desc': '에너지 1 회복. 이미 가득 찼다면 무적 시간으로 대신 전환됩니다.',
+    'powerup_clear_desc': '화면에 있는 탄막을 전부 없앱니다',
+    'powerup_slow_desc': '8초간 모든 탄막이 절반 속도로 느려집니다 — 이미 날아오는 중인 탄막까지',
+
+    // Game Guide
+    'guide_rules_title': '게임 방법',
+    'guide_items_title': '아이템',
+    'guide_rule_1': '빛나는 존 안에 머물러야 합니다',
+    'guide_rule_2': '날아오는 탄막을 피하세요',
+    'guide_rule_3': '최대한 오래 생존하세요',
+    'guide_rule_4': '탄환에 맞으면 에너지가 1 감소합니다',
+    'guide_rule_5': '에너지 0 = 게임 오버',
+    'guide_energy_title': '에너지',
+    'guide_energy_desc': '생명력. 게이지는 에너지 1칸마다 눈금으로 나뉘며, 칸 수는 캐릭터에 따라 다릅니다. 시간이 지나면 스스로 조금씩 회복됩니다.',
+    'guide_speed_title': '이동',
+    'guide_speed_desc': '화면 어디든 드래그하면 됩니다. 손가락이 캐릭터 위에 있을 필요는 없습니다. 비율은 설정 › 조작 감도에서 조절하세요.',
+    'guide_iframe_title': '무적 시간',
+    'guide_iframe_desc': '피격 직후 잠시 무적이 되고, 이때 닿는 탄환은 파괴됩니다. 지속 시간은 캐릭터마다 다릅니다.',
+    'guide_warning_title': '진입 경고',
+    'guide_warning_desc': '화면 밖 탄환이 들어올 위치를 아레나 테두리에 빨간 표시로 미리 알려줍니다.',
+    'guide_items_intro': '아이템은 맵에 8~40초마다 최대 2개까지 스폰됩니다. 하나당 15초간 남아 있고 사라지기 전에 깜빡입니다. 모든 아이템은 닿는 즉시 발동되며, 보관하거나 따로 누를 필요가 없습니다.',
+    'guide_active_title': '활성 아이템',
+    'guide_active_desc': '발동 중인 아이템은 스테이지 상단 중앙에 표시됩니다. 지속형은 남은 시간이 원형 게이지로 시계 방향으로 줄어들어 한눈에 파악되고, 즉시형은 무엇을 먹었는지 알 수 있게 잠깐 표시됩니다.',
   },
 };

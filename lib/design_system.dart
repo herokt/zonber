@@ -5,7 +5,9 @@ import 'language_manager.dart';
 class AppColors {
   static const Color primary = Color(0xFF00B8D4); // Cyan (Darker)
   static const Color primaryDim = Color(0xFF006064); // Darker Cyan (Dim)
-  static const Color secondary = Color(0xFFD32F2F); // Red (Darker)
+  static const Color secondary = Color(0xFFD32F2F); // Red (Darker) — 탄환 전용
+  /// 장애물/벽 전용. 탄환(빨강)과 절대 겹치면 안 되므로 무채색 계열로 분리.
+  static const Color obstacle = Color(0xFF9FB3C8); // Steel Grey-Blue
   static const Color background = Color(0xFF050510); // Deep Space Black
   static const Color surface = Color(0xFF121212); // Almost Black Surface
   static const Color surfaceGlass = Color(

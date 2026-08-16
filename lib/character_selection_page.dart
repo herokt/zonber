@@ -4,6 +4,7 @@ import 'character_data.dart';
 import 'user_profile.dart';
 import 'design_system.dart';
 import 'language_manager.dart';
+import 'achievement_manager.dart';
 
 class CharacterSelectionPage extends StatefulWidget {
   final VoidCallback onBack;
@@ -16,6 +17,8 @@ class CharacterSelectionPage extends StatefulWidget {
 
 class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
   String _selectedId = 'neon_green';
+  List<String> _achievementKeys = const [];
+  bool _loading = true;
 
   @override
   void initState() {
@@ -25,21 +28,55 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
 
   Future<void> _loadCurrentCharacter() async {
     final profile = await UserProfileManager.getProfile();
+    final keys = await AchievementManager.getMine();
+    if (!mounted) return;
     setState(() {
       _selectedId = profile['characterId'] ?? 'neon_green';
+      _achievementKeys = keys;
+      _loading = false;
     });
   }
 
-  Future<void> _selectCharacter(String id) async {
+  /// 이미 사용 중인 캐릭터는 해금 조건과 무관하게 계속 쓸 수 있게 한다
+  /// (해금 시스템 도입 이전 유저의 선택을 뺏지 않기 위함).
+  bool _isUnlocked(Character char) =>
+      char.id == _selectedId ||
+      CharacterData.isUnlocked(char, _achievementKeys);
+
+  Future<void> _selectCharacter(Character char) async {
+    if (!_isUnlocked(char)) {
+      _showLockedDialog(char);
+      return;
+    }
     setState(() {
-      _selectedId = id;
+      _selectedId = char.id;
     });
     final profile = await UserProfileManager.getProfile();
     await UserProfileManager.saveProfile(
       profile['nickname']!,
       profile['flag']!,
       profile['countryName']!,
-      characterId: id,
+      characterId: char.id,
+    );
+  }
+
+  void _showLockedDialog(Character char) {
+    final lm = LanguageManager.of(context, listen: false);
+    final achName = lm.translate(char.unlockKey ?? '');
+    showNeonDialog(
+      context: context,
+      title: lm.translate('locked'),
+      titleColor: AppColors.textDim,
+      message: lm
+          .translate('character_locked_message')
+          .replaceAll('{name}', achName),
+      actions: [
+        NeonButton(
+          text: lm.translate('ok'),
+          onPressed: () => Navigator.of(context).pop(),
+          isCompact: true,
+        ),
+      ],
     );
   }
 
@@ -49,53 +86,89 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
       title: LanguageManager.of(context).translate('select_character'),
       showBackButton: true,
       onBack: widget.onBack,
-      body: GridView.builder(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : GridView.builder(
         padding: const EdgeInsets.all(16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 0.82,
+          childAspectRatio: 0.72,
         ),
         itemCount: CharacterData.availableCharacters.length,
         itemBuilder: (context, index) {
+          final lm = LanguageManager.of(context);
           final char = CharacterData.availableCharacters[index];
           final isSelected = char.id == _selectedId;
+          final unlocked = _isUnlocked(char);
 
           return GestureDetector(
-            onTap: () => _selectCharacter(char.id),
-            child: NeonCard(
-              borderColor: isSelected ? char.color : Colors.transparent,
-              backgroundColor: isSelected
-                  ? char.color.withOpacity(0.08)
-                  : AppColors.surfaceGlass,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 캐릭터 이미지 (회전 애니메이션, 원형 배경 없음)
-                  _RotatingCharacterImage(char: char, isSelected: isSelected),
-                  const SizedBox(height: 8),
-
-                  // 캐릭터 이름
-                  Text(
-                    LanguageManager.of(context).translate('char_${char.id}'),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isSelected ? char.color : Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+            onTap: () => _selectCharacter(char),
+            child: Opacity(
+              opacity: unlocked ? 1.0 : 0.55,
+              child: NeonCard(
+                borderColor: isSelected ? char.color : Colors.transparent,
+                backgroundColor: isSelected
+                    ? char.color.withOpacity(0.08)
+                    : AppColors.surfaceGlass,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // 캐릭터 이미지 (잠금 시 자물쇠 오버레이)
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        _RotatingCharacterImage(char: char, isSelected: isSelected),
+                        if (!unlocked)
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.65),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.lock_rounded,
+                                color: Colors.white70, size: 20),
+                          ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
-                  // 스탯 바 3개
-                  _StatBars(char: char, accentColor: char.color),
-                ],
+                    // 캐릭터 이름
+                    Text(
+                      lm.translate('char_${char.id}'),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isSelected ? char.color : Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    if (unlocked)
+                      // 스탯 바 4개
+                      _StatBars(char: char, accentColor: char.color)
+                    else
+                      Text(
+                        lm
+                            .translate('unlock_requirement')
+                            .replaceAll('{name}', lm.translate(char.unlockKey!)),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        style: const TextStyle(
+                          color: AppColors.textDim,
+                          fontSize: 10,
+                          height: 1.4,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           );
@@ -305,10 +378,12 @@ class _StatBars extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = char.stats;
+    final lm = LanguageManager.of(context);
     final ratings = [
-      (label: '체력', rating: CharacterData.energyRating(s.maxEnergy)),
-      (label: '속도', rating: CharacterData.speedRating(s.speedMultiplier)),
-      (label: '기력', rating: CharacterData.cooldownRating(s.energyCooldown)),
+      (label: lm.translate('stat_energy'), rating: CharacterData.energyRating(s.maxEnergy)),
+      (label: lm.translate('stat_speed'), rating: CharacterData.speedRating(s.speedMultiplier)),
+      (label: lm.translate('stat_recovery'), rating: CharacterData.cooldownRating(s.energyCooldown)),
+      (label: lm.translate('stat_evasion'), rating: CharacterData.iframeRating(s.iframeDuration)),
     ];
 
     return Column(

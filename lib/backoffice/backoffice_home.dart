@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dashboard_page.dart';
 import 'user_list_page.dart';
 import 'stage_stats_page.dart';
+import 'play_stats_page.dart';
 
 class BackofficeHome extends StatefulWidget {
   const BackofficeHome({super.key});
@@ -17,6 +18,7 @@ class _BackofficeHomeState extends State<BackofficeHome> {
     const DashboardPage(),
     const UserListPage(),
     const StageStatsPage(),
+    const PlayStatsPage(),
   ];
 
   @override
@@ -57,6 +59,11 @@ class _BackofficeHomeState extends State<BackofficeHome> {
                 icon: Icon(Icons.bar_chart_rounded),
                 selectedIcon: Icon(Icons.bar_chart),
                 label: Text('스테이지 통계'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.insights_outlined),
+                selectedIcon: Icon(Icons.insights),
+                label: Text('플레이 통계'),
               ),
             ],
           ),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 enum RankingPeriod { daily, weekly, monthly, allTime }
 
@@ -17,29 +18,32 @@ class RankingSystem {
     }
   }
 
-  /// Get the start of period in UTC
+  /// 기간 시작점을 **기기 로컬 타임존** 기준으로 계산한다.
+  ///
+  /// UTC 기준이면 한국(UTC+9) 유저의 일간 랭킹이 오전 9시에 리셋되어
+  /// "오늘의 기록"이라는 개념이 어긋난다. Timestamp 비교는 절대 시각으로
+  /// 이루어지므로 로컬 DateTime을 그대로 써도 정확하다.
   DateTime _getPeriodStart(RankingPeriod period) {
-    final now = DateTime.now().toUtc();
-    final todayStart = DateTime.utc(now.year, now.month, now.day);
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
 
     switch (period) {
       case RankingPeriod.daily:
         return todayStart;
       case RankingPeriod.weekly:
-        // Monday as start of week (UTC 0:00)
-        final weekday = todayStart.weekday;
-        return todayStart.subtract(Duration(days: weekday - 1));
+        // 주 시작 = 월요일 00:00 (로컬)
+        return todayStart.subtract(Duration(days: todayStart.weekday - 1));
       case RankingPeriod.monthly:
-        return DateTime.utc(now.year, now.month, 1);
+        return DateTime(now.year, now.month, 1);
       case RankingPeriod.allTime:
-        // Changed "All Time" to "Current Year" as requested
-        return DateTime.utc(now.year, 1, 1);
+        // "All Time"은 실제로는 올해 1월 1일부터
+        return DateTime(now.year, 1, 1);
     }
   }
 
   /// Get period label for display
   static String getPeriodLabel(RankingPeriod period) {
-    final now = DateTime.now().toUtc();
+    final now = DateTime.now();
     switch (period) {
       case RankingPeriod.daily:
         return "${now.month}/${now.day}";
@@ -53,7 +57,7 @@ class RankingSystem {
   }
 
   static int _getWeekNumber(DateTime date) {
-    final firstDayOfYear = DateTime.utc(date.year, 1, 1);
+    final firstDayOfYear = DateTime(date.year, 1, 1);
     final days = date.difference(firstDayOfYear).inDays;
     return ((days + firstDayOfYear.weekday) / 7).ceil();
   }
@@ -77,53 +81,86 @@ class RankingSystem {
     return months[month];
   }
 
-  // 1. Save Score (Write) - Save all records (Filtering done on Read)
+  // 1. Save Score (Write) — flag stored for national query; nickname fetched live from users
   Future<String> saveRecord(
     String mapId,
-    String nickname,
-    String flag,
-    double time,
-  ) async {
-    print('=== SAVE RECORD START ===');
-    print('Map ID: $mapId');
-    print('Nickname: $nickname');
-    print('Flag: $flag');
-    print('Survival Time: $time');
-    print('Firestore available: ${_db != null}');
-
-    if (_db == null) {
-      print(
-        "ERROR: Firestore not initialized. Check Firebase initialization in main.dart",
-      );
-      return 'local_id_${DateTime.now().millisecondsSinceEpoch}';
-    }
+    double time, {
+    String characterId = 'neon_green',
+    String flag = '',
+  }) async {
+    if (_db == null) return 'local_id_${DateTime.now().millisecondsSinceEpoch}';
 
     try {
-      print('Attempting to save to Firestore...');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
       DocumentReference docRef = await _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
           .add({
-            'nickname': nickname,
+            'userId': userId,
             'flag': flag,
             'survivalTime': time,
+            'characterId': characterId,
             'timestamp': FieldValue.serverTimestamp(),
           });
-      print('SUCCESS: Record saved with ID: ${docRef.id}');
 
-      // Increment Global Play Count for this Map
-      await _db!.collection('maps').doc(mapId).set({
-        'playCount': FieldValue.increment(1),
-      }, SetOptions(merge: true));
-
-      print('=== SAVE RECORD END ===');
       return docRef.id;
     } catch (e) {
       print("ERROR: Save failed - $e");
-      print('Stack trace: ${StackTrace.current}');
-      print('=== SAVE RECORD END ===');
       return '';
+    }
+  }
+
+  /// 제출된 기록을 삭제한다. 광고 부활로 게임이 이어질 때 직전 기록을 지우는 용도.
+  Future<void> deleteRecord(String mapId, String recordId) async {
+    if (_db == null || recordId.isEmpty) return;
+    try {
+      await _db!
+          .collection('maps')
+          .doc(mapId)
+          .collection('records')
+          .doc(recordId)
+          .delete();
+    } catch (e) {
+      print("ERROR: Delete record failed - $e");
+    }
+  }
+
+  /// Batch-fetch nickname/flag from users collection and inject into records.
+  /// Falls back to existing nickname/flag fields for legacy records without userId.
+  Future<void> _enrichWithUserData(List<Map<String, dynamic>> records) async {
+    if (_db == null) return;
+
+    final userIds = records
+        .map((r) => (r['userId'] as String?) ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (userIds.isEmpty) return;
+
+    final Map<String, Map<String, dynamic>> userMap = {};
+    for (int i = 0; i < userIds.length; i += 30) {
+      final batch = userIds.skip(i).take(30).toList();
+      try {
+        final snap = await _db!
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
+        for (final doc in snap.docs) {
+          userMap[doc.id] = doc.data();
+        }
+      } catch (_) {}
+    }
+
+    for (final r in records) {
+      final uid = (r['userId'] as String?) ?? '';
+      final user = userMap[uid];
+      if (user != null) {
+        r['nickname'] = (user['nickname'] as String?) ?? r['nickname'] ?? 'Unknown';
+        final userFlag = (user['flag'] as String?) ?? '';
+        r['flag'] = userFlag.isNotEmpty ? userFlag : ((r['flag'] as String?) ?? '');
+      }
     }
   }
 
@@ -157,16 +194,13 @@ class RankingSystem {
     try {
       final periodStart = _getPeriodStart(period);
 
-      Query query = _db!.collection('maps').doc(mapId).collection('records');
-
-      // allTime also uses year filter (Jan 1 of current year)
-      query = query.where(
-        'timestamp',
-        isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart),
-      );
-
-      // Fetch more records and sort in memory to avoid composite index
-      QuerySnapshot snapshot = await query.limit(500).get();
+      QuerySnapshot snapshot = await _db!
+          .collection('maps')
+          .doc(mapId)
+          .collection('records')
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart))
+          .limit(500)
+          .get();
 
       List<Map<String, dynamic>> records = snapshot.docs.map((doc) {
         var data = doc.data() as Map<String, dynamic>;
@@ -174,21 +208,22 @@ class RankingSystem {
         return data;
       }).toList();
 
-      // Sort by survivalTime descending
       records.sort((a, b) {
         double timeA = (a['survivalTime'] as num).toDouble();
         double timeB = (b['survivalTime'] as num).toDouble();
         return timeB.compareTo(timeA);
       });
 
-      return records.take(30).toList();
+      final top30 = records.take(30).toList();
+      await _enrichWithUserData(top30);
+      return top30;
     } catch (e) {
       print("Load failed: $e");
       return [];
     }
   }
 
-  // 3. Fetch National Top 30 with period filter
+  // 3. Fetch National Top 30 — query by flag field (works for all records including legacy)
   Future<List<Map<String, dynamic>>> getNationalRankings(
     String mapId,
     String flag, {
@@ -198,105 +233,77 @@ class RankingSystem {
     try {
       final periodStart = _getPeriodStart(period);
 
-      Query query = _db!
+      // Query by flag field — stored in every record (new + legacy)
+      final snap = await _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
-          .where('flag', isEqualTo: flag);
+          .where('flag', isEqualTo: flag)
+          .limit(500)
+          .get();
 
-      // REMOVED TIMESTAMP FILTER TO AVOID COMPOSITE INDEX ISSUE
-      // Filtering will be done in memory below.
-      /*
-      if (period != RankingPeriod.allTime) {
-        query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart));
-      }
-      */
-
-      QuerySnapshot snapshot = await query.limit(200).get();
-
-      List<Map<String, dynamic>> records = [];
-      for (var doc in snapshot.docs) {
-        var data = doc.data() as Map<String, dynamic>;
+      final List<Map<String, dynamic>> records = [];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final ts = data['timestamp'] as Timestamp?;
+        if (ts == null || ts.toDate().isBefore(periodStart)) continue;
         data['id'] = doc.id;
-
-        // IN-MEMORY FILTER
-        if (period != RankingPeriod.allTime) {
-          Timestamp? ts = data['timestamp'] as Timestamp?;
-          if (ts != null && ts.toDate().isBefore(periodStart)) {
-            continue;
-          }
-        }
         records.add(data);
       }
 
-      // Sort in memory
       records.sort((a, b) {
         double timeA = (a['survivalTime'] as num).toDouble();
         double timeB = (b['survivalTime'] as num).toDouble();
         return timeB.compareTo(timeA);
       });
 
-      return records.take(30).toList();
+      final top30 = records.take(30).toList();
+      await _enrichWithUserData(top30); // fetch live nickname from users
+      return top30;
     } catch (e) {
       print("National load failed: $e");
       return [];
     }
   }
 
-  // 4. Fetch My Rank and Record (Aggregation Query)
+  // 4. Fetch My Best Record for period (queried by userId)
   Future<Map<String, dynamic>?> getMyRank(
     String mapId,
-    String nickname, {
-    String? flag,
+    String userId, {
     RankingPeriod period = RankingPeriod.allTime,
   }) async {
-    if (_db == null) return null;
+    if (_db == null || userId.isEmpty) return null;
     try {
       final periodStart = _getPeriodStart(period);
 
-      // 1. Find my records — no timestamp filter here to avoid composite index issue
-      Query query = _db!
+      final snap = await _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
-          .where('nickname', isEqualTo: nickname);
+          .where('userId', isEqualTo: userId)
+          .get();
 
-      if (flag != null) {
-        query = query.where('flag', isEqualTo: flag);
-      }
+      if (snap.docs.isEmpty) return null;
 
-      QuerySnapshot myRecordSnapshot = await query.get();
-
-      if (myRecordSnapshot.docs.isEmpty) return null;
-
-      // In-memory period filter (avoids Firestore composite index requirement)
-      var docs = myRecordSnapshot.docs.where((doc) {
-        var data = doc.data() as Map<String, dynamic>;
-        Timestamp? ts = data['timestamp'] as Timestamp?;
+      var docs = snap.docs.where((doc) {
+        final ts = doc.data()['timestamp'] as Timestamp?;
         if (ts == null) return false;
         return !ts.toDate().isBefore(periodStart);
       }).toList();
 
       if (docs.isEmpty) return null;
 
-      print("Found ${docs.length} records for $nickname in period");
-
       docs.sort((a, b) {
-        var dataA = a.data() as Map<String, dynamic>;
-        var dataB = b.data() as Map<String, dynamic>;
-        double timeA = (dataA['survivalTime'] as num).toDouble();
-        double timeB = (dataB['survivalTime'] as num).toDouble();
-        return timeB.compareTo(timeA); // Descending
+        double timeA = (a.data()['survivalTime'] as num).toDouble();
+        double timeB = (b.data()['survivalTime'] as num).toDouble();
+        return timeB.compareTo(timeA);
       });
 
-      var myDoc = docs.first;
-      var myData = myDoc.data() as Map<String, dynamic>;
-      myData['id'] = myDoc.id;
-
-      // 2. Rank calculation skipped (Cost and Efficiency)
-      // If not in Top 30, we return -1.
+      final myData = docs.first.data();
+      myData['id'] = docs.first.id;
       myData['rank'] = -1;
 
+      await _enrichWithUserData([myData]);
       return myData;
     } catch (e) {
       print("My rank load failed: $e");

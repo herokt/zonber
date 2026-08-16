@@ -6,11 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'design_system.dart';
 import 'game_settings.dart';
 
 import 'language_manager.dart';
 import 'services/auth_service.dart';
+import 'achievement_manager.dart';
 
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
@@ -30,6 +32,8 @@ class UserProfileManager {
   static const String _keyTotalGamesPlayed = 'stats_total_games_played';
   static const String _keyMapPlayCounts =
       'stats_map_play_counts'; // JSON encoded map
+  static const String _keyCharacterPlayCounts =
+      'stats_character_play_counts'; // JSON encoded map
 
   // Helper method to detect current platform
   static String _getCurrentPlatform() {
@@ -81,7 +85,52 @@ class UserProfileManager {
     print('Local setup done: $localSetupDone');
 
     if (localSetupDone) {
-      print('Profile found locally');
+      final guestFlagSet = prefs.getBool(_keyIsGuest) ?? false;
+      final authUser = FirebaseAuth.instance.currentUser;
+      final isAnonymous = authUser == null || authUser.isAnonymous;
+
+      if (guestFlagSet && isAnonymous) {
+        // 게스트는 랭킹 등록 자체가 불가능하므로 국가를 강제하지 않는다.
+        // (첫 플레이 전 폼 입력은 하이퍼캐주얼에서 이탈로 직결됨 —
+        //  실제 계정으로 전환하는 시점에 받는다)
+        return true;
+      }
+
+      if (guestFlagSet && !isAnonymous) {
+        // 게스트 → 정식 계정 전환. 닉네임·국가를 새로 받아야 하므로
+        // 최초 설정 화면으로 되돌린다.
+        print('Guest upgraded to a real account — requiring profile setup');
+        await prefs.setBool(_keyIsGuest, false);
+        await prefs.setBool(_keyInitialSetupDone, false);
+        return false;
+      }
+
+      final flag = prefs.getString(_keyFlag) ?? '';
+      final countryName = prefs.getString(_keyCountryName) ?? '';
+      if (flag.isNotEmpty && countryName.isNotEmpty) {
+        print('Profile found locally');
+        return true;
+      }
+      // Existing user without country — default to South Korea.
+      // ⚠️ prefs만 채우면 Firestore users 문서에는 국가가 계속 비어 있어
+      // 랭킹에 국기가 안 뜨고 백오피스에도 '-'로 남는다. 원격까지 함께 채운다.
+      print('Local profile missing country — defaulting to South Korea');
+      await prefs.setString(_keyFlag, '🇰🇷');
+      await prefs.setString(_keyCountryName, 'South Korea');
+      final authedUser = FirebaseAuth.instance.currentUser;
+      if (authedUser != null && !authedUser.isAnonymous) {
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(authedUser.uid)
+              .set({
+            'flag': '🇰🇷',
+            'countryName': 'South Korea',
+          }, SetOptions(merge: true));
+        } catch (e) {
+          print('Failed to backfill country to Firestore: $e');
+        }
+      }
       return true;
     }
 
@@ -128,10 +177,10 @@ class UserProfileManager {
             data['totalGamesPlayed'] ?? 0,
           );
           if (data['mapPlayCounts'] != null) {
-            await prefs.setString(
-              _keyMapPlayCounts,
-              jsonEncode(data['mapPlayCounts']),
-            );
+            await prefs.setString(_keyMapPlayCounts, jsonEncode(data['mapPlayCounts']));
+          }
+          if (data['characterPlayCounts'] != null) {
+            await prefs.setString(_keyCharacterPlayCounts, jsonEncode(data['characterPlayCounts']));
           }
 
           // Sync manual reset flags
@@ -142,7 +191,32 @@ class UserProfileManager {
             await prefs.setStringList(_keyManuallyResetPurchases, resetList);
           }
 
+          String restoredFlag = data['flag'] ?? '';
+          String restoredCountry = data['countryName'] ?? '';
+          if (restoredFlag.isEmpty || restoredCountry.isEmpty) {
+            // Existing account without country — default to South Korea
+            print('Firestore profile missing country — defaulting to South Korea');
+            restoredFlag = '🇰🇷';
+            restoredCountry = 'South Korea';
+            await prefs.setString(_keyFlag, restoredFlag);
+            await prefs.setString(_keyCountryName, restoredCountry);
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .set({
+              'flag': restoredFlag,
+              'countryName': restoredCountry,
+            }, SetOptions(merge: true));
+          }
+
           await prefs.setBool(_keyInitialSetupDone, true);
+
+          // Sync achievements from Firestore to local cache
+          final remoteAchievements =
+              List<String>.from(data['achievements'] ?? []);
+          if (remoteAchievements.isNotEmpty) {
+            await AchievementManager.syncFromFirestore(remoteAchievements);
+          }
 
           // Update platform and login info on sync
           try {
@@ -205,10 +279,10 @@ class UserProfileManager {
         );
         await prefs.setInt(_keyTotalGamesPlayed, data['totalGamesPlayed'] ?? 0);
         if (data['mapPlayCounts'] != null) {
-          await prefs.setString(
-            _keyMapPlayCounts,
-            jsonEncode(data['mapPlayCounts']),
-          );
+          await prefs.setString(_keyMapPlayCounts, jsonEncode(data['mapPlayCounts']));
+        }
+        if (data['characterPlayCounts'] != null) {
+          await prefs.setString(_keyCharacterPlayCounts, jsonEncode(data['characterPlayCounts']));
         }
 
         // Sync manual reset flags
@@ -240,8 +314,10 @@ class UserProfileManager {
     await prefs.remove(_keyTotalPlayTime);
     await prefs.remove(_keyTotalGamesPlayed);
     await prefs.remove(_keyMapPlayCounts);
+    await prefs.remove(_keyCharacterPlayCounts);
     await prefs.remove(_keyIsGuest);
     await prefs.remove(_keyFirstEdit);
+    await AchievementManager.clearLocal();
   }
 
   // Guest Mode Methods
@@ -253,11 +329,10 @@ class UserProfileManager {
   static Future<void> enableGuestMode() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyIsGuest, true);
+    // 게스트는 국가 선택 없이 바로 플레이할 수 있게 한다.
+    // 국가는 로그인 후 점수를 등록하는 시점에 InitialSetupPage에서 받는다.
     await prefs.setBool(_keyInitialSetupDone, true);
-    // Set default guest profile
     await prefs.setString(_keyNickname, 'Guest');
-    await prefs.setString(_keyFlag, '');
-    await prefs.setString(_keyCountryName, '');
     await prefs.setString(_keyCharacterId, 'neon_green');
     await prefs.setBool(
       _keyFirstEdit,
@@ -594,14 +669,26 @@ class UserProfileManager {
       }
     }
 
-    // Determine favorite map
-    String favoriteMap = '-';
-    int maxCount = 0;
-    mapCounts.forEach((key, value) {
-      if (value > maxCount) {
-        maxCount = value;
-        favoriteMap = key;
+    Map<String, int> characterCounts = {};
+    String? charCountsJson = prefs.getString(_keyCharacterPlayCounts);
+    if (charCountsJson != null) {
+      try {
+        characterCounts = Map<String, int>.from(jsonDecode(charCountsJson));
+      } catch (e) {
+        print("Error parsing character counts: $e");
       }
+    }
+
+    String favoriteMap = '-';
+    int maxMapCount = 0;
+    mapCounts.forEach((key, value) {
+      if (value > maxMapCount) { maxMapCount = value; favoriteMap = key; }
+    });
+
+    String favoriteCharacter = '-';
+    int maxCharCount = 0;
+    characterCounts.forEach((key, value) {
+      if (value > maxCharCount) { maxCharCount = value; favoriteCharacter = key; }
     });
 
     return {
@@ -609,6 +696,8 @@ class UserProfileManager {
       'totalGamesPlayed': totalGames,
       'favoriteMap': favoriteMap,
       'mapPlayCounts': mapCounts,
+      'favoriteCharacter': favoriteCharacter,
+      'characterPlayCounts': characterCounts,
     };
   }
 
@@ -618,7 +707,6 @@ class UserProfileManager {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Update local
     double currentTotalTime = prefs.getDouble(_keyTotalPlayTime) ?? 0.0;
     int currentTotalGames = prefs.getInt(_keyTotalGamesPlayed) ?? 0;
 
@@ -628,15 +716,23 @@ class UserProfileManager {
     Map<String, int> mapCounts = {};
     String? mapCountsJson = prefs.getString(_keyMapPlayCounts);
     if (mapCountsJson != null) {
-      try {
-        mapCounts = Map<String, int>.from(jsonDecode(mapCountsJson));
-      } catch (_) {}
+      try { mapCounts = Map<String, int>.from(jsonDecode(mapCountsJson)); } catch (_) {}
     }
     mapCounts[mapId] = (mapCounts[mapId] ?? 0) + 1;
+
+    // Track character play counts
+    final characterId = prefs.getString(_keyCharacterId) ?? 'neon_green';
+    Map<String, int> characterCounts = {};
+    String? charCountsJson = prefs.getString(_keyCharacterPlayCounts);
+    if (charCountsJson != null) {
+      try { characterCounts = Map<String, int>.from(jsonDecode(charCountsJson)); } catch (_) {}
+    }
+    characterCounts[characterId] = (characterCounts[characterId] ?? 0) + 1;
 
     await prefs.setDouble(_keyTotalPlayTime, currentTotalTime);
     await prefs.setInt(_keyTotalGamesPlayed, currentTotalGames);
     await prefs.setString(_keyMapPlayCounts, jsonEncode(mapCounts));
+    await prefs.setString(_keyCharacterPlayCounts, jsonEncode(characterCounts));
 
     // Sync to Firebase
     final user = FirebaseAuth.instance.currentUser;
@@ -647,12 +743,12 @@ class UserProfileManager {
           'totalPlayTime': currentTotalTime,
           'totalGamesPlayed': currentTotalGames,
           'mapPlayCounts': mapCounts,
+          'characterPlayCounts': characterCounts,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
           'email': user.email ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
         };
-        // createdAt이 없는 문서(게스트 등)에 최초 1회 저장
         final docSnap = await docRef.get();
         if (!docSnap.exists || !(docSnap.data() as Map).containsKey('createdAt')) {
           statsData['createdAt'] = FieldValue.serverTimestamp();
@@ -661,6 +757,16 @@ class UserProfileManager {
       } catch (e) {
         print("Error syncing stats: $e");
       }
+    }
+
+    // Increment global play count for this map (all plays, not just score submissions)
+    try {
+      await FirebaseFirestore.instance
+          .collection('maps')
+          .doc(mapId)
+          .set({'playCount': FieldValue.increment(1)}, SetOptions(merge: true));
+    } catch (e) {
+      print("Error syncing map play count: $e");
     }
   }
 }
@@ -926,6 +1032,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
   bool _vibrationEnabled = true;
   User? _currentUser;
   bool _firstEdit = true;
+  String _appVersion = '';
+  double _sensitivity = GameSettings.defaultSensitivity;
 
   @override
   void initState() {
@@ -938,6 +1046,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
     final nicknameTickets = await UserProfileManager.getNicknameTickets();
     final countryTickets = await UserProfileManager.getCountryTickets();
     final firstEdit = await UserProfileManager.isFirstEditAvailable();
+    final packageInfo = await PackageInfo.fromPlatform();
     setState(() {
       _profile = profile;
       _nicknameTickets = nicknameTickets;
@@ -947,6 +1056,8 @@ class _MyProfilePageState extends State<MyProfilePage> {
       _checkAds();
       _soundEnabled = GameSettings().soundEnabled;
       _vibrationEnabled = GameSettings().vibrationEnabled;
+      _sensitivity = GameSettings().sensitivity;
+      _appVersion = 'v${packageInfo.version}';
       _currentUser = FirebaseAuth.instance.currentUser;
     });
   }
@@ -1256,6 +1367,7 @@ class _MyProfilePageState extends State<MyProfilePage> {
                       inactiveTrackColor: AppColors.textDim.withOpacity(0.3),
                     ),
                   ),
+                  _buildSensitivityRow(context),
                   if (widget.onStatistics != null)
                     _buildCellRow(
                       icon: Icons.bar_chart_rounded,
@@ -1263,6 +1375,14 @@ class _MyProfilePageState extends State<MyProfilePage> {
                       onTap: widget.onStatistics,
                       trailing: const Icon(Icons.chevron_right, color: AppColors.textDim, size: 20),
                     ),
+                  _buildCellRow(
+                    icon: Icons.info_outline,
+                    label: LanguageManager.of(context).translate("app_version"),
+                    trailing: Text(
+                      _appVersion,
+                      style: const TextStyle(color: AppColors.textDim, fontSize: 13),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1395,6 +1515,65 @@ class _MyProfilePageState extends State<MyProfilePage> {
             if (trailing != null) trailing,
           ],
         ),
+      ),
+    );
+  }
+
+  /// 드래그 감도 슬라이더.
+  /// 조작은 상대 드래그(손가락 이동량만큼 캐릭터가 움직임)이므로 이 값이
+  /// 곧 "손가락 1cm당 캐릭터가 몇 cm 움직이는가"를 결정한다.
+  Widget _buildSensitivityRow(BuildContext context) {
+    final lm = LanguageManager.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.open_with, color: AppColors.primary, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  lm.translate('sensitivity'),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ),
+              Text(
+                '${_sensitivity.toStringAsFixed(2)}x',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 32, right: 4),
+            child: Text(
+              lm.translate('sensitivity_desc'),
+              style: const TextStyle(color: AppColors.textDim, fontSize: 11),
+            ),
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppColors.primary,
+              inactiveTrackColor: AppColors.primary.withOpacity(0.2),
+              thumbColor: AppColors.primary,
+              overlayColor: AppColors.primary.withOpacity(0.15),
+              trackHeight: 3,
+            ),
+            child: Slider(
+              value: _sensitivity,
+              min: GameSettings.minSensitivity,
+              max: GameSettings.maxSensitivity,
+              divisions: 12,
+              onChanged: (v) => setState(() => _sensitivity = v),
+              onChangeEnd: (v) => GameSettings().setSensitivity(v),
+            ),
+          ),
+        ],
       ),
     );
   }

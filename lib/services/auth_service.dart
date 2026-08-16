@@ -15,24 +15,35 @@ class AuthService {
   // Current user
   User? get currentUser => _auth.currentUser;
 
+  /// 게스트(익명) 로그인. 세션이 기기에 저장되므로 앱을 껐다 켜도
+  /// 로그인 화면을 다시 보지 않고, 통계/업적을 uid 기준으로 이어갈 수 있다.
+  Future<UserCredential?> signInAnonymously() async {
+    try {
+      if (_auth.currentUser != null) return null; // 이미 세션 있음
+      return await _auth.signInAnonymously();
+    } catch (e) {
+      print("Error signing in anonymously: $e");
+      return null;
+    }
+  }
+
   // Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
-    if (_googleSignIn == null) return null;
     try {
-      // Trigger the authentication flow
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        return await _auth.signInWithPopup(provider);
+      }
+
+      if (_googleSignIn == null) return null;
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null; // The user canceled the sign-in
+      if (googleUser == null) return null;
 
-      // Obtain the auth details from the request
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // Create a new credential
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-
-      // Once signed in, return the UserCredential
       return await _auth.signInWithCredential(credential);
     } catch (e) {
       print("Error signing in with Google: $e");

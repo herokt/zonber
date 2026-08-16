@@ -73,7 +73,13 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleGuestContinue() async {
+    setState(() => _isLoading = true);
+    // 익명 세션을 만들어야 앱 재실행 시 로그인 화면을 다시 보지 않고,
+    // 통계·업적을 uid 기준으로 이어갈 수 있다.
+    await _authService.signInAnonymously();
     await UserProfileManager.enableGuestMode();
+    if (!mounted) return;
+    setState(() => _isLoading = false);
     widget.onGuestContinue?.call();
   }
 

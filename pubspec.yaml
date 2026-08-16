@@ -51,6 +51,7 @@ dependencies:
   sign_in_with_apple: 7.0.1
   in_app_purchase: ^3.2.0
   app_tracking_transparency: ^2.0.6+1
+  package_info_plus: ^8.3.0
 
 dev_dependencies:
   flutter_test:
