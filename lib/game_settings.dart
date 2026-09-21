@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class GameSettings {
+/// 설정 값. 테마(darkMode) 변경은 리스너(main)가 받아 앱 전체를 다시 그린다.
+class GameSettings extends ChangeNotifier {
   static final GameSettings _instance = GameSettings._internal();
   factory GameSettings() => _instance;
   GameSettings._internal();
@@ -11,10 +13,14 @@ class GameSettings {
 
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
+  bool _darkMode = false;
   double _sensitivity = defaultSensitivity;
 
   bool get soundEnabled => _soundEnabled;
   bool get vibrationEnabled => _vibrationEnabled;
+
+  /// 다크 테마. 기본은 라이트.
+  bool get darkMode => _darkMode;
 
   /// 드래그 이동량 배수. 캐릭터의 speedMultiplier와 곱해져 최종 이동량이 된다.
   double get sensitivity => _sensitivity;
@@ -23,6 +29,7 @@ class GameSettings {
     final prefs = await SharedPreferences.getInstance();
     _soundEnabled = prefs.getBool('sound_enabled') ?? true;
     _vibrationEnabled = prefs.getBool('vibration_enabled') ?? true;
+    _darkMode = prefs.getBool('dark_mode') ?? false;
     _sensitivity = (prefs.getDouble('drag_sensitivity') ?? defaultSensitivity)
         .clamp(minSensitivity, maxSensitivity);
   }
@@ -37,6 +44,14 @@ class GameSettings {
     _vibrationEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('vibration_enabled', enabled);
+  }
+
+  Future<void> setDarkMode(bool enabled) async {
+    if (_darkMode == enabled) return;
+    _darkMode = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dark_mode', enabled);
   }
 
   Future<void> setSensitivity(double value) async {

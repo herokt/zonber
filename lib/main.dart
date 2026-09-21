@@ -1,7 +1,9 @@
 import 'dart:math';
+import 'dart:ui' as ui; // Gradient (총알슛 꼬리)
 import 'package:flutter/material.dart';
 import 'login_page.dart'; // Added
 import 'package:firebase_auth/firebase_auth.dart'; // Added
+import 'package:flutter/gestures.dart'; // PointerDeviceKind (마우스 드래그 스와이프)
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:country_picker/country_picker.dart';
@@ -14,10 +16,8 @@ import 'package:flame/input.dart'; // Required for PanDetector
 import 'package:flame/events.dart'; // Required for DragStartInfo etc?
 
 import 'ranking_system.dart';
-import 'achievement_manager.dart';
 import 'editor_game.dart';
 import 'user_profile.dart';
-import 'leaderboard_widget.dart';
 import 'map_service.dart'; // Import MapService
 import 'maze_generator.dart'; // Import MazeGenerator
 import 'game_settings.dart';
@@ -29,13 +29,25 @@ import 'package:google_mobile_ads/google_mobile_ads.dart'; // For BannerAd, AdWi
 import 'design_system.dart';
 import 'shop_page.dart';
 import 'services/auth_service.dart';
+import 'services/analytics_service.dart';
+import 'world_config.dart';
+import 'progress_store.dart';
+import 'coin_store.dart';
+import 'cosmetics.dart';
+import 'gear.dart';
+import 'zonber_painter.dart';
+import 'game_art.dart';
+import 'pages/home_page.dart';
+import 'pages/ranking_page.dart';
+import 'pages/result_page.dart';
+import 'pages/hall_of_fame_page.dart';
+import 'pages/profile_page.dart';
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
 import 'statistics_page.dart'; // Added by instruction
 import 'game_config.dart'; // [NEW] Added for Stage Config
 import 'backoffice/backoffice_home.dart'; // Added for Secret Admin
 import 'firebase_options.dart'; // Added by instruction
-import 'powerup_system.dart';
 import 'game_guide_sheet.dart';
 
 import 'dart:io';
@@ -51,15 +63,17 @@ void main() async {
     print("Skipping Firebase/AdMob/IAP init on desktop/web");
   }
 
-  // Status bar/nav bar: transparent + light icons (edge-to-edge compatible)
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
+  // 테마는 첫 프레임 전에 읽는다 — 다크 사용자에게 라이트 스플래시가 번쩍이지 않게
+  await GameSettings().load();
+  AppColors.isDark = GameSettings().darkMode;
+
+  // Status bar/nav bar: transparent, 아이콘 밝기는 테마를 따른다 (edge-to-edge compatible)
+  SystemChrome.setSystemUIOverlayStyle(AppColors.overlayStyle);
 
   // Moved GameSettings, AudioManager, LanguageManager init to _ZonberAppState
+
+  // 게임 그림(캐릭터·장비·공·이펙트)을 첫 화면 전에 읽어 둔다 — 없으면 코드 그림
+  await GameArt.load();
 
   runApp(
     ChangeNotifierProvider(
@@ -78,7 +92,19 @@ class ZonberApp extends StatefulWidget {
 
 class _ZonberAppState extends State<ZonberApp> {
   String _currentPage = 'Splash'; // Start with Splash to prevent Login flicker
-  String _currentMapId = 'zone_1_classic'; // Default Map
+  // ── 월드 ──
+  String _currentWorldId = WorldData.defaultWorld.id;
+  Map<String, double> _bestTimes = {};
+  Map<String, RankCacheEntry> _rankCache = {};
+  double _previousBest = 0.0; // 결과 화면 델타용 — 이번 판 이전 최고
+  int _runCoins = 0; // 이번 판(부활 포함)에 이미 준 코인
+  String _shopReturn = 'Menu'; // 상점에서 뒤로 가면 돌아갈 화면
+  PlateData? _pendingPlate;   // Hall of Fame 진입 데이터
+  /// 월드별 목표선 캐시(TOP 100/30/10/1 시간). 10분 유지.
+  final Map<String, ({List<double> times, DateTime at})> _targetCache = {};
+
+  WorldConfig get _currentWorld => WorldData.getWorld(_currentWorldId);
+  String get _currentMapId => _currentWorld.rankingMapId;
   Map<String, dynamic>? _lastGameResult; // Store result data
 
   // Global Banner Ad State
@@ -100,6 +126,7 @@ class _ZonberAppState extends State<ZonberApp> {
   void initState() {
     super.initState();
     LanguageManager().addListener(_handleLanguageChange);
+    GameSettings().addListener(_applyTheme);
 
     // Check for Secret Admin URL
     if (kIsWeb && Uri.base.toString().contains('/secret_admin')) {
@@ -107,6 +134,21 @@ class _ZonberAppState extends State<ZonberApp> {
     }
 
     _initializeApp();
+  }
+
+  /// 설정의 다크 모드 전환 — AppColors 를 바꾸고 트리 전체를 다시 빌드한다.
+  /// const 위젯은 부모 setState 로는 다시 빌드되지 않으므로 모든 Element 를 직접 표시한다(상태는 유지).
+  void _applyTheme() {
+    if (AppColors.isDark == GameSettings().darkMode) return;
+    AppColors.isDark = GameSettings().darkMode;
+    SystemChrome.setSystemUIOverlayStyle(AppColors.overlayStyle);
+    if (!mounted) return;
+    void rebuild(Element el) {
+      el.markNeedsBuild();
+      el.visitChildren(rebuild);
+    }
+    (context as Element).visitChildren(rebuild);
+    setState(() {});
   }
 
   void _handleLanguageChange() {
@@ -138,12 +180,12 @@ class _ZonberAppState extends State<ZonberApp> {
         print("❌ Firebase initialization failed (Mobile): $e");
       }
 
-      try {
-        await AdManager().initialize();
-        print("✅ AdMob initialized");
-      } catch (e) {
-        print("❌ AdMob initialization failed: $e");
-      }
+      // 동의 폼(UMP)·ATT 가 사용자 응답을 기다릴 수 있으므로 앱 시작을 막지 않는다.
+      // 배너는 _checkAdStatus 에서 AdManager().whenReady 뒤에 요청한다.
+      AdManager().initialize().then(
+        (_) => print("✅ AdMob initialized"),
+        onError: (e) => print("❌ AdMob initialization failed: $e"),
+      );
 
       try {
         // await IAPService().initialize();
@@ -157,6 +199,7 @@ class _ZonberAppState extends State<ZonberApp> {
     await GameSettings().load();
     await AudioManager().initialize();
     await LanguageManager().init();
+    await AnalyticsService().initialize();
 
     // 3. Check Auth & Profile
     await _checkAuth();
@@ -166,7 +209,9 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 
   Future<void> _checkAdStatus() async {
+    await AdManager().whenReady;
     final adsRemoved = await UserProfileManager.isAdsRemoved();
+    if (!mounted) return;
     setState(() {
       _adsRemoved = adsRemoved;
     });
@@ -178,8 +223,16 @@ class _ZonberAppState extends State<ZonberApp> {
 
   void _loadGlobalBannerAd() {
     _bannerAd = AdManager().loadBannerAd(() {
+      if (!mounted) return;
       setState(() {
         _isBannerAdReady = true;
+      });
+    }, onFailed: () {
+      // 실패한 배너는 AdManager 가 dispose 했다 — 참조를 버리고 잠시 뒤 다시 요청
+      _bannerAd = null;
+      _isBannerAdReady = false;
+      Future.delayed(const Duration(seconds: 30), () {
+        if (mounted && !_adsRemoved && _bannerAd == null) _loadGlobalBannerAd();
       });
     });
   }
@@ -204,6 +257,7 @@ class _ZonberAppState extends State<ZonberApp> {
   @override
   void dispose() {
     LanguageManager().removeListener(_handleLanguageChange);
+    GameSettings().removeListener(_applyTheme);
     _bannerAd?.dispose();
     // IAPService().dispose();
     super.dispose();
@@ -228,12 +282,50 @@ class _ZonberAppState extends State<ZonberApp> {
     // Normal App Flow — wait for Firebase to restore persisted session
     User? user = await FirebaseAuth.instance.authStateChanges().first;
     if (user == null) {
-      setState(() {
-        _currentPage = 'Login';
-      });
+      // 게스트 기본화 — 첫 실행은 로그인 화면 없이 바로 게스트로 메뉴에 들어간다.
+      // 로그인은 랭킹 등록처럼 계정이 필요한 시점에만 요구한다 (ResultPage → Login).
+      await _enterAsGuest();
     } else {
-      _checkProfile();
+      await _checkProfile();
     }
+  }
+
+  /// 익명 세션 + 게스트 프로필로 메뉴에 진입한다. 최초 실행과 로그아웃 직후에 쓴다.
+  /// 익명 로그인이 실패해도(오프라인 등) 게스트 플레이는 가능해야 하므로 메뉴로 보낸다.
+  Future<void> _enterAsGuest() async {
+    final cred = await AuthService().signInAnonymously();
+    final anonymousOk = cred != null ||
+        (FirebaseAuth.instance.currentUser?.isAnonymous ?? false);
+    await UserProfileManager.enableGuestMode();
+    AnalyticsService().logGuestStart(anonymousAuthOk: anonymousOk);
+    AnalyticsService().logSessionReady(
+      isGuest: true,
+      provider: 'Guest',
+      firstPage: 'Menu',
+    );
+    AnalyticsService().logScreen('Menu');
+    await _loadProgress();
+    if (!mounted) return;
+    setState(() => _currentPage = 'Menu');
+  }
+
+  Future<void> _loadProgress() async {
+    await CoinStore.load();
+    _bestTimes = await ProgressStore.getBestTimes();
+    _rankCache = await ProgressStore.getRankCache();
+    // 저장된 월드가 잠겨 있으면 플레이 가능한 기본 월드로
+    if (!WorldData.isUnlocked(_currentWorld, _bestTimes)) {
+      _currentWorldId = WorldData.defaultWorld.id;
+    }
+  }
+
+  static String _providerName(User? user) {
+    if (user == null || user.isAnonymous) return 'Guest';
+    for (final info in user.providerData) {
+      if (info.providerId == 'google.com') return 'Google';
+      if (info.providerId == 'apple.com') return 'Apple';
+    }
+    return 'Unknown';
   }
 
   Future<void> _checkProfile() async {
@@ -241,21 +333,34 @@ class _ZonberAppState extends State<ZonberApp> {
     await UserProfileManager.syncProfile();
 
     bool hasProfile = await UserProfileManager.hasProfile();
+    final firstPage = hasProfile ? 'Menu' : 'Profile';
+    final user = FirebaseAuth.instance.currentUser;
+    AnalyticsService().logSessionReady(
+      isGuest: user?.isAnonymous ?? true,
+      provider: _providerName(user),
+      firstPage: firstPage,
+    );
+    AnalyticsService().logScreen(firstPage);
+    await _loadProgress();
+    if (!mounted) return;
     setState(() {
-      _currentPage = hasProfile ? 'Menu' : 'Profile';
+      _currentPage = firstPage;
     });
   }
 
   void _navigateTo(String page, {String? mapId, double initialTime = 0.0}) {
+    if (page == 'Shop' && _currentPage != 'Shop') _shopReturn = _currentPage;
     // Create the game object here (before setState) so that build() always
     // reuses the same instance. Creating it inside build() causes a new game
     // to be instantiated on every rebuild (e.g. when the banner ad loads),
     // which makes Flame's GameWidget restart the game mid-session.
     if (page == 'Game') {
-      final effectiveMapId = mapId ?? _currentMapId;
+      final world = _currentWorld;
       _currentGame = ZonberGame(
-        mapId: effectiveMapId,
+        mapId: world.layoutId,
+        worldConfig: world,
         initialSurvivalTime: initialTime,
+        personalBest: _bestTimes[world.id] ?? 0.0,
         onExit: () {
           AdManager().showInterstitialIfReady();
           _navigateTo('Menu');
@@ -264,12 +369,26 @@ class _ZonberAppState extends State<ZonberApp> {
           _handleGameOver(result);
         },
       );
+      _loadTargets(world, _currentGame!);
+    }
+
+    AnalyticsService().logScreen(page);
+    if (page == 'Game' && initialTime == 0.0) {
+      final gameMapId = _currentMapId;
+      UserProfileManager.getProfile().then(
+        (p) => AnalyticsService().logGameStart(
+          mapId: gameMapId,
+          characterId: p['characterId'] ?? 'neon_green',
+        ),
+      );
     }
 
     setState(() {
       _currentPage = page;
       if (mapId != null) {
-        _currentMapId = mapId;
+        // 하위 호환: 랭킹 mapId 로 월드를 고른다
+        final w = WorldData.byRankingMapId(mapId);
+        if (w != null) _currentWorldId = w.id;
       }
       // Reset revive count when starting a NEW game from MapSelect (Time 0)
       if (page == 'Game' && initialTime == 0.0) {
@@ -278,29 +397,60 @@ class _ZonberAppState extends State<ZonberApp> {
     });
   }
 
-  void _showRankingDialog(BuildContext dialogContext, String mapId) {
-    print("Showing ranking dialog for $mapId");
-    showDialog(
-      context: dialogContext,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
-        child: LeaderboardWidget(
-          mapId: mapId,
-          onClose: () => Navigator.of(context).pop(),
-        ),
-      ),
-    );
+  /// 목표선(TOP 100/30/10/1 시간) — 게임 시작 시 비동기로 실어 준다. 10분 캐시.
+  Future<void> _loadTargets(WorldConfig world, ZonberGame game) async {
+    final cached = _targetCache[world.id];
+    List<double> times;
+    if (cached != null && DateTime.now().difference(cached.at).inMinutes < 10) {
+      times = cached.times;
+    } else {
+      times = await RankingSystem().getTopTimes(world.rankingMapId, limit: 100);
+      _targetCache[world.id] = (times: times, at: DateTime.now());
+    }
+    final targets = <({String label, double time})>[];
+    for (final n in [100, 30, 10, 1]) {
+      if (times.length >= n) targets.add((label: 'TOP $n', time: times[n - 1]));
+    }
+    targets.sort((a, b) => a.time.compareTo(b.time));
+    if (_currentGame == game) game.setTargets(targets);
+  }
+
+  Future<void> _refreshProgress() async {
+    _bestTimes = await ProgressStore.getBestTimes();
+    _rankCache = await ProgressStore.getRankCache();
+    if (mounted) setState(() {});
+  }
+
+  /// 가입(닉네임·국가 설정) 취소 — 로그아웃하고 게스트로 돌아간다
+  Future<void> _cancelSignup() async {
+    try {
+      await AuthService().signOut().timeout(const Duration(seconds: 2));
+    } catch (e) {
+      debugPrint('Main: cancel signup sign-out error: $e');
+    }
+    try {
+      await UserProfileManager.clearProfile().timeout(const Duration(seconds: 1));
+    } catch (_) {}
+    await _enterAsGuest();
   }
 
   /// Handles Android Back Button
   void _handleBack() {
     switch (_currentPage) {
       case 'Login':
+        // 로그인 화면은 루트가 아니다 — 게스트 세션 위에 떠 있으므로 메뉴로 돌아간다.
+        _navigateTo('Menu');
+        break;
+
       case 'Menu':
         // Let AppScaffold trigger Exit Dialog
         // Returning here allows onBack to be null, signalling AppScaffold to show quit dialog
         return;
+
+      case 'Ranking':
+      case 'HallOfFame':
+        _navigateTo('Menu');
+        break;
 
       case 'Game':
         if (_currentGame != null && _latestContext != null) {
@@ -310,6 +460,9 @@ class _ZonberAppState extends State<ZonberApp> {
 
       case 'Result':
       case 'Profile':
+        // 가입 중 뒤로 가기 = 가입 취소. 닉네임·국가 없이 로그인 상태로 남지 않게 게스트로 되돌린다
+        _cancelSignup();
+        break;
       case 'Editor':
       case 'CharacterSelect':
       case 'EditorVerify':
@@ -324,6 +477,10 @@ class _ZonberAppState extends State<ZonberApp> {
         _navigateTo('Menu');
         break;
 
+      case 'Shop':
+        _navigateTo(_shopReturn);
+        break;
+
       default:
         _navigateTo('Menu');
         break;
@@ -333,7 +490,7 @@ class _ZonberAppState extends State<ZonberApp> {
   /// Returns the Back Callback based on current page.
   /// Returns null if we represent the "Root" (to trigger exit dialog).
   VoidCallback? _getBackHandler() {
-    if (_currentPage == 'Menu' || _currentPage == 'Login') {
+    if (_currentPage == 'Menu') {
       return null; // Root -> Exit Dialog
     }
     return () => _handleBack();
@@ -343,8 +500,15 @@ class _ZonberAppState extends State<ZonberApp> {
   Widget build(BuildContext context) {
     // Manual listener ensures rebuild, so we can access singleton directly
     return MaterialApp(
+      // 마우스·트랙패드 드래그로도 캐러셀을 넘길 수 있게 (웹 미리보기·데스크톱)
+      scrollBehavior: const MaterialScrollBehavior().copyWith(dragDevices: {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      }),
       locale: Locale(LanguageManager().currentLanguage),
-      supportedLocales: const [Locale('en'), Locale('ko')],
+      supportedLocales: const [Locale('en'), Locale('ko'), Locale('zh'), Locale('ja')],
       localizationsDelegates: const [
         CountryLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -352,14 +516,37 @@ class _ZonberAppState extends State<ZonberApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       home: AppScaffold(
+        backgroundColor: _currentPage == 'Game' ? _currentWorld.floor : null,
         bannerAd: (_isBannerAdReady && _bannerAd != null && !_adsRemoved)
             ? AdWidget(ad: _bannerAd!)
             : null,
-        showBanner: !_adsRemoved, // Show banner only if ads not removed
+        // 플레이 중에는 숨긴다 — 드래그 조작 중 오클릭은 AdMob 무효 트래픽(계정 제재) 사유
+        showBanner: !_adsRemoved && _currentPage != 'Game',
         onBack: _getBackHandler(),
+        bottomNav: _bottomNavIndex() == null
+            ? null
+            : AppBottomNav(
+                index: _bottomNavIndex()!,
+                accent: _currentWorld.accent,
+                onTap: (i) => _navigateTo(const ['Menu', 'Ranking', 'Shop', 'MyProfile'][i]),
+              ),
         child: Builder(builder: (context) => _buildPage(context)),
       ),
     );
+  }
+
+  int? _bottomNavIndex() {
+    switch (_currentPage) {
+      case 'Menu':
+        return 0;
+      case 'Ranking':
+        return 1;
+      case 'Shop':
+        return 2;
+      case 'MyProfile':
+        return 3;
+    }
+    return null;
   }
 
   Widget _buildPage(BuildContext context) {
@@ -368,7 +555,7 @@ class _ZonberAppState extends State<ZonberApp> {
       case 'Backoffice':
         return const BackofficeHome();
       case 'Splash':
-        return const Scaffold(
+        return Scaffold(
           backgroundColor: AppColors.background,
           body: Center(
             child: Column(
@@ -377,16 +564,14 @@ class _ZonberAppState extends State<ZonberApp> {
                 Text(
                   "ZONBER",
                   style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                    fontFamily: 'Orbitron',
-                    letterSpacing: 4.0,
-                    shadows: [Shadow(color: AppColors.primary, blurRadius: 20)],
+                    fontSize: 40,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.text,
+                    letterSpacing: 6.0,
                   ),
                 ),
                 SizedBox(height: 32),
-                CircularProgressIndicator(color: AppColors.primary),
+                SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textDim)),
               ],
             ),
           ),
@@ -401,91 +586,38 @@ class _ZonberAppState extends State<ZonberApp> {
           },
         );
       case 'Game':
-        return Scaffold(
-            backgroundColor: const Color(0xFF0B0C10),
-            body: SafeArea(
-              child: Column(
-                children: [
-                  // ── 상단 HUD (고정 레이아웃) ──
-                  Container(
-                    color: const Color(0xFF0B0C10),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 타이머 + 뒤로가기
-                        SizedBox(
-                          height: 64,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.arrow_back,
-                                    color: AppColors.primary,
-                                    size: 28,
-                                  ),
-                                  onPressed: () => _pauseGame(context, _currentGame!),
-                                ),
-                                ValueListenableBuilder<double>(
-                                  valueListenable: _currentGame!.survivalTimeNotifier,
-                                  builder: (context, value, child) {
-                                    return Text(
-                                      'TIME: ${value.toStringAsFixed(3)}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.bold,
-                                        fontFamily: 'Orbitron',
-                                        shadows: [
-                                          Shadow(color: AppColors.primary, blurRadius: 10),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 48),
-                              ],
-                            ),
-                          ),
-                        ),
-                        // 에너지 바 (눈금 = 캐릭터 최대 에너지)
-                        _EnergyHud(notifier: _currentGame!.energyNotifier),
-                      ],
-                    ),
-                  ),
-                  // ── 게임 영역 + 활성 아이템 오버레이 ──
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Positioned.fill(child: GameWidget(game: _currentGame!)),
-                        // 활성 아이템은 레이아웃을 차지하지 않는 상단 중앙 오버레이로 표시.
-                        // IgnorePointer — 드래그 조작을 절대 가로채지 않는다.
-                        Positioned(
-                          top: 8,
-                          left: 0,
-                          right: 0,
-                          child: IgnorePointer(
-                            child: _ActiveEffectOverlay(
-                              notifier: _currentGame!.powerUpNotifier,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        return _GameScreen(
+          game: _currentGame!,
+          world: _currentWorld,
+          onPause: () => _pauseGame(context, _currentGame!),
+        );
+      case 'HallOfFame':
+        return HallOfFamePage(
+          plate: _pendingPlate!,
+          onViewRanking: () => _navigateTo('Ranking'),
+          onClose: () => _navigateTo('Menu'),
+        );
+      case 'Ranking':
+        return RankingPage(
+          key: ValueKey('ranking_$_currentWorldId'),
+          initialWorldId: _currentWorldId,
+          rankCache: _rankCache,
+          onLogin: () => _navigateTo('Login'),
         );
       case 'Result':
         return ResultPage(
-          mapId: _currentMapId,
+          world: _currentWorld,
           result: _lastGameResult!,
+          previousBest: _previousBest,
           onRestart: () => _navigateTo('Game'),
           onExit: () => _navigateTo('Menu'),
           onNavigateToLogin: () => _navigateTo('Login'),
+          onShowRanking: () => _navigateTo('Ranking'),
+          onHallOfFame: (plate) {
+            _pendingPlate = plate;
+            _refreshProgress();
+            _navigateTo('HallOfFame');
+          },
           // 부활은 게스트에게도 허용한다 — 광고 수익 관점에서 게스트를
           // 제외할 이유가 없고, 랭킹 등록과 달리 계정이 필요한 기능도 아니다.
           onRevive: (_reviveCount < 1)
@@ -493,6 +625,10 @@ class _ZonberAppState extends State<ZonberApp> {
                   bool shown = AdManager().showRewardedAd(() {
                     // On Reward: Resume Game
                     _reviveCount++; // Increment Revive Count
+                    AnalyticsService().logRevive(
+                      mapId: _currentMapId,
+                      survivalTime: _lastGameResult!['survivalTime'],
+                    );
                     // 부활로 판이 이어지므로 방금 제출한 기록은 삭제한다 —
                     // 같은 판이 랭킹에 두 번 남지 않게.
                     if (submittedRecordId != null &&
@@ -536,19 +672,19 @@ class _ZonberAppState extends State<ZonberApp> {
           onGameOver: _onVerificationGameOver,
         );
         return Scaffold(
-            backgroundColor: const Color(0xFF0B0C10),
+            backgroundColor: AppColors.background,
             body: SafeArea(
               child: Column(
                 children: [
                   Container(
                     height: 80,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    color: const Color(0xFF0B0C10),
+                    color: AppColors.background,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.arrow_back,
                             color: AppColors.primary,
                             size: 28,
@@ -560,18 +696,7 @@ class _ZonberAppState extends State<ZonberApp> {
                           builder: (context, value, child) {
                             return Text(
                               'TIME: ${value.toStringAsFixed(3)}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Orbitron',
-                                shadows: [
-                                  Shadow(
-                                    color: AppColors.primary,
-                                    blurRadius: 10,
-                                  ),
-                                ],
-                              ),
+                              style: AppTextStyles.display(32),
                             );
                           },
                         ),
@@ -585,12 +710,16 @@ class _ZonberAppState extends State<ZonberApp> {
             ),
         );
       case 'Profile':
-        return UserProfilePage(onComplete: () => _navigateTo('Menu'));
+        return UserProfilePage(onComplete: () => _navigateTo('Menu'), onCancel: _cancelSignup);
       case 'MyProfile':
-        return MyProfilePage(
-          onBack: () => _navigateTo('Menu'),
+        return ProfilePage(
+          key: ValueKey('profile_${_bestTimes.length}_${_rankCache.length}'),
+          bestTimes: _bestTimes,
+          rankCache: _rankCache,
           onOpenShop: () => _navigateTo('Shop'),
           onStatistics: () => _navigateTo('Statistics'),
+          onLogin: () => _navigateTo('Login'),
+          onCharacterSelect: () => _navigateTo('CharacterSelect'),
           onLogout: () async {
             print('Main: onLogout called');
 
@@ -598,7 +727,7 @@ class _ZonberAppState extends State<ZonberApp> {
             showDialog(
               context: context,
               barrierDismissible: false,
-              builder: (_) => const Center(
+              builder: (_) => Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               ),
             );
@@ -614,11 +743,13 @@ class _ZonberAppState extends State<ZonberApp> {
                 print('Main: Logout error (Auth): $e');
               }
 
-              // 2. Clear local profile
+              // 2. Clear local profile + 진행 데이터(게스트로 돌아가므로 기록도 함께)
               try {
                 await UserProfileManager.clearProfile().timeout(
                   const Duration(seconds: 1),
                 );
+                await ProgressStore.clearLocal();
+                await CoinStore.clearLocal();
                 print('Main: Profile cleared');
               } catch (e) {
                 print('Main: Logout error (Profile): $e');
@@ -635,15 +766,17 @@ class _ZonberAppState extends State<ZonberApp> {
                 Navigator.of(context, rootNavigator: true).pop();
               }
 
-              // 5. Navigate to Login
-              print('Main: Navigating to Login');
-              _navigateTo('Login');
+              // 5. 로그아웃 = 게스트로 복귀 (게스트 기본화). 로그인 화면은 필요할 때만 띄운다.
+              AnalyticsService().logLogout();
+              print('Main: Re-entering as guest after logout');
+              await _enterAsGuest();
             }
           },
         );
       case 'Shop':
         return ShopPage(
-          onBack: () => _navigateTo('MyProfile'),
+          showBack: false, // 하단 탭 — 뒤로 가기 버튼 없음(안드로이드 뒤로 가기는 들어온 화면으로)
+          onBack: () => _navigateTo(_shopReturn),
           onPurchaseReset: refreshPurchaseStatus,
         );
       case 'Statistics':
@@ -657,12 +790,19 @@ class _ZonberAppState extends State<ZonberApp> {
         return CharacterSelectionPage(onBack: () => _navigateTo('Menu'));
       case 'Menu':
       default:
-        return MainMenu(
-          onStartGame: () => _navigateTo('Game'),
-          onProfile: () => _navigateTo('MyProfile'),
+        return HomePage(
+          key: ValueKey('home_${_bestTimes.length}_${_rankCache.length}'),
+          selectedWorldId: _currentWorldId,
+          bestTimes: _bestTimes,
+          rankCache: _rankCache,
+          onWorldSelected: (id) => _currentWorldId = id,
+          onStart: () => _navigateTo('Game'),
           onCharacterSelect: () => _navigateTo('CharacterSelect'),
-          onShowRanking: () => _showRankingDialog(context, _currentMapId),
-          selectedMapId: _currentMapId,
+          onLogin: () => _navigateTo('Login'),
+          onGuide: () => GameGuideSheet.show(context),
+          onSettings: () => _navigateTo('MyProfile'),
+          onRanking: () => _navigateTo('Ranking'),
+          onShop: () => _navigateTo('Shop'),
         );
     }
   }
@@ -742,7 +882,10 @@ class _ZonberAppState extends State<ZonberApp> {
     showNeonDialog(
       context: context,
       title: langManager.translate('paused'),
-      message: null,
+      message: (FirebaseAuth.instance.currentUser?.isAnonymous ?? true)
+          ? langManager.translate('guest_no_ranking_note')
+          : null,
+      barrierDismissible: false, // 바깥 탭으로 닫히면 게임이 멈춘 채 남는다
       actions: [
         NeonButton(
           text: langManager.translate('exit'),
@@ -771,13 +914,38 @@ class _ZonberAppState extends State<ZonberApp> {
     );
   }
 
-  void _handleGameOver(Map<String, dynamic> result) {
+  void _handleGameOver(Map<String, dynamic> result) async {
+    // 부활로 이어진 판은 이전 최고를 그대로 둔다(첫 게임 오버의 값)
+    final double time = result['survivalTime'];
+    final prev = await ProgressStore.updateBestTime(_currentWorldId, time);
+    if (_reviveCount == 0) {
+      _previousBest = prev;
+      _runCoins = 0;
+    }
+    // 코인 — 5초당 1개. 부활로 이어진 판은 이미 준 만큼 빼고 더 준다
+    final earned = (CoinStore.coinsForRun(time) - _runCoins).clamp(0, 1 << 30);
+    _runCoins += earned;
+    await CoinStore.add(earned);
+    result['coinsEarned'] = earned;
+    _bestTimes = await ProgressStore.getBestTimes();
+
     // Update Stats
     UserProfileManager.updateGameStats(
       playTime: result['survivalTime'],
       mapId: result['mapId'] ?? _currentMapId,
     );
+    UserProfileManager.getProfile().then(
+      (p) => AnalyticsService().logGameOver(
+        mapId: result['mapId'] ?? _currentMapId,
+        characterId: p['characterId'] ?? 'neon_green',
+        survivalTime: result['survivalTime'],
+        level: result['level'] ?? 0,
+        reviveCount: _reviveCount,
+      ),
+    );
 
+    if (!mounted) return;
+    AnalyticsService().logScreen('Result');
     setState(() {
       _lastGameResult = result;
       _currentPage = 'Result';
@@ -787,405 +955,499 @@ class _ZonberAppState extends State<ZonberApp> {
   }
 }
 
-class MainMenu extends StatefulWidget {
-  final VoidCallback onStartGame;
-  final VoidCallback onProfile;
-  final VoidCallback onCharacterSelect;
-  final VoidCallback onShowRanking;
-  final String selectedMapId;
-
-  const MainMenu({
-    super.key,
-    required this.onStartGame,
-    required this.onProfile,
-    required this.onCharacterSelect,
-    required this.onShowRanking,
-    required this.selectedMapId,
-  });
+// ─────────────────────────────────────────────────────────────
+// 게임 화면 — HUD(타이머·에너지·목표선) + 무대 + 근접 회피 카운터
+// (docs/UI_DESIGN.md §4.3)
+// ─────────────────────────────────────────────────────────────
+class _GameScreen extends StatelessWidget {
+  final ZonberGame game;
+  final WorldConfig world;
+  final VoidCallback onPause;
+  const _GameScreen({required this.game, required this.world, required this.onPause});
 
   @override
-  State<MainMenu> createState() => _MainMenuState();
-}
+  Widget build(BuildContext context) {
+    final lm = LanguageManager.of(context);
+    final accent = world.accent;
+    // HUD 는 존 바닥색 위에 얹는다 — 앱 테마(라이트/다크)와 무관하게 무대와 한 덩어리로 보이게.
+    final floor = world.floor;
+    final darkFloor = floor.computeLuminance() < 0.4;
+    final ink = darkFloor ? const Color(0xFFF2F4F8) : const Color(0xFF0F172A);
+    final inkDim = ink.withValues(alpha: 0.6);
+    final chip = ink.withValues(alpha: darkFloor ? 0.10 : 0.08);
+    final up = darkFloor ? const Color(0xFF3DD68C) : const Color(0xFF15803D);
 
-class _MainMenuState extends State<MainMenu>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-  Map<String, String> _profile = {};
-  String _selectedCharacterId = 'neon_green';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-  }
-
-  Future<void> _loadProfile() async {
-    final profile = await UserProfileManager.getProfile();
-    if (mounted) {
-      setState(() {
-        _profile = profile;
-        _selectedCharacterId = profile['characterId'] ?? 'neon_green';
-      });
-
-    }
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-
-  Widget _guideButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color.withValues(alpha: 0.45), width: 1.5),
-            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 10)],
-          ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: darkFloor ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: floor,
+        body: SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  fontFamily: 'Orbitron',
+              // ── 상단 HUD: 일시정지 · 생존 시간(+최고 기록) · 에너지 ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppIconButton(
+                      icon: Icons.pause_rounded,
+                      onTap: onPause,
+                      label: lm.translate('paused'),
+                      color: ink,
+                      background: chip,
+                    ),
+                    Expanded(
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: game.survivalTimeNotifier,
+                        builder: (context, value, _) {
+                          final pb = game.personalBest;
+                          final beaten = pb > 0 && value > pb;
+                          return Column(
+                            children: [
+                              // 소수점 셋째 자리까지 매 프레임 바뀌므로 숫자 폭을 고정해 흔들리지 않게
+                              Text(formatClock(value),
+                                  style: AppTextStyles.display(40, color: beaten ? up : ink)
+                                      .copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+                              const SizedBox(height: 4),
+                              Text(
+                                beaten
+                                    ? lm.translate('hud_new_best')
+                                    : pb > 0
+                                        ? '${lm.translate('hud_best')} ${formatClock(pb)}'
+                                        : lm.translate(world.nameKey).toUpperCase(),
+                                style: AppTextStyles.label(color: beaten ? up : inkDim),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: _EnergyPips(notifier: game.energyNotifier, accent: accent, empty: chip),
+                    ),
+                  ],
+                ),
+              ),
+              // ── 다음 목표선 (TOP 100 → 30 → 10 → 1) ──
+              // 자리는 늘 같은 높이(34) — 목표선이 늦게 뜨거나(서버 응답) 1위를 넘어 사라질 때
+              // 무대 높이가 바뀌면 맵이 다시 맞춰지며 꿈틀거렸다
+              SizedBox(
+                height: 34,
+                child: ValueListenableBuilder<({String label, double time})?>(
+                valueListenable: game.targetNotifier,
+                builder: (context, target, _) {
+                  if (target == null) return const SizedBox.shrink();
+                  final guest = FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
+                  return ValueListenableBuilder<double>(
+                    valueListenable: game.survivalTimeNotifier,
+                    builder: (context, t, _) => Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 10, 24, 6),
+                      child: Row(
+                        children: [
+                          if (guest) ...[
+                            Icon(Icons.lock_rounded, size: 12, color: inkDim),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(target.label, style: AppTextStyles.label(color: guest ? inkDim : ink)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: LinearProgressIndicator(
+                                minHeight: 5,
+                                value: target.time <= 0 ? 1 : (t / target.time).clamp(0.0, 1.0),
+                                backgroundColor: chip,
+                                valueColor: AlwaysStoppedAnimation(guest ? inkDim : accent),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(formatClock(target.time), style: AppTextStyles.display(12, color: inkDim)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ),
+              // ── 무대 — ZonberGame 이 가운데 맞춤으로 그린다 ──
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: GameWidget(game: game)),
+                    // 붉은 번쩍임 — 맞거나 골을 먹으면 가장자리부터
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: game.flashNotifier,
+                          builder: (context, v, _) => v == 0
+                              ? const SizedBox.shrink()
+                              : TweenAnimationBuilder<double>(
+                                  key: ValueKey(v),
+                                  tween: Tween(begin: 1, end: 0),
+                                  duration: const Duration(milliseconds: 420),
+                                  builder: (context, a, _) => DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: RadialGradient(
+                                        radius: 0.9,
+                                        colors: [Colors.transparent, const Color(0xFFE5484D).withValues(alpha: 0.55 * a)],
+                                        stops: const [0.55, 1],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                    // GOAL! · SAVE! 문구
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<GamePop?>(
+                          valueListenable: game.popNotifier,
+                          builder: (context, p, _) => p == null
+                              ? const SizedBox.shrink()
+                              : TweenAnimationBuilder<double>(
+                                  key: ValueKey(p.id),
+                                  tween: Tween(begin: 0, end: 1),
+                                  duration: const Duration(milliseconds: 800),
+                                  builder: (context, t, _) {
+                                    final big = p.text.startsWith('GOAL');
+                                    final scale = t < 0.25 ? 0.6 + t / 0.25 * 0.6 : 1.2 - (t - 0.25) * 0.25;
+                                    final alpha = t < 0.7 ? 1.0 : (1 - (t - 0.7) / 0.3);
+                                    return Align(
+                                      alignment: big ? const Alignment(0, -0.1) : const Alignment(0, 0.45),
+                                      child: Opacity(
+                                        opacity: alpha.clamp(0.0, 1.0),
+                                        child: Transform.scale(
+                                          scale: scale,
+                                          // GOAL! · SAVE! 는 글자 그림(assets/images/game/text_*.png), 'SAVE ×5' 같은 문구는 글자
+                                          child: (p.text == 'GOAL!' || p.text == 'SAVE!')
+                                              ? Image.asset(
+                                                  'assets/images/game/text_${p.text == 'GOAL!' ? 'goal' : 'save'}.png',
+                                                  width: big ? 260 : 150,
+                                                  filterQuality: FilterQuality.medium,
+                                                  errorBuilder: (_, __, ___) => Text(p.text,
+                                                      style: AppTextStyles.display(big ? 64 : 30, color: p.color)),
+                                                )
+                                              : Text(p.text,
+                                                  style: AppTextStyles.display(big ? 64 : 30, color: p.color).copyWith(
+                                                    shadows: const [Shadow(color: Colors.white, blurRadius: 0, offset: Offset(0, 3))],
+                                                  )),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ),
+                    ),
+                    // 시작 연출 문구 — 나의 ZONE → START!
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<String?>(
+                          valueListenable: game.introNotifier,
+                          builder: (context, phase, _) {
+                            if (phase == null) return const SizedBox.shrink();
+                            final isStart = phase == 'start';
+                            return Center(
+                              child: TweenAnimationBuilder<double>(
+                                key: ValueKey(phase),
+                                tween: Tween(begin: 0.7, end: 1),
+                                duration: const Duration(milliseconds: 260),
+                                curve: Curves.easeOutBack,
+                                builder: (context, s, child) => Transform.scale(scale: s, child: child),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isStart ? Colors.transparent : Colors.black.withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: isStart
+                                      ? Image.asset('assets/images/game/text_start.png',
+                                          width: 230,
+                                          filterQuality: FilterQuality.medium,
+                                          errorBuilder: (_, __, ___) => Text(lm.translate('intro_start'),
+                                              textAlign: TextAlign.center,
+                                              style: AppTextStyles.display(44, color: Colors.white)))
+                                      // 스테이지별 미션 — 존버 정체성: [존]에서 [버]텨라 · [존]에서 [생]존하라 · [존]에서 [막]아라
+                                      : EmphasisText(
+                                          lm.translate('intro_mission_${game.worldConfig.id}'),
+                                          style: AppTextStyles.display(28, color: Colors.white),
+                                          dotColor: const Color(0xFFFFD23F),
+                                        ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 16,
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: game.grazeNotifier,
+                          builder: (context, g, _) => g == 0
+                              ? const SizedBox.shrink()
+                              : Center(
+                                  child: Container(
+                                    height: 28,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                                    decoration: BoxDecoration(
+                                      color: floor.withValues(alpha: 0.85),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(color: chip),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(lm.translate(world.mode == WorldMode.keeper ? 'saves' : 'graze'),
+                                            style: AppTextStyles.label(color: ink)),
+                                        const SizedBox(width: 6),
+                                        Text('×$g', style: AppTextStyles.display(14, color: accent)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-      );
-
-  Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: AppColors.textDim,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 2,
-          ),
-        ),
-      );
-
-  Widget _selectorCard({
-    required Widget child,
-    required Color color,
-    required VoidCallback onTap,
-  }) =>
-      GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          height: 58,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withOpacity(0.55), width: 1.5),
-          ),
-          child: Row(children: [
-            Expanded(child: child),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: color.withOpacity(0.7),
-              size: 22,
-            ),
-          ]),
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    final lm = LanguageManager.of(context);
-    final currentChar = CharacterData.getCharacter(_selectedCharacterId);
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          IgnorePointer(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: [
-                    AppColors.primary.withOpacity(0.15),
-                    AppColors.background,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          IgnorePointer(child: CustomPaint(painter: _GridPainter())),
-
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── 상단 바 ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: widget.onProfile,
-                        child: NeonCard(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          borderRadius: 30,
-                          backgroundColor: AppColors.surfaceGlass,
-                          borderColor: AppColors.primary.withOpacity(0.5),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_profile['flag'] ?? '', style: const TextStyle(fontSize: 18)),
-                              const SizedBox(width: 8),
-                              Text(
-                                (_profile['nickname'] ?? 'Player').toUpperCase(),
-                                style: const TextStyle(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: widget.onProfile,
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceGlass,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.textDim.withOpacity(0.5)),
-                          ),
-                          child: const Icon(Icons.settings, color: AppColors.textDim, size: 22),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ── 타이틀 ──
-                const Spacer(flex: 1),
-                Text(
-                  lm.translate('title'),
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.header.copyWith(
-                    fontSize: 52,
-                    shadows: [
-                      Shadow(blurRadius: 20, color: AppColors.primary, offset: Offset.zero),
-                      Shadow(blurRadius: 40, color: AppColors.primary.withOpacity(0.5), offset: Offset.zero),
-                    ],
-                  ),
-                ),
-                Text(
-                  lm.translate('subtitle'),
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.primaryDim,
-                    letterSpacing: 6.0,
-                    fontSize: 12,
-                  ),
-                ),
-
-                const Spacer(flex: 1),
-
-                // ── 가이드 / 랭킹 버튼 ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _guideButton(
-                          icon: Icons.help_outline_rounded,
-                          label: lm.translate('guide_rules_title'),
-                          color: AppColors.primary,
-                          onTap: () => GameGuideSheet.show(context, tab: 0),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _guideButton(
-                          icon: Icons.flash_on_rounded,
-                          label: lm.translate('guide_items_title'),
-                          color: const Color(0xFFFFD700),
-                          onTap: () => GameGuideSheet.show(context, tab: 1),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _guideButton(
-                          icon: Icons.leaderboard_rounded,
-                          label: lm.translate('ranking'),
-                          color: const Color(0xFF00FF88),
-                          onTap: widget.onShowRanking,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // ── 캐릭터 선택 ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionLabel(lm.translate('character')),
-                      _selectorCard(
-                        color: currentChar.color,
-                        onTap: widget.onCharacterSelect,
-                        child: Row(
-                          children: [
-                            currentChar.imagePath != null
-                                ? Image.asset(currentChar.imagePath!, width: 32, height: 32, fit: BoxFit.contain)
-                                : Icon(Icons.rocket_launch, color: currentChar.color, size: 28),
-                            const SizedBox(width: 10),
-                            Text(
-                              lm.translate('char_${currentChar.id}'),
-                              style: TextStyle(
-                                color: currentChar.color,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const Spacer(flex: 1),
-
-                // ── 게임 시작 버튼 ──
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                  child: ScaleTransition(
-                    scale: _pulseAnimation,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: widget.onStartGame,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.primary, width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.35),
-                              blurRadius: 18,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          lm.translate('start_game'),
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.header.copyWith(
-                            fontSize: 20,
-                            color: Colors.white,
-                            letterSpacing: 2.0,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
-class _GridPainter extends CustomPainter {
+/// 에너지 핍 — 캐릭터 최대치만큼, 채워진 칸은 존 색. 충전 중인 칸은 반투명.
+class _EnergyPips extends StatelessWidget {
+  final ValueNotifier<({int current, int max, double chargeProgress, Color color})> notifier;
+  final Color accent;
+  final Color empty;
+  const _EnergyPips({required this.notifier, required this.accent, required this.empty});
+
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.primaryDim.withOpacity(0.2)
-      ..strokeWidth = 1.0;
-
-    const double step = 40.0;
-
-    for (double x = 0; x <= size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-
-    for (double y = 0; y <= size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: notifier,
+      builder: (_, e, __) {
+        if (e.max == 0) return const SizedBox();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            for (int i = 0; i < e.max; i++)
+              Container(
+                margin: const EdgeInsets.only(left: 3),
+                width: e.max > 3 ? 7 : 10,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: i < e.current
+                      ? accent
+                      : i == e.current
+                          ? accent.withValues(alpha: 0.15 + 0.5 * e.chargeProgress)
+                          : empty,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+
 class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
+  /// 장애물 레이아웃 id (`GameConfig.stages`) — 월드의 layoutId
   final String mapId;
+  /// 월드 — 투사체·스포너·테마. 에디터 검증 모드는 기본 월드를 쓴다.
+  final WorldConfig worldConfig;
   final VoidCallback onExit;
   final Function(Map<String, dynamic>) onGameOver; // Callback for game over
   final double initialSurvivalTime;
+  /// 이 판 이전의 개인 최고(초) — HUD의 BEST 표시용
+  final double personalBest;
 
   final Map<String, dynamic>? customMapData; // Optional map data
 
   ZonberGame({
     required this.mapId,
+    WorldConfig? worldConfig,
     required this.onExit,
     required this.onGameOver,
     this.initialSurvivalTime = 0.0,
+    this.personalBest = 0.0,
     this.customMapData,
-  });
+  }) : worldConfig = worldConfig ?? WorldData.defaultWorld;
+
+  // ── 목표선 / 근접 회피 ──
+  List<({String label, double time})> _targets = const [];
+  final ValueNotifier<({String label, double time})?> targetNotifier = ValueNotifier(null);
+  final ValueNotifier<int> grazeNotifier = ValueNotifier(0);
+
+  void setTargets(List<({String label, double time})> targets) {
+    _targets = targets;
+    _updateTarget();
+  }
+
+  void _updateTarget() {
+    ({String label, double time})? next;
+    for (final t in _targets) {
+      if (t.time > survivalTime) {
+        next = t;
+        break;
+      }
+    }
+    if (targetNotifier.value != next) targetNotifier.value = next;
+  }
 
   static const double mapWidth = 480.0;
   static const double mapHeight =
       768.0; // Updated to 24x32 grid (fits aspect ratio)
-  static const double worldHeight = 800.0; // Total screen height
+  static const double worldHeight = 800.0; // (구) 무대+하단 조이스틱 영역. 화면 밖 판정에만 쓴다
+  /// 무대 바깥 여백 — 테두리와 그림자가 화면 끝에 붙지 않게
+  static const double arenaMargin = 10.0;
 
   late Player player;
   late BulletSpawner spawner;
+
+  // ── 나의 ZONE · 시작 연출 ──
+  /// 나의 존: 캐릭터가 움직일 수 있는 영역. 갤럭시 = 맵 전체, 피구 = 우리 진영, 골키퍼 = 페널티 에어리어
+  Rect get zoneRect => worldConfig.playArea ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
+  /// 화면에 보이는 무대 창 — 피구·골키퍼는 무대 일부(반코트)만 보여 준다.
+  /// 기기 화면이 세로로 더 길면 [_fitView] 가 무대 안에서 창을 위(골키퍼) 또는 위아래(피구)로 늘린다.
+  Rect get viewRect => _fittedView ?? worldConfig.view ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
+  Rect? _fittedView;
+
+  /// 게임 영역 크기 [screen] 에 맞춰 보이는 창을 정하고 카메라를 맞춘다.
+  /// 폭을 꽉 채웠을 때 남는 세로 공간만큼 창을 늘린다(무대 480×768 밖으로는 안 나간다).
+  void _fitView(Vector2 screen) {
+    final base = worldConfig.view ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
+    Rect vr = base;
+    if (screen.x > 0 && screen.y > 0) {
+      final aspect = screen.x / screen.y;
+      final wantH = (base.width + arenaMargin * 2) / aspect - arenaMargin * 2;
+      if (wantH > base.height + 1) {
+        final extra = wantH - base.height;
+        if (worldConfig.mode == WorldMode.keeper) {
+          // 골문은 무대 맨 아래라 아래로는 못 늘린다 — 위로 절반만 늘려서
+          // 경기장(창)이 화면 가운데에 오게 한다(남는 위아래는 같은 잔디색 여백)
+          vr = Rect.fromLTRB(base.left, max(0, base.top - extra / 2), base.right, base.bottom);
+        } else {
+          final top = max(0.0, base.top - extra / 2);
+          final bottom = min(mapHeight, base.bottom + extra / 2);
+          // 한쪽이 무대 끝에 닿으면 남은 만큼 반대쪽으로
+          final short = extra - ((base.top - top) + (bottom - base.bottom));
+          vr = Rect.fromLTRB(base.left, max(0, top - short), base.right, min(mapHeight, bottom + short));
+        }
+      }
+    }
+    _fittedView = vr;
+    camera.viewfinder.visibleGameSize = Vector2(vr.width + arenaMargin * 2, vr.height + arenaMargin * 2);
+    camera.viewfinder.position = Vector2(vr.center.dx, vr.center.dy);
+    camera.viewfinder.anchor = Anchor.center;
+    if (isLoaded) mapArea.clip = vr;
+  }
+  /// 시작 전 남은 인트로 시간(초). 이 동안은 공이 나오지 않고 시간도 흐르지 않는다.
+  double introLeft = 0;
+  static const double introZone = 1.8; // 존 깜빡임
+  static const double introStart = 0.7; // START!
+  bool get inIntro => introLeft > 0;
+  /// Flutter 오버레이 문구: 'zone' | 'start' | null
+  final ValueNotifier<String?> introNotifier = ValueNotifier(null);
+
+  // ── 타격감 연출 ──
+  final Random _fxRng = Random();
+  double _shakeT = 0, _shakeDur = 1, _shakeMag = 0, _hitStop = 0;
+  /// 붉은 번쩍임 트리거(값이 바뀔 때마다 한 번)
+  final ValueNotifier<int> flashNotifier = ValueNotifier(0);
+  /// 크게 떴다 사라지는 문구 (GOAL! · SAVE! 등)
+  final ValueNotifier<GamePop?> popNotifier = ValueNotifier(null);
+  int _popId = 0;
+
+  void shake(double mag, double dur) {
+    if (mag < _shakeMag * (_shakeT / _shakeDur)) return;
+    _shakeMag = mag;
+    _shakeDur = dur;
+    _shakeT = dur;
+  }
+
+  /// 아주 짧게 멈춰 "맞았다"를 느끼게 한다
+  void hitStop(double seconds) => _hitStop = max(_hitStop, seconds);
+
+  /// [at] 에서 [color] 파편이 튀어 퍼진다
+  void burst(Vector2 at, Color color, {int count = 16, double speed = 220, double size = 3, String? art}) {
+    mapArea.add(ParticleSystemComponent(
+      position: at.clone(),
+      priority: 14,
+      particle: Particle.generate(
+        count: count,
+        lifespan: 0.5,
+        generator: (i) {
+          final a = _fxRng.nextDouble() * 2 * pi;
+          final v = Vector2(cos(a), sin(a)) * (speed * (0.5 + _fxRng.nextDouble() * 0.7));
+          return AcceleratedParticle(
+            speed: v,
+            acceleration: -v * 1.6,
+            child: ComputedParticle(renderer: (canvas, p) {
+              // 그림 입자(파편·별)가 있으면 그림을 돌리며, 없으면 색 점
+              if (art != null &&
+                  GameArt.draw(canvas, art, Offset.zero, size * 5 * (1 - p.progress * 0.5),
+                      rotation: a + p.progress * 4, opacity: 1 - p.progress)) {
+                return;
+              }
+              canvas.drawCircle(Offset.zero, size * (1 - p.progress * 0.6),
+                  Paint()..color = color.withValues(alpha: 1 - p.progress));
+            }),
+          );
+        },
+      ),
+    ));
+  }
+
+  void flash() => flashNotifier.value++;
+
+  void pop(String text, Color color) => popNotifier.value = GamePop(text, color, ++_popId);
+
+  /// 피격(피하기 존) — 흔들림 · 멈칫 · 파편 · 붉은 번쩍임
+  void fxHit(Vector2 at, Color ballColor) {
+    shake(7, 0.3);
+    hitStop(0.07);
+    burst(at, ballColor, count: 10, speed: 240, art: 'fx_shard');
+    burst(at, Colors.white, count: 8, speed: 140, size: 2);
+    flash();
+  }
+
+  /// 실점(골키퍼) — 큰 흔들림 · 멈칫 · 그물 앞 파편 · GOAL!
+  void fxGoal(Vector2 at) {
+    shake(11, 0.45);
+    hitStop(0.12);
+    burst(at, Colors.white, count: 10, speed: 260, size: 3.5, art: 'fx_star');
+    burst(at, const Color(0xFFE5484D), count: 12, speed: 180);
+    flash();
+    pop('GOAL!', const Color(0xFFE5484D));
+  }
+
+  /// 세이브 — 가벼운 흔들림 · 파편 · SAVE!
+  void fxSave(Vector2 at, int saves) {
+    shake(3.5, 0.15);
+    burst(at, Colors.white, count: 8, speed: 200, size: 3, art: 'fx_star');
+    pop(saves >= 3 && saves % 5 == 0 ? 'SAVE ×$saves' : 'SAVE!', worldConfig.accent);
+  }
+
+  /// 골키퍼 — 페널티킥 골문·슈터 상태
+  final KeeperGoal goal = KeeperGoal();
+  /// 피구 — 상대 팀(내야·외야 선수) 상태
+  final DodgeTeam dodgeTeam = DodgeTeam();
   late MapArea mapArea;
   // Joystick removed for touch-anywhere control
 
@@ -1210,25 +1472,19 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     color: AppColors.primary,
   ));
 
-  // 파워업 상태 — PowerUpManager가 매 프레임 업데이트
-  final ValueNotifier<List<ActiveEffect>> powerUpNotifier =
-      ValueNotifier(const []);
-
-  PowerUpManager? powerUpManager;
-
   double survivalTime = 0.0;
   bool isGameOver = false;
   String? lastRecordId; // Last saved record ID
 
   @override
-  Color backgroundColor() => const Color(0xFF0B0C10);
+  Color backgroundColor() => worldConfig.floor;
 
   @override
   Future<void> onLoad() async {
-    // FIXED: Align Map to Top Center to reduce gap with HUD
-    camera.viewfinder.anchor = Anchor.topCenter;
+    // 무대 전체(+테두리 여백)를 가운데 맞춤 — 세로가 긴 폰에서는 위아래가 존 바닥색으로 고르게 남는다
+    camera.viewfinder.anchor = Anchor.center;
 
-    world.add(GridBackground());
+    world.add(GridBackground()..priority = 5);
     mapArea = MapArea();
     world.add(mapArea);
 
@@ -1272,9 +1528,24 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     // overlays.add('GameUI'); // Removed old overlay
 
     mapArea.removeAll(mapArea.children);
+    _addStageBackground();
 
+    final bool keeper = worldConfig.mode == WorldMode.keeper;
+    if (keeper) mapArea.add(GoalZone()..priority = 1);
+    if (worldConfig.court != null) mapArea.add(DodgeTeamZone()..priority = 2);
+    // 새 판은 존 깜빡임부터, 부활로 이어지는 판은 START! 만
+    introLeft = initialSurvivalTime > 0 ? introStart : introZone + introStart;
+    // introNotifier 는 여기(onLoad — Flutter 가 화면을 짓는 중)서 바꾸지 않는다. 첫 update 에서 설정된다.
+    // (빌드 도중 ValueNotifier 를 바꾸면 릴리스 웹에서 HUD 갱신이 멈췄다)
+    mapArea.add(ZoneIntro()..priority = 16);
     player = Player()
-      ..position = Vector2(mapWidth / 2, mapHeight / 2)
+      ..keeperMode = keeper
+      // Keeper 는 골대 바로 아래에서 시작한다
+      ..position = keeper
+          ? Vector2(mapWidth / 2, KeeperGoal.keeperY) // 골문 정면
+          : worldConfig.playArea != null
+              ? Vector2(worldConfig.playArea!.center.dx, worldConfig.playArea!.center.dy)
+              : Vector2(mapWidth / 2, mapHeight / 2)
       ..width = 48
       ..height = 48
       ..anchor = Anchor.center
@@ -1282,20 +1553,12 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     mapArea.add(player);
 
     camera.stop();
-    camera.viewfinder.visibleGameSize = Vector2(mapWidth, worldHeight);
-    // FIXED: Update Viewfinder Position for Top Alignment
-    camera.viewfinder.position = Vector2(mapWidth / 2, 0);
-    camera.viewfinder.anchor = Anchor.topCenter;
+    _fitView(size);
+    mapArea.clip = viewRect;
 
     spawner = BulletSpawner();
     mapArea.add(spawner);
 
-    powerUpNotifier.value = const [];
-    powerUpManager = PowerUpManager();
-    mapArea.add(powerUpManager!);
-
-    // 진입 경고는 장애물·탄환 위에 그려야 하므로 플레이어(10)보다 높은 우선순위
-    mapArea.add(BulletWarningOverlay()..priority = 15);
 
     if (customMapData != null) {
       _spawnCustomObstacles(customMapData);
@@ -1307,6 +1570,18 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
     // Start BGM
     AudioManager().startBgm();
+  }
+
+  /// 스테이지 배경 이미지 — `assets/images/worlds/{id}_bg.png`(더미 또는 실아트).
+  /// 없으면 `worldConfig.floor` 색만 쓴다.
+  Future<void> _addStageBackground() async {
+    try {
+      final sprite = await loadSprite('worlds/${worldConfig.id}_bg.png');
+      if (isGameOver) return;
+      mapArea.add(SpriteComponent(sprite: sprite, size: Vector2(mapWidth, mapHeight), priority: -1));
+    } catch (_) {
+      // 배경 에셋 없음 — 바닥색만
+    }
   }
 
   void _spawnCustomObstacles(Map<String, dynamic> data) {
@@ -1411,22 +1686,54 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     AudioManager().playSfx('gameover.wav');
 
     // Notify App
-    onGameOver({'survivalTime': survivalTime, 'mapId': mapId});
+    onGameOver({
+      'survivalTime': recordTime(survivalTime), // 소수점 셋째 자리까지
+      'mapId': worldConfig.rankingMapId,
+      'level': spawner.currentLevel,
+      'graze': player.isMounted ? player.grazeCount : grazeNotifier.value,
+    });
   }
 
   @override
   void update(double dt) {
+    // 멈칫(hit-stop) — 모든 움직임을 아주 잠깐 멈춘다
+    if (_hitStop > 0) {
+      _hitStop -= dt;
+      return;
+    }
     super.update(dt);
+
+    // 화면 흔들림
+    final base = Vector2(viewRect.center.dx, viewRect.center.dy);
+    if (_shakeT > 0) {
+      _shakeT -= dt;
+      final m = _shakeMag * (_shakeT / _shakeDur).clamp(0.0, 1.0);
+      camera.viewfinder.position = base + Vector2((_fxRng.nextDouble() - 0.5) * 2 * m, (_fxRng.nextDouble() - 0.5) * 2 * m);
+    } else {
+      _shakeMag = 0;
+      camera.viewfinder.position = base;
+    }
+
+    // 시작 연출 — 나의 존 깜빡임 → START! → 시작
+    if (inIntro) {
+      introLeft -= dt;
+      final phase = introLeft > introStart ? 'zone' : (introLeft > 0 ? 'start' : null);
+      if (introNotifier.value != phase) introNotifier.value = phase;
+      return;
+    }
+
     if (!isGameOver) {
       survivalTime += dt;
       survivalTimeNotifier.value = survivalTime;
+      if (_targets.isNotEmpty) _updateTarget();
     }
   }
 
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    // Joystick positioning removed
+    // 기기·창 크기가 바뀌면 보이는 무대 창을 다시 맞춘다
+    if (isLoaded) _fitView(size);
   }
 
   // PanDetector Implementation for Direct Touch Control
@@ -1436,584 +1743,23 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   }
 }
 
-// ── 게임 화면 에너지 HUD ────────────────────────────────────
-class _EnergyHud extends StatelessWidget {
-  final ValueNotifier<({int current, int max, double chargeProgress, Color color})> notifier;
 
-  const _EnergyHud({required this.notifier});
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: notifier,
-      builder: (_, energy, __) {
-        if (energy.max == 0) return const SizedBox(height: 32);
-
-        // 칸 경계(눈금)는 캐릭터 최대 에너지 수만큼. 회복은 별도 표시 없이
-        // 게이지가 그대로 차오른다.
-        final fill =
-            ((energy.current + energy.chargeProgress) / energy.max).clamp(0.0, 1.0);
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: SizedBox(
-            height: 16,
-            width: double.infinity,
-            child: CustomPaint(
-              painter: _EnergyBarPainter(
-                fill: fill,
-                segments: energy.max,
-                color: energy.color,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// 에너지 바 — 하나의 연속 게이지 + 칸 경계 눈금.
-/// 눈금 개수(= `segments - 1`)가 캐릭터 최대 에너지를 나타낸다.
-class _EnergyBarPainter extends CustomPainter {
-  final double fill; // 0.0 ~ 1.0
-  final int segments;
-  final Color color;
-
-  const _EnergyBarPainter({
-    required this.fill,
-    required this.segments,
-    required this.color,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rrect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      const Radius.circular(4),
-    );
-
-    // 트랙
-    canvas.drawRRect(
-      rrect,
-      Paint()..color = color.withValues(alpha: 0.10),
-    );
-
-    // 채움 (모서리 밖으로 새지 않게 클립)
-    if (fill > 0) {
-      final filled = Rect.fromLTWH(0, 0, size.width * fill, size.height);
-      canvas.save();
-      canvas.clipRRect(rrect);
-      // 네온 글로우
-      canvas.drawRect(
-        filled,
-        Paint()
-          ..color = color.withValues(alpha: 0.8)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
-      canvas.drawRect(filled, Paint()..color = color);
-      canvas.restore();
-    }
-
-    // 칸 경계 눈금 — 배경색으로 잘라내 채움/빈 구간 모두에서 보이게 한다
-    if (segments > 1) {
-      final tick = Paint()
-        ..color = AppColors.background
-        ..strokeWidth = 2;
-      for (int i = 1; i < segments; i++) {
-        final x = size.width * i / segments;
-        canvas.drawLine(Offset(x, 0), Offset(x, size.height), tick);
-      }
-    }
-
-    // 테두리
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..color = color.withValues(alpha: 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_EnergyBarPainter old) =>
-      old.fill != fill || old.segments != segments || old.color != color;
-}
-
-// ─────────────────────────────────────────────────────────────
-/// 활성 아이템을 스테이지 상단 중앙에 작게 오버레이.
-/// 지속형은 남은 시간이 원형 게이지로 줄어든다.
-class _ActiveEffectOverlay extends StatelessWidget {
-  final ValueNotifier<List<ActiveEffect>> notifier;
-  const _ActiveEffectOverlay({required this.notifier});
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<ActiveEffect>>(
-      valueListenable: notifier,
-      builder: (_, effects, __) {
-        // 효과가 없으면 아무것도 그리지 않는다 — 플레이 화면을 가리지 않도록
-        if (effects.isEmpty) return const SizedBox.shrink();
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: effects
-              .map((e) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: _EffectRing(effect: e),
-                  ))
-              .toList(),
-        );
-      },
-    );
-  }
-}
-
-class _EffectRing extends StatelessWidget {
-  final ActiveEffect effect;
-  const _EffectRing({required this.effect});
-
-  // 스테이지 위에 얹히는 오버레이 — 시야를 가리지 않도록 작게 유지한다
-  static const double _size = 28;
-
-  static const _icons = {
-    PowerUpType.speedBoost: Icons.flash_on_rounded,
-    PowerUpType.shield: Icons.favorite_rounded,
-    PowerUpType.bulletClear: Icons.blur_on_rounded,
-    PowerUpType.slowTime: Icons.hourglass_bottom_rounded,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final def = PowerUpDef.all[effect.type]!;
-    final icon = _icons[effect.type] ?? Icons.star;
-    // 지속형만 남은 시간 게이지를 줄인다. 즉시형은 꽉 찬 링으로 잠깐 표시만.
-    final timed = def.duration > 0;
-    return SizedBox(
-      width: _size,
-      height: _size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // 남은 시간 원형 게이지 (매 프레임 갱신되어 시계 방향으로 줄어든다)
-          SizedBox(
-            width: _size,
-            height: _size,
-            child: CustomPaint(
-              painter: _CountdownRingPainter(
-                progress: timed ? effect.progress : 1.0,
-                color: def.color,
-                strokeWidth: 2.5,
-              ),
-            ),
-          ),
-          // 아이콘 배경 — 탄막 위에서도 읽히게 어두운 원판을 깐다
-          Container(
-            width: _size - 10,
-            height: _size - 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withValues(alpha: 0.65),
-            ),
-            child: Icon(icon, color: def.color, size: 11),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 남은 시간 링 — **시계 방향으로 줄어든다.**
-///
-/// 남은 호의 끝을 12시에 고정하고 시작점을 시계 방향으로 밀어내므로,
-/// 소진되는 지점이 12시에서 출발해 시계 방향으로 이동한다.
-/// (`CircularProgressIndicator`는 시작 각도를 지정할 수 없어 직접 그린다)
-class _CountdownRingPainter extends CustomPainter {
-  final double progress; // 1.0 = 꽉 참, 0.0 = 소진
-  final Color color;
-  final double strokeWidth;
-
-  const _CountdownRingPainter({
-    required this.progress,
-    required this.color,
-    required this.strokeWidth,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(
-      strokeWidth / 2,
-      strokeWidth / 2,
-      size.width - strokeWidth,
-      size.height - strokeWidth,
-    );
-
-    // 트랙 (남은 시간이 빠진 자리)
-    canvas.drawArc(
-      rect,
-      0,
-      pi * 2,
-      false,
-      Paint()
-        ..color = Colors.black.withValues(alpha: 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth,
-    );
-
-    final p = progress.clamp(0.0, 1.0);
-    if (p <= 0) return;
-
-    const top = -pi / 2; // 12시 방향
-    final sweep = pi * 2 * p;
-    canvas.drawArc(
-      rect,
-      top + (pi * 2 - sweep), // 소진될수록 시작점이 시계 방향으로 이동
-      sweep,
-      false,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CountdownRingPainter old) =>
-      old.progress != progress ||
-      old.color != color ||
-      old.strokeWidth != strokeWidth;
-}
-
-// ─────────────────────────────────────────────────────────────
-class ResultPage extends StatefulWidget {
-  final String mapId;
-  final Map<String, dynamic> result;
-  final VoidCallback onRestart;
-  final VoidCallback onExit;
-  /// 부활 콜백. 보상 지급 시 삭제해야 할 제출 기록 id를 함께 넘긴다.
-  final void Function(String? submittedRecordId)? onRevive;
-  final VoidCallback? onNavigateToLogin; // Navigate to Login Page
-  final int revivesLeft;
-  const ResultPage({
-    super.key,
-    required this.mapId,
-    required this.result,
-    required this.onRestart,
-    required this.onExit,
-    this.onRevive,
-    this.onNavigateToLogin,
-    this.revivesLeft = 0,
-  });
-
-  @override
-  State<ResultPage> createState() => _ResultPageState();
-}
-
-class _ResultPageState extends State<ResultPage> {
-  final RankingSystem _rankingSystem = RankingSystem();
-  bool _isSaving = false;
-  bool _showLeaderboard = false;
-  String? _savedRecordId;
-  /// 방금 제출한 기록 — 리더보드 상위 30 밖일 때 하단에 그대로 보여준다.
-  Map<String, dynamic>? _submittedRecord;
-
-  @override
-  void initState() {
-    super.initState();
-    // 게임이 끝나면 곧바로 기록을 제출하고 랭킹 팝업으로 넘어간다 —
-    // 플레이어가 자기 순위를 즉시 확인할 수 있어야 한다.
-    // 게스트는 제출 대상이 아니므로 기존 결과 카드를 그대로 보여준다.
-    final isGuest = FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
-    if (!isGuest) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _submitScore());
-    }
-  }
-
-  // Shows a disclosure dialog before the rewarded ad (AdMob policy requirement:
-  // must clearly display the required action and reward before each rewarded ad).
-  void _showReviveConfirmDialog(BuildContext context) {
-    // 이벤트 핸들러에서 호출되므로 listen: false — 아니면 provider assertion으로 죽는다
-    final t = LanguageManager.of(context, listen: false);
-    showNeonDialog(
-      context: context,
-      title: t.translate('revive_title'),
-      message: t.translate('revive_message'),
-      titleColor: AppColors.primary,
-      barrierDismissible: true,
-      actions: [
-        NeonButton(
-          text: t.translate('cancel'),
-          onPressed: () => Navigator.of(context).pop(),
-          color: AppColors.textDim,
-          isPrimary: false,
-          isCompact: true,
-        ),
-        NeonButton(
-          text: t.translate('watch_ad_button'),
-          onPressed: () {
-            Navigator.of(context).pop();
-            // 보상 지급 시 이 판의 제출 기록을 지워야 하므로 id를 넘긴다
-            widget.onRevive!(_savedRecordId);
-          },
-          icon: Icons.videocam,
-          color: AppColors.primary,
-          isPrimary: true,
-          isCompact: true,
-        ),
-      ],
-    );
-  }
-
-  Future<void> _unlockAchievements(
-    double survivalTime,
-    String nickname,
-    String flag,
-  ) async {
-    try {
-      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-      final keys = <String>{};
-
-      // Survival achievements (immediate, no query)
-      keys.addAll(AchievementManager.survivalKeys(survivalTime));
-
-      // Rank achievements — check all periods for both global and national
-      for (final period in RankingPeriod.values) {
-        final globalList = await _rankingSystem.getTopRecords(
-          widget.mapId,
-          period: period,
-        );
-        final globalRank = userId.isNotEmpty
-            ? globalList.indexWhere((r) => r['userId'] == userId) + 1
-            : globalList.indexWhere((r) => r['nickname'] == nickname) + 1;
-        if (globalRank > 0) {
-          keys.addAll(AchievementManager.globalRankKeys(globalRank));
-        }
-
-        final natList = await _rankingSystem.getNationalRankings(
-          widget.mapId,
-          flag,
-          period: period,
-        );
-        final natRank = userId.isNotEmpty
-            ? natList.indexWhere((r) => r['userId'] == userId) + 1
-            : natList.indexWhere((r) => r['nickname'] == nickname) + 1;
-        if (natRank > 0) {
-          keys.addAll(AchievementManager.nationalRankKeys(natRank));
-        }
-      }
-
-      await AchievementManager.unlock(keys.toList());
-    } catch (e) {
-      print('Achievement unlock failed: $e');
-    }
-  }
-
-  void _showGuestRankingAlert() {
-    // 이벤트 핸들러 경로에서 호출된다 — listen: false 필수
-    final t = LanguageManager.of(context, listen: false);
-    showNeonDialog(
-      context: context,
-      title: t.translate('guest_ranking_title'),
-      message: t.translate('guest_ranking_message'),
-      titleColor: AppColors.primary,
-      barrierDismissible: true,
-      actions: [
-        NeonButton(
-          text: t.translate('confirm'),
-          onPressed: () {
-            Navigator.of(context).pop();
-            widget.onNavigateToLogin?.call();
-          },
-          color: AppColors.primary,
-          isPrimary: true,
-          isCompact: true,
-        ),
-      ],
-    );
-  }
-
-  void _submitScore() async {
-    final isGuest = FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
-    if (isGuest) {
-      _showGuestRankingAlert();
-      return;
-    }
-
-    setState(() => _isSaving = true);
-
-    try {
-      final profile = await UserProfileManager.getProfile();
-      final nickname = profile['nickname']!;
-      final flag = profile['flag']!;
-      final characterId = profile['characterId'] ?? 'neon_green';
-
-      final double survivalTime = widget.result['survivalTime'];
-
-      String recordId = await _rankingSystem.saveRecord(
-        widget.mapId,
-        survivalTime,
-        characterId: characterId,
-        flag: flag,
-      );
-
-      // Compute and persist achievements
-      _unlockAchievements(survivalTime, nickname, flag);
-
-      if (mounted) {
-        setState(() {
-          _savedRecordId = recordId;
-          _submittedRecord = {
-            'id': recordId,
-            'userId': FirebaseAuth.instance.currentUser?.uid ?? '',
-            'nickname': nickname,
-            'flag': flag,
-            'characterId': characterId,
-            'survivalTime': survivalTime,
-          };
-          _showLeaderboard = true;
-          _isSaving = false;
-        });
-      }
-    } catch (e) {
-      print("Score submit failed: $e");
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_showLeaderboard) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(
-          child: LeaderboardWidget(
-            mapId: widget.mapId,
-            highlightRecordId: _savedRecordId,
-            currentRecord: _submittedRecord,
-            onRestart: widget.onRestart,
-            onClose: widget.onExit,
-            onRevive: widget.onRevive == null
-                ? null
-                : () => _showReviveConfirmDialog(context),
-            revivesLeft: widget.revivesLeft,
-          ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: NeonCard(
-          padding: const EdgeInsets.all(32),
-          child: Material(
-            type: MaterialType.transparency,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  LanguageManager.of(context).translate('game_over'),
-                  style: AppTextStyles.header.copyWith(
-                    color: AppColors.secondary,
-                    fontSize: 48,
-                    decoration:
-                        TextDecoration.none, // Fix: Remove yellow underline
-                    shadows: [
-                      const Shadow(color: AppColors.secondary, blurRadius: 15),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Text(
-                  LanguageManager.of(context).translate('survival_time'),
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.textDim,
-                    fontSize: 16,
-                    decoration: TextDecoration.none,
-                    letterSpacing: 2.0,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "${widget.result['survivalTime'].toStringAsFixed(3)}s",
-                  style: AppTextStyles.header.copyWith(
-                    fontSize: 56,
-                    decoration: TextDecoration.none,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 48),
-                if (_isSaving)
-                  const CircularProgressIndicator(color: AppColors.primary)
-                else ...[
-                  if (widget.onRevive != null) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: NeonButton(
-                        text:
-                            "${LanguageManager.of(context).translate('revive_watch_ad')} (${widget.revivesLeft})",
-                        onPressed: () =>
-                            _showReviveConfirmDialog(context),
-                        icon: Icons.videocam,
-                        color: AppColors.primary,
-                        isPrimary: true,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    child: NeonButton(
-                      text: LanguageManager.of(
-                        context,
-                      ).translate('submit_score'),
-                      onPressed: _submitScore,
-                      icon: Icons.emoji_events,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: NeonButton(
-                          text: LanguageManager.of(context).translate('retry'),
-                          onPressed: widget.onRestart,
-                          color: const Color(0xFF00FF88), // Green
-                          isPrimary: false,
-                          icon: Icons.refresh,
-                          isCompact: true,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: NeonButton(
-                          text: LanguageManager.of(context).translate('exit'),
-                          onPressed: () {
-                            widget.onExit();
-                          },
-                          color: AppColors.secondary, // Red for Exit
-                          isPrimary: false,
-                          icon: Icons.logout,
-                          isCompact: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// LeaderboardWidget moved to leaderboard_widget.dart
 
 class MapArea extends PositionComponent {
   MapArea() : super(size: Vector2(ZonberGame.mapWidth, ZonberGame.mapHeight));
+
+  /// 보이는 무대 창 — 이 바깥(배경 그림·공)은 그리지 않는다
+  Rect? clip;
+
+  @override
+  void renderTree(Canvas canvas) {
+    final c = clip;
+    if (c == null) return super.renderTree(canvas);
+    canvas.save();
+    canvas.clipRect(c);
+    super.renderTree(canvas);
+    canvas.restore();
+  }
 
   @override
   void render(Canvas canvas) {
@@ -2054,37 +1800,58 @@ class Obstacle extends PositionComponent
   }
 }
 
-/// 존 테두리와 맵 하단 UI 영역만 그린다. (격자 배경은 제거됨)
-class GridBackground extends Component {
-  final Paint _borderPaint = Paint()
-    ..color = AppColors
-        .primaryDim // Use Primary Dim for less header glare
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 4;
-
+/// 존 테두리 — 무대(배경 이미지·공) 위에 그린다. 바깥쪽은 존 바닥색이 이어진다.
+class GridBackground extends Component with HasGameRef<ZonberGame> {
   @override
   void render(Canvas canvas) {
+    final rect = gameRef.viewRect;
+    // 바깥 가장자리를 살짝 눌러 무대가 떠 보이게
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, ZonberGame.mapWidth, ZonberGame.mapHeight),
-      _borderPaint,
+      rect.inflate(3),
+      Paint()
+        ..color = const Color(0x33000000)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
     );
-    // Draw UI background for the joystick area
     canvas.drawRect(
-      Rect.fromLTWH(
-        0,
-        ZonberGame.mapHeight,
-        ZonberGame.mapWidth,
-        ZonberGame.worldHeight - ZonberGame.mapHeight,
-      ),
-      Paint()..color = AppColors.background,
+      rect,
+      Paint()
+        ..color = gameRef.worldConfig.line
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
     );
   }
 }
 
+/// Keeper 월드의 골대 존 — 맵 중앙 원. 공이 들어오면 실점(Bullet.update 가 판정). 렌더 전용.
+
 class Player extends SpriteComponent
     with CollisionCallbacks, HasGameRef<ZonberGame> {
   String characterId = 'neon_green';
+  /// Keeper 월드: 공에 닿으면 세이브, 다치지 않는다. 목숨은 월드 lives.
+  bool keeperMode = false;
   Color trailColor = AppColors.primary;
+  /// 꾸미기 — 착용한 잔상·오라(상점). 판정에는 영향 없음
+  String trailId = Cosmetics.defaultTrail;
+  String auraId = Cosmetics.defaultAura;
+  /// 존 장비 — 부위별 장착 id(gear.dart). 존에 맞춰 자동 장착, 상점에서 바꾼다
+  List<String> gearIds = const [];
+  double _auraT = 0;
+
+  // --- 표정·몸짓(존버) ---
+  ZonberFace _face = ZonberFace.normal;
+  double _faceTimer = 0;
+  double _squash = 0;
+  bool _moving = false;
+
+  /// 잠깐 표정을 바꾼다 — 아야(맞음·실점) / 신남(아슬아슬·세이브)
+  void showFace(ZonberFace f, double seconds, {bool squash = false}) {
+    // 아야가 신남보다 우선
+    if (_face == ZonberFace.hurt && _faceTimer > 0 && f == ZonberFace.happy) return;
+    _face = f;
+    _faceTimer = seconds;
+    if (squash) _squash = 1;
+  }
 
   // --- 캐릭터 스탯 (onLoad에서 CharacterStats로부터 설정) ---
   double _hbHalf = 12.0;       // 히트박스 절반 크기
@@ -2101,6 +1868,29 @@ class Player extends SpriteComponent
   double _blinkTimer = 0;
   bool _blinkVisible = true;
 
+  // --- 근접 회피(Graze): 히트박스 바깥 링을 스치고 지나간 탄 ---
+  int grazeCount = 0;
+  final Set<Bullet> _grazing = {};
+  static const double _grazeRing = 8.0;
+
+  void _updateGraze() {
+    final ring = _hbHalf + _grazeRing;
+    _grazing.removeWhere((b) => !b.isMounted); // 피격·소멸된 탄은 카운트하지 않는다
+    for (final c in gameRef.mapArea.children) {
+      if (c is! Bullet) continue;
+      final d = c.position.distanceTo(position);
+      final r = ring + c.def.radius;
+      if (d < r) {
+        _grazing.add(c);
+      } else if (_grazing.contains(c) && d > r + 6) {
+        _grazing.remove(c);
+        grazeCount++;
+        gameRef.grazeNotifier.value = grazeCount;
+        showFace(ZonberFace.happy, 0.45);
+      }
+    }
+  }
+
   @override
   Future<void> onLoad() async {
     // 캐릭터 스탯 먼저 로드
@@ -2109,20 +1899,42 @@ class Player extends SpriteComponent
     final char = CharacterData.getCharacter(characterId);
     final stats = char.stats;
     trailColor = char.color;
+    await CoinStore.load();
+    trailId = CoinStore.equipped(Cosmetics.kindKey(CosmeticKind.trail), Cosmetics.defaultTrail);
+    auraId = CoinStore.equipped(Cosmetics.kindKey(CosmeticKind.aura), Cosmetics.defaultAura);
+    // 존 장비 — 부위마다 장착한 것(없으면 기본). 능력치 보너스를 모은다(지금은 전부 0)
+    final zone = gameRef.worldConfig.id;
+    var bonus = GearBonus.none;
+    final ids = <String>[];
+    for (final slot in Gear.slotsOf(zone)) {
+      final id = CoinStore.equipped(Gear.slotKey(zone, slot), Gear.defaultOf(zone, slot).id);
+      final item = Gear.byId(id) ?? Gear.defaultOf(zone, slot);
+      ids.add(item.id);
+      bonus = bonus + item.bonus;
+    }
+    gearIds = ids;
 
     // 모든 캐릭터 동일한 시각 크기 및 히트박스
     const double visualSize = 42;
     const double hitboxSize = 22;
     size = Vector2(visualSize, visualSize);
 
-    // 스탯 적용
+    // 스탯 적용 — 캐릭터 공통 기본값 + 장비 보너스
     _hbHalf = 11.0; // 고정 히트박스 22px의 절반
-    _speedMult = stats.speedMultiplier;
-    _maxShields = stats.maxEnergy;
-    _shieldCooldown = stats.energyCooldown;
-    _iframeDuration = stats.iframeDuration;
-    _invincibleDuration = stats.iframeDuration;
-    _energy = stats.maxEnergy.toDouble(); // 캐릭터 최대치로 시작
+    _speedMult = stats.speedMultiplier + bonus.speed;
+    _maxShields = stats.maxEnergy + bonus.energy;
+    _shieldCooldown = max(1.0, stats.energyCooldown - bonus.recovery);
+    _iframeDuration = stats.iframeDuration + bonus.iframe;
+    _invincibleDuration = _iframeDuration;
+    _energy = _maxShields.toDouble(); // 최대치로 시작
+    if (keeperMode) {
+      // Keeper: 목숨 = 허용 골 수(월드 lives), 회복 없음. 무적은 쓰이지 않는다.
+      // 막는 범위는 몸 크기만큼 넉넉하게(36px) — 골문 폭 280 을 한 명이 지킨다
+      _hbHalf = 18.0;
+      _maxShields = gameRef.worldConfig.lives;
+      _shieldCooldown = 0;
+      _energy = _maxShields.toDouble();
+    }
 
     // 히트박스: 시각 크기 중앙에 배치
     const double hbOffset = (visualSize - hitboxSize) / 2;
@@ -2133,18 +1945,7 @@ class Player extends SpriteComponent
       ),
     );
 
-    // 스프라이트 로드
-    if (char.imagePath != null) {
-      final spritePath = char.imagePath!.replaceFirst('assets/images/', '');
-      try {
-        sprite = await gameRef.loadSprite(spritePath);
-      } catch (e) {
-        print("Error loading sprite: $e");
-      }
-    }
-
-    paint.filterQuality = FilterQuality.medium;
-    paint.isAntiAlias = true;
+    // 캐릭터는 코드로 그린다(render — paintZonber). 스프라이트 이미지는 쓰지 않는다
 
     // 초기 에너지 상태 HUD에 반영
     _notifyEnergy();
@@ -2166,12 +1967,50 @@ class Player extends SpriteComponent
     // 깜빡임 중 비가시 프레임이면 스킵
     if (_isBlinking && !_blinkVisible) return;
 
-    super.render(canvas);
+    // 오라 — 몸이 기울어도 오라(왕관·고리)는 똑바로 서 있게 기울기를 되돌려 그린다
+    final r = size.x * 0.43;
+    void upright(void Function() draw) {
+      canvas.save();
+      canvas.translate(size.x / 2, size.y / 2);
+      canvas.rotate(-angle);
+      draw();
+      canvas.restore();
+    }
+    final hasAura = auraId != Cosmetics.defaultAura;
+    super.render(canvas); // 스프라이트 없음 — 규약상 호출만
+    if (hasAura) upright(() => paintAura(canvas, auraId, Offset.zero, r, _auraT, trailColor, front: false));
+    // 존버 — 몸 반지름 16(판정 히트박스는 22px 그대로), 손발·장비가 조금 삐져나온다
+    final v = recentVelocity;
+    paintZonber(
+      canvas,
+      Offset(size.x / 2, size.y / 2),
+      16,
+      ZonberLook(
+        color: trailColor,
+        body: characterId,
+        face: _face,
+        gear: gearIds,
+        t: _auraT,
+        moving: _moving,
+        squash: _squash,
+        look: Offset(v.x / 300, v.y / 300),
+      ),
+    );
+    if (hasAura) upright(() => paintAura(canvas, auraId, Offset.zero, r, _auraT, trailColor, front: true));
   }
+
+  /// 최근 이동 속도(px/s, 지수 평활) — 피구 극악 단계의 예측 조준에 쓴다
+  Vector2 recentVelocity = Vector2.zero();
+  Vector2? _prevPos;
 
   @override
   void update(double dt) {
     super.update(dt);
+    _auraT += dt;
+    if (_prevPos != null && dt > 0) {
+      recentVelocity = recentVelocity * 0.85 + (position - _prevPos!) / dt * 0.15;
+    }
+    _prevPos = position.clone();
 
     // --- 무적 타이머 ---
     // 깜빡임은 무적이 끝날 때까지 계속된다. 캐릭터마다 무적 시간이 다르므로
@@ -2207,29 +2046,26 @@ class Player extends SpriteComponent
     // --- 에너지 HUD 업데이트 ---
     _notifyEnergy();
 
-    // --- ROTATION EFFECT ---
-    double rotationSpeed = 2.0;
+    // --- 근접 회피 ---
+    if (!keeperMode && !_isInvincible && !gameRef.isGameOver) _updateGraze();
 
     // Check if moving
     Vector2 rawDrag = gameRef.consumeDragDelta();
-    final powerSpeedMult =
-        gameRef.powerUpManager?.playerSpeedMultiplier ?? 1.0;
-    // 최종 이동량 = 손가락 이동 × 캐릭터 속도 × 파워업 × 유저 감도 설정
-    Vector2 dragInput =
-        rawDrag * (_speedMult * powerSpeedMult * GameSettings().sensitivity);
+    // 최종 이동량 = 손가락 이동 × 캐릭터 속도 × 유저 감도 설정
+    Vector2 dragInput = rawDrag * (_speedMult * GameSettings().sensitivity);
     bool isMoving = !rawDrag.isZero();
+    _moving = isMoving || recentVelocity.length2 > 400;
 
-    // Spin faster when moving
-    if (isMoving) {
-      rotationSpeed = 8.0;
+    // 표정·납작함이 돌아온다. 몸은 도는 대신 가는 쪽으로 살짝 기운다
+    if (_faceTimer > 0) {
+      _faceTimer -= dt;
+      if (_faceTimer <= 0) _face = ZonberFace.normal;
     }
-
-    // Apply rotation
-    angle += rotationSpeed * dt;
-    angle %= 2 * pi; // Keep angle within 0~2PI range
+    _squash = max(0, _squash - dt * 5);
+    angle = (recentVelocity.x * 0.0009).clamp(-0.22, 0.22);
 
     // --- 아이들 연기 (항상, 캐릭터 뒤편 perimeter에서 사방으로 뿜음) ---
-    if (Random().nextDouble() < 0.35) {
+    if (Random().nextDouble() < 0.12) {
       final idleAngle = Random().nextDouble() * 2 * pi;
       final edgeRadius = 10.0 + Random().nextDouble() * 4.0;
       final spawnPos = position + Vector2(cos(idleAngle) * edgeRadius, sin(idleAngle) * edgeRadius);
@@ -2261,11 +2097,14 @@ class Player extends SpriteComponent
     // --- MOVEMENT LOGIC ---
     if (isMoving) {
       // 이동 트레일 (적당히 — 뒤쪽에서 뿜음)
-      if (Random().nextDouble() < 0.28) {
+      // 꾸미기 잔상은 조금 더 촘촘하게 — 산 티가 나도록
+      if (Random().nextDouble() < (trailId == Cosmetics.defaultTrail ? 0.28 : 0.45)) {
         // 이동 방향의 반대(뒤쪽)에 편향된 각도
         final backAngle = atan2(-rawDrag.y, -rawDrag.x) + (Random().nextDouble() - 0.5) * pi;
         final trailSpeed = 20.0 + Random().nextDouble() * 30.0;
         final spawnOffset = Vector2(cos(backAngle) * 8, sin(backAngle) * 8);
+        final seed = Random().nextDouble();
+        final style = trailId;
         gameRef.mapArea.add(
           ParticleSystemComponent(
             priority: 0,
@@ -2274,16 +2113,9 @@ class Player extends SpriteComponent
               position: position + spawnOffset,
               speed: Vector2(cos(backAngle) * trailSpeed, sin(backAngle) * trailSpeed),
               child: ComputedParticle(
-                renderer: (canvas, particle) {
-                  final sz = 6.0 * (1.0 - particle.progress);
-                  canvas.drawCircle(
-                    Offset.zero,
-                    sz / 2,
-                    Paint()
-                      ..color = trailColor.withOpacity(0.85 * (1.0 - particle.progress))
-                      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
-                  );
-                },
+                // 착용한 잔상 모양으로(상점 꾸미기). 기본은 캐릭터 색 점
+                renderer: (canvas, particle) =>
+                    paintTrailParticle(canvas, style, particle.progress, seed, trailColor),
               ),
             ),
           ),
@@ -2300,6 +2132,14 @@ class Player extends SpriteComponent
       // 2. Move Y, then resolve all Y overlaps
       position.y = (position.y + dragInput.y).clamp(_hbHalf, ZonberGame.mapHeight - _hbHalf);
       _resolveCollisionsY();
+
+      // 피구 등: 이동 영역(우리 편 진영) 안으로
+      final pa = gameRef.worldConfig.playArea;
+      if (pa != null) {
+        position.x = position.x.clamp(pa.left + _hbHalf, pa.right - _hbHalf);
+        position.y = position.y.clamp(pa.top + _hbHalf, pa.bottom - _hbHalf);
+      }
+
     }
   }
 
@@ -2356,31 +2196,27 @@ class Player extends SpriteComponent
     }
   }
 
-  /// 파워업 픽업 시 에너지 추가.
-  /// 이미 최대치라 흡수할 수 없으면 버려지지 않고 **무적 시간으로 전환**된다.
-  /// (에너지 1칸짜리 캐릭터에게 shield 파워업이 죽은 픽업이 되는 문제를 방지)
-  void addEnergy(int amount) {
-    final before = _energy;
-    _energy = (_energy + amount).clamp(0.0, _maxShields.toDouble());
-    if (_energy > before) {
-      _notifyEnergy();
-      return;
-    }
-    // 초과분 → 무적 부여/연장
-    grantInvincibility(_iframeDuration * 1.5);
+
+  /// Keeper: 키퍼에 맞은 공이 골문을 벗어났다 — 세이브 확정
+  void creditSave(Vector2 at) {
+    if (gameRef.isGameOver) return;
+    grazeCount++;
+    gameRef.grazeNotifier.value = grazeCount;
+    gameRef.fxSave(at, grazeCount);
+    showFace(ZonberFace.happy, 0.7);
+    AudioManager().playSfx('shoot.wav', volume: 0.7);
+    if (GameSettings().vibrationEnabled) HapticFeedback.lightImpact();
   }
 
-  /// 지정한 시간만큼 무적을 부여한다. 이미 무적이면 남은 시간에 더한다.
-  void grantInvincibility(double seconds) {
-    final remaining =
-        _isInvincible ? (_invincibleDuration - _invincibleTimer) : 0.0;
-    _invincibleDuration = remaining + seconds;
-    _invincibleTimer = 0;
-    _isInvincible = true;
-    _isBlinking = true;
-    _blinkTimer = 0;
-    _blinkVisible = false;
-    if (GameSettings().vibrationEnabled) HapticFeedback.lightImpact();
+  /// Keeper: 골을 허용했다 — 목숨 1 소모. 0이면 게임 오버.
+  void concedeGoal() {
+    if (gameRef.isGameOver) return;
+    showFace(ZonberFace.hurt, 0.9, squash: true);
+    _energy = (_energy - 1.0).clamp(0.0, _maxShields.toDouble());
+    _notifyEnergy();
+    AudioManager().playSfx('hit.wav');
+    if (GameSettings().vibrationEnabled) HapticFeedback.heavyImpact();
+    if (_energy <= 0) gameRef.gameOver();
   }
 
   @override
@@ -2390,13 +2226,19 @@ class Player extends SpriteComponent
   ) {
     super.onCollisionStart(intersectionPoints, other);
 
-    // 파워업 픽업
-    if (other is PowerUpComponent) {
-      other.pickup(gameRef.powerUpManager!);
-      return;
-    }
-
     if (other is Bullet) {
+      if (keeperMode) {
+        // 막기 — 키퍼에 닿으면 공이 몸에서 튕긴다. 정면으로 맞으면 크게 꺾이고, 살짝 스치면 방향만 조금 바뀐다.
+        // 세이브는 여기서 정하지 않는다 — 꺾이고도 골문으로 들어가면 골이다(Bullet._keeperUpdate 가 판정).
+        if (other.deflected || other.scored || other.keeperCd > 0) return;
+        final n = other.position - position;
+        other.keeperTouch(n.length2 == 0 ? -other.velocity : n);
+        other.position = position + (n.length2 == 0 ? Vector2(0, -1) : n.normalized()) * (_hbHalf + other.def.radius + 2);
+        gameRef.burst(other.position.clone(), Colors.white, count: 6, speed: 120, size: 2);
+        AudioManager().playSfx('shoot.wav', volume: 0.5);
+        if (GameSettings().vibrationEnabled) HapticFeedback.selectionClick();
+        return;
+      }
       if (_isInvincible) {
         // 무적 중 — 총알만 제거
         other.removeFromParent();
@@ -2412,11 +2254,16 @@ class Player extends SpriteComponent
         _blinkTimer = 0;
         _blinkVisible = false;
         _notifyEnergy();
+        showFace(ZonberFace.hurt, 0.8, squash: true);
+        gameRef.fxHit(other.position.clone(), other.def.color);
         other.removeFromParent();
+        AudioManager().playSfx('hit.wav');
         if (GameSettings().vibrationEnabled) HapticFeedback.heavyImpact();
         return;
       }
-      // 에너지 부족 — 게임 오버
+      // 에너지 부족 — 게임 오버 (마지막 한 방도 번쩍임·파편)
+      showFace(ZonberFace.hurt, 5, squash: true);
+      gameRef.fxHit(other.position.clone(), other.def.color);
       gameRef.gameOver();
       if (GameSettings().vibrationEnabled) {
         HapticFeedback.heavyImpact();
@@ -2433,45 +2280,425 @@ class Player extends SpriteComponent
   }
 }
 
-class Bullet extends PositionComponent
-    with HasGameRef<ZonberGame>, CollisionCallbacks {
-  Vector2 velocity = Vector2.zero();
-  final double speed;
+/// 피구공 무늬 — 가운데를 두르는 빨간 띠 + 띠 가장자리 흰 선. [spin] 만큼 돌린다.
+/// (농구공처럼 보이던 곡선 이음매 대신, 놀이터 피구공의 단순한 띠)
+void paintDodgeBallBand(Canvas canvas, Offset c, double r, double spin) {
+  canvas.save();
+  canvas.translate(c.dx, c.dy);
+  canvas.rotate(spin);
+  canvas.clipPath(Path()..addOval(Rect.fromCircle(center: Offset.zero, radius: r)));
+  final bandH = r * 0.62;
+  canvas.drawRect(Rect.fromCenter(center: Offset.zero, width: r * 2.2, height: bandH),
+      Paint()..color = const Color(0xFFE23B3B));
+  final edge = Paint()
+    ..color = Colors.white.withValues(alpha: 0.9)
+    ..strokeWidth = max(1.0, r * 0.12);
+  canvas.drawLine(Offset(-r * 1.1, -bandH / 2), Offset(r * 1.1, -bandH / 2), edge);
+  canvas.drawLine(Offset(-r * 1.1, bandH / 2), Offset(r * 1.1, bandH / 2), edge);
+  canvas.restore();
+}
 
-  Bullet(Vector2 position, Vector2 targetPosition, {this.speed = 200.0}) {
-    this.position = position;
-    // FIXED: Reduced Size (12 -> 9)
-    size = Vector2(9, 9);
-    anchor = Anchor.center;
-    Vector2 direction = targetPosition - position;
-    velocity = direction.normalized() * speed;
+/// 게임 화면에 크게 떴다 사라지는 문구 (GOAL! · SAVE!)
+class GamePop {
+  final String text;
+  final Color color;
+  final int id;
+  const GamePop(this.text, this.color, this.id);
+}
+
+/// 피구 상대 팀 — 상대 진영 내야 선수 + 우리 코트 주위 외야 선수. 조금씩 돌아다닌다.
+class DodgeTeam {
+  final Random _rng = Random();
+  final List<Vector2> infield = [];
+  final List<Vector2> outfield = [];
+  final List<double> flash = []; // 내야 선수 던질 때 커지는 연출
+  final List<Vector2> _inTarget = [];
+  final List<Vector2> _outTarget = [];
+  final List<int> _outSide = []; // 0 왼쪽 · 1 오른쪽 · 2 내 뒤
+  Rect? _court, _own;
+
+  static const List<int> _infieldCount = [3, 3, 4, 4, 5, 5, 6];
+
+  /// 내야 선수가 돌아다니는 곳 — 상대 진영 전체(중앙선 바로 앞 50px 은 비운다)
+  Rect _oppBack(Rect c) => Rect.fromLTRB(c.left + 20, c.top + 16, c.right - 20, c.top + c.height / 2 - 50);
+  final List<double> _inSpeed = [];
+
+  Vector2 _inSpot(Rect c) {
+    final r = _oppBack(c);
+    return Vector2(r.left + _rng.nextDouble() * r.width, r.top + _rng.nextDouble() * r.height);
+  }
+
+  Vector2 _outSpot(int side) {
+    final c = _court!, o = _own!;
+    const W = ZonberGame.mapWidth;
+    switch (side) {
+      case 0: return Vector2(c.left / 2, o.top + 24 + _rng.nextDouble() * (o.height - 48));
+      case 1: return Vector2((c.right + W) / 2, o.top + 24 + _rng.nextDouble() * (o.height - 48));
+      default: return Vector2(o.left + 40 + _rng.nextDouble() * (o.width - 80), c.bottom + 30);
+    }
+  }
+
+  void update(double dt, ZonberGame game) {
+    final w = game.worldConfig;
+    if (w.court == null) return;
+    _court = w.court;
+    _own = w.playArea ?? w.court;
+    final tier = _DodgeballThrower.tierAt(game.survivalTime);
+    while (infield.length < _infieldCount[tier]) {
+      infield.add(_inSpot(_court!));
+      _inTarget.add(_inSpot(_court!));
+      _inSpeed.add(40 + _rng.nextDouble() * 50);
+      flash.add(0);
+    }
+    while (outfield.length < 3) {
+      final side = outfield.length;
+      outfield.add(_outSpot(side));
+      _outTarget.add(_outSpot(side));
+      _outSide.add(side);
+    }
+    // 천천히 돌아다닌다
+    // 자유롭게 돌아다닌다 — 목표에 닿으면 새 목표·새 속도(가끔 빠르게 뛰어간다)
+    void wander(List<Vector2> ps, List<Vector2> ts, Vector2 Function(int) pick, double Function(int) speed) {
+      for (int i = 0; i < ps.length; i++) {
+        final d = ts[i] - ps[i];
+        if (d.length < 3) {
+          ts[i] = pick(i);
+        } else {
+          ps[i].add(d.normalized() * min(d.length, speed(i) * dt));
+        }
+      }
+    }
+    wander(infield, _inTarget, (i) {
+      _inSpeed[i] = _rng.nextDouble() < 0.25 ? 120 + _rng.nextDouble() * 60 : 40 + _rng.nextDouble() * 50;
+      return _inSpot(_court!);
+    }, (i) => _inSpeed[i]);
+    wander(outfield, _outTarget, (i) => _outSpot(_outSide[i]), (_) => 55);
+    for (int i = 0; i < flash.length; i++) {
+      flash[i] = max(0, flash[i] - dt * 4);
+    }
+  }
+}
+
+/// 피구 상대 선수 그리기 — 빨간 유니폼 점(내야) · 조금 작은 점(외야)
+class DodgeTeamZone extends Component with HasGameRef<ZonberGame> {
+  @override
+  void update(double dt) {
+    if (!gameRef.isGameOver) gameRef.dodgeTeam.update(dt, gameRef);
   }
 
   @override
   void render(Canvas canvas) {
-    // Sophisticated Bullet Design: Core + Outer Glow + Trail hint
-    // Outer Glow
+    final t = gameRef.dodgeTeam;
+    void player(Vector2 p, double r, {bool throwing = false}) {
+      final c = Offset(p.x, p.y);
+      // 상대 선수 그림(빨간 유니폼) — 던지는 순간 팔 든 그림
+      if (GameArt.draw(canvas, throwing ? 'npc_throw' : 'npc_infield', c, r * 2.3)) return;
+      canvas.drawCircle(c + const Offset(1, 2), r, Paint()..color = Colors.black.withValues(alpha: 0.18));
+      canvas.drawCircle(c, r, Paint()..color = const Color(0xFFE5484D));
+      canvas.drawCircle(c, r, Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2);
+      canvas.drawCircle(c + Offset(0, -r * 0.18), r * 0.38, Paint()..color = const Color(0xFFFFE0C2));
+    }
+    for (int i = 0; i < t.infield.length; i++) {
+      player(t.infield[i], 11 * (1 + 0.35 * t.flash[i]), throwing: t.flash[i] > 0.2);
+    }
+    for (final p in t.outfield) {
+      player(p, 10);
+    }
+  }
+}
+
+/// 시작 연출 — 나의 존을 존 색으로 깜빡여 보여 준다(문구는 Flutter 오버레이)
+class ZoneIntro extends Component with HasGameRef<ZonberGame> {
+  @override
+  void render(Canvas canvas) {
+    final g = gameRef;
+    if (!g.inIntro || g.introLeft <= ZonberGame.introStart) return;
+    final t = (ZonberGame.introZone + ZonberGame.introStart) - g.introLeft; // 0 → introZone
+    final on = (t * 3.3).floor() % 2 == 0; // 약 3번 깜빡
+    final r = g.zoneRect.deflate(2);
+    final accent = g.worldConfig.accent;
+    // 존 바깥은 살짝 어둡게 — 여기가 내 자리
+    final outside = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(const Rect.fromLTWH(0, 0, ZonberGame.mapWidth, ZonberGame.mapHeight))
+      ..addRRect(RRect.fromRectAndRadius(r, const Radius.circular(8)));
+    canvas.drawPath(outside, Paint()..color = Colors.black.withValues(alpha: 0.28));
+    canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(8)),
+        Paint()..color = accent.withValues(alpha: on ? 0.30 : 0.10));
+    canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(8)), Paint()
+      ..color = accent.withValues(alpha: on ? 1 : 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4);
+  }
+}
+
+/// 축구공 무늬 — 가운데 검은 오각형 + 가장자리 조각 5개. [spin] 만큼 돌린다.
+void paintSoccerPatches(Canvas canvas, Offset c, double r, double spin) {
+  canvas.save();
+  canvas.translate(c.dx, c.dy);
+  canvas.rotate(spin);
+  canvas.clipPath(Path()..addOval(Rect.fromCircle(center: Offset.zero, radius: r)));
+  final ink = Paint()..color = const Color(0xFF1F2937);
+  Path pent(double cx, double cy, double rr, double rot) {
+    final p = Path();
+    for (int i = 0; i < 5; i++) {
+      final a = rot + i * 2 * pi / 5 - pi / 2;
+      final pt = Offset(cx + cos(a) * rr, cy + sin(a) * rr);
+      i == 0 ? p.moveTo(pt.dx, pt.dy) : p.lineTo(pt.dx, pt.dy);
+    }
+    return p..close();
+  }
+  canvas.drawPath(pent(0, 0, r * 0.36, 0), ink);
+  for (int i = 0; i < 5; i++) {
+    final a = i * 2 * pi / 5 - pi / 2;
+    canvas.drawPath(pent(cos(a) * r * 0.95, sin(a) * r * 0.95, r * 0.3, pi / 5), ink);
+  }
+  canvas.restore();
+}
+
+/// 피구 외야 패스 — 코트 바깥 띠를 따라 공을 몇 번 돌린 뒤 캐릭터를 향해 빠르게 던진다.
+/// 패스 중인 공은 공중에 띄운 공이라 맞지 않는다(충돌 없음). 마지막에 진짜 공(Bullet)을 쏘고 사라진다.
+class _PassBall extends PositionComponent with HasGameRef<ZonberGame> {
+  final List<Vector2> points;
+  final ProjectileDef def;
+  final double shotSpeed;
+  int _i = 0;
+  double _hopT = 0;
+  double _hold = 0;
+  double _age = 0;
+  double _lift = 0;
+  bool finished = false;
+
+  /// 패스 중 공 색
+  static const Color passColor = Color(0xFF22C55E);
+
+  _PassBall({required this.points, required this.def, required this.shotSpeed}) {
+    position = points.first.clone();
+    size = Vector2.all(def.visualSize);
+    // 경로 좌표는 외야 선수 위치 객체 그대로(선수가 움직이면 따라간다)
+    anchor = Anchor.center;
+    priority = 12; // 캐릭터 위로 — 머리 위로 넘어가는 패스
+  }
+
+  @override
+  void update(double dt) {
+    if (finished || gameRef.isGameOver) return;
+    _age += dt;
+    if (_i >= points.length - 1) {
+      // 마지막 외야수 손에서 잠깐 멈췄다가 던진다
+      _lift = 0;
+      _hold += dt;
+      if (_hold >= 0.25) _fire();
+      return;
+    }
+    final a = points[_i], b = points[_i + 1];
+    final dur = max(0.3, a.distanceTo(b) / 540);
+    _hopT += dt;
+    final p = (_hopT / dur).clamp(0.0, 1.0);
+    position = a + (b - a) * p;
+    _lift = sin(pi * p); // 포물선처럼 떴다가 받는다(크기로 표현)
+    if (p >= 1) {
+      _i++;
+      _hopT = 0;
+    }
+  }
+
+  void _fire() {
+    finished = true;
+    if (gameRef.player.isMounted) {
+      gameRef.mapArea.add(Bullet(position.clone(), gameRef.player.position.clone(), speed: shotSpeed, def: def));
+    }
+    removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final r = size.x / 2;
+    final c = Offset(r, r);
+    final s = (_age < 0.12 ? 0.4 + 0.6 * (_age / 0.12) : 1.0) * (1 + 0.45 * _lift);
+    canvas.translate(c.dx, c.dy);
+    canvas.scale(s);
+    canvas.translate(-c.dx, -c.dy);
+    // 패스 중인 공은 초록 — 아직 날아오지 않는 공임을 표시. 던지는 순간 원래 공(주황 속공)으로 바뀐다
+    if (GameArt.draw(canvas, 'ammo_dodgeball_pass', c, r * 2.1, rotation: _age * 9)) return;
+    canvas.drawCircle(c, r, Paint()..color = passColor);
+    paintDodgeBallBand(canvas, c, r, _age * 9);
+    canvas.drawCircle(c.translate(-r * 0.32, -r * 0.34), r * 0.26, Paint()..color = Colors.white.withValues(alpha: 0.55));
+    canvas.drawCircle(c, r, Paint()
+      ..color = Colors.black.withValues(alpha: 0.28)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2);
+  }
+}
+
+class Bullet extends PositionComponent
+    with HasGameRef<ZonberGame>, CollisionCallbacks {
+  Vector2 velocity = Vector2.zero();
+  final double speed;
+  /// 월드 투사체 정의 — 크기·색·거동·벽 반응
+  final ProjectileDef def;
+  int _bounces = 0;
+  double _age = 0;
+  /// curve: 휘는 방향(±1)
+  final double _curveSign;
+  /// 분열: 이 시간(초)이 지나면 [splitInto]개로 갈라진다. null 이면 분열 없음
+  double? splitAfter;
+  int splitInto = 0;
+
+  /// 골키퍼: 막히거나(키퍼·포스트·닫힌 벽) 튕겨 나간 공 — 더는 득점·세이브 대상이 아니다
+  bool deflected = false;
+  double _deflectAge = 0;
+  /// 골키퍼: 골망에 들어간 공 — 속도가 줄며 사라진다
+  bool scored = false;
+
+  /// wave·knuckle: 찬 방향(흔들림의 기준선)과 옆으로 움직이는 속도
+  Vector2 _baseDir = Vector2(0, 1);
+  static final Random _rng = Random();
+  double _lat = 0, _latTarget = 0, _latOffset = 0, _knuckleT = 0;
+
+  /// 법선 [n] 에 대해 반사하고 튕겨 나간 공으로 만든다
+  void bounceOff(Vector2 n, {double keep = 0.8}) {
+    final nn = n.normalized();
+    velocity = (velocity - nn * (2 * velocity.dot(nn))) * keep;
+    velocity.rotate((Random().nextDouble() - 0.5) * 0.3);
+    if (velocity.length < 160) velocity = velocity.normalized() * 160;
+    deflected = true;
+    _deflectAge = _age;
+  }
+
+  /// 골키퍼: 키퍼 몸에 맞은 적이 있다 — 골문을 벗어나면 세이브, 그래도 들어가면 골
+  bool keeperTouched = false;
+  /// 같은 접촉이 여러 번 잡히지 않게 잠깐 쉰다(초)
+  double keeperCd = 0;
+
+  /// 법선 [n] 방향 성분만 반발계수 [e] 로 되튕긴다(접선 성분은 [friction] 만큼 유지).
+  /// 정면 충돌은 크게 꺾이고, 스치듯 맞으면 방향만 조금 바뀐다. 득점 대상에서 빼지 않는다.
+  void reflectSoft(Vector2 n, {double e = 0.6, double friction = 0.92}) {
+    final nn = n.normalized();
+    final vn = velocity.dot(nn);
+    if (vn >= 0) return; // 이미 멀어지는 중
+    final normal = nn * vn;
+    final tangent = velocity - normal;
+    velocity = tangent * friction - normal * e;
+    if (velocity.length < 90) velocity = velocity.normalized() * 90;
+    // 거동(휘기·흔들림)은 여기서 끝 — 튕긴 뒤엔 직선으로
+    _baseDir = velocity.normalized();
+    _free = true;
+  }
+
+  /// 키퍼 접촉 — 반발 후 결과는 골라인에서 정한다
+  void keeperTouch(Vector2 n) {
+    reflectSoft(n, e: 0.65, friction: 0.9);
+    keeperTouched = true;
+    keeperCd = 0.25;
+  }
+
+  /// 튕긴 뒤 — 휘기·흔들림 없이 직선으로 난다
+  bool _free = false;
+
+  /// 튕긴·골망 공은 흐려지며 사라진다
+  double get _fade {
+    if (scored) return (1 - (_age - _deflectAge) / 0.45).clamp(0.0, 1.0);
+    if (deflected) return (1 - (_age - _deflectAge - 0.7) / 0.5).clamp(0.0, 1.0);
+    return 1;
+  }
+
+  Bullet(Vector2 position, Vector2 targetPosition, {this.speed = 200.0, required this.def, double? curveSign})
+      : _curveSign = curveSign ?? (Random().nextBool() ? 1.0 : -1.0) {
+    this.position = position;
+    size = Vector2(def.visualSize, def.visualSize);
+    anchor = Anchor.center;
+    Vector2 direction = targetPosition - position;
+    velocity = direction.normalized() * speed;
+    _baseDir = velocity.normalized();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final f = _fade;
+    if (f < 1) {
+      canvas.saveLayer(size.toRect().inflate(size.x), Paint()..color = Color.fromRGBO(0, 0, 0, f));
+      _renderBall(canvas);
+      canvas.restore();
+    } else {
+      _renderBall(canvas);
+    }
+  }
+
+  void _renderBall(Canvas canvas) {
+    final c = Offset(size.x / 2, size.y / 2);
+    if (def.seams && _age < 0.12) {
+      // 피구 — 상대 손에서 튀어나오듯 0.12초 동안 커지며 등장
+      final s = 0.4 + 0.6 * (_age / 0.12);
+      canvas.translate(c.dx, c.dy);
+      canvas.scale(s);
+      canvas.translate(-c.dx, -c.dy);
+    }
+    if (def.visualSize >= 14 || def.art != null) {
+      // 꽉 찬 공 — 몸통 · 아래쪽 음영 · 위쪽 하이라이트. 네온 링이 아니라 "공"으로 읽히게.
+      final r = size.x / 2;
+      if (def.trail && !deflected && !scored && velocity.length2 > 0) {
+        // 총알슛 꼬리 — 진행 반대쪽으로 흐려지는 잔상(그림이 있으면 속도선 그림)
+        final back = velocity.normalized();
+        final ang = atan2(-back.y, -back.x);
+        if (!GameArt.draw(canvas, 'fx_streak', c + Offset(-back.x, -back.y) * (r * 2.4), r * 5.2, rotation: ang + pi)) {
+          final tail = c - Offset(back.x, back.y) * (r * 4.2);
+          canvas.drawLine(c, tail, Paint()
+            ..shader = ui.Gradient.linear(c, tail, [def.color.withValues(alpha: 0.75), def.color.withValues(alpha: 0)])
+            ..strokeWidth = r * 1.5
+            ..strokeCap = StrokeCap.round);
+        }
+      }
+      // 공 그림 — 돌면서 날아온다(무회전은 거의 돌지 않는다). 갤럭시의 작은 탄은 조금 크게
+      if (def.art != null) {
+        final spin = def.motion == ProjectileMotion.knuckle && !deflected ? 0.3 : _age * 6 * _curveSign;
+        final w = def.visualSize < 14 ? size.x * 1.5 : size.x * 1.08;
+        if (GameArt.draw(canvas, def.art!, c, w, rotation: spin)) return;
+      }
+      canvas.drawCircle(c, r, Paint()..color = def.color);
+      canvas.drawCircle(
+        c.translate(r * 0.18, r * 0.22),
+        r * 0.82,
+        Paint()..color = Colors.black.withValues(alpha: 0.14),
+      );
+      canvas.drawCircle(c, r * 0.8, Paint()..color = def.color);
+      if (def.seams) paintDodgeBallBand(canvas, c, r, _age * 7 * _curveSign);
+      // 무회전 슛은 돌지 않는다
+      if (def.soccer) paintSoccerPatches(canvas, c, r, def.motion == ProjectileMotion.knuckle && !deflected ? 0.3 : _age * 6 * _curveSign);
+      canvas.drawCircle(
+        c.translate(-r * 0.32, -r * 0.34),
+        r * 0.26,
+        Paint()..color = Colors.white.withValues(alpha: 0.55),
+      );
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.28)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+      return;
+    }
+    // 외곽 글로우 (작은 네온 탄 — 갤럭시)
     canvas.drawCircle(
-      Offset(size.x / 2, size.y / 2),
-      size.x / 1.5, // Larger glow
+      c,
+      size.x / 1.5,
       Paint()
-        ..color = AppColors.secondary.withOpacity(0.4)
+        ..color = def.color.withValues(alpha: 0.4)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-
-    // Core
+    // 코어
+    canvas.drawCircle(c, size.x / 3, Paint()..color = def.coreColor);
+    // 링
     canvas.drawCircle(
-      Offset(size.x / 2, size.y / 2),
-      size.x / 3,
-      Paint()..color = Colors.white, // White hot core
-    );
-
-    // Inner Ring
-    canvas.drawCircle(
-      Offset(size.x / 2, size.y / 2),
+      c,
       size.x / 2,
       Paint()
-        ..color = AppColors.secondary
+        ..color = def.color
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
@@ -2479,19 +2706,77 @@ class Bullet extends PositionComponent
 
   @override
   Future<void> onLoad() async {
-    // Radius 3.5 (vs default 4.5) — matches the visible inner ring more closely
-    add(CircleHitbox(radius: 3.5, position: Vector2(4.5, 4.5), anchor: Anchor.center));
+    add(CircleHitbox(radius: def.radius, position: size / 2, anchor: Anchor.center));
   }
 
   @override
   void update(double dt) {
-    // slowTime 파워업은 이미 날아오는 탄환에도 즉시 적용되어야 한다.
-    // (스폰 시점에 velocity를 깎으면 비행 시간 1.5~3초 때문에 효과가 늦게 체감되고,
-    //  버프가 끝난 뒤에도 느린 탄환이 영구히 남는다)
-    final slowMult = gameRef.powerUpManager?.bulletSpeedMultiplier ?? 1.0;
+    _age += dt;
+
+    // --- 분열: 진행 방향 기준 좌우로 부채꼴(3개 ±16°, 5개 ±14°·±28°) ---
+    if (splitAfter != null && _age >= splitAfter! && splitInto > 1) {
+      final step = splitInto >= 5 ? 0.245 : 0.28; // rad
+      final dir = velocity.normalized();
+      for (int i = 0; i < splitInto; i++) {
+        final a = (i - (splitInto - 1) / 2) * step;
+        final d = dir.clone()..rotate(a);
+        parent?.add(Bullet(position.clone(), position + d * 100, speed: speed * 1.05, def: def));
+      }
+      removeFromParent();
+      return;
+    }
+
+    if (keeperCd > 0) keeperCd -= dt;
+
+    // --- 거동 --- (키퍼·포스트에 튕긴 공은 직선)
+    switch (_free ? ProjectileMotion.straight : def.motion) {
+      case ProjectileMotion.curve:
+        // 진행 방향에 수직인 가속 → 포물선처럼 휜다 (속도 크기는 유지)
+        final perp = Vector2(-velocity.y, velocity.x).normalized();
+        velocity += perp * (def.lateralAccel * _curveSign * dt);
+        velocity = velocity.normalized() * speed;
+        break;
+      case ProjectileMotion.homing:
+        if (_age < def.maxTurnTime && gameRef.player.isMounted) {
+          final toPlayer = gameRef.player.position - position;
+          final current = atan2(velocity.y, velocity.x);
+          final target = atan2(toPlayer.y, toPlayer.x);
+          double diff = (target - current + pi) % (2 * pi) - pi;
+          final maxStep = def.turnRate * dt;
+          diff = diff.clamp(-maxStep, maxStep);
+          velocity.rotate(diff);
+        }
+        break;
+      case ProjectileMotion.wave:
+        // 꼬불꼬불 — 찬 방향을 축으로 좌우 사인파 (옆 위치 = A·sin(ωt))
+        if (!deflected && !scored) {
+          final w = 2 * pi * def.waveHz;
+          final perp = Vector2(-_baseDir.y, _baseDir.x);
+          velocity = _baseDir * speed + perp * (def.waveAmp * w * cos(w * _age) * _curveSign);
+        }
+        break;
+      case ProjectileMotion.knuckle:
+        // 무회전 — 0.12~0.3초마다 옆으로 흔들리는 방향이 바뀐다. 너무 멀리 새지 않게 기준선 쪽으로 당긴다.
+        if (!deflected && !scored) {
+          _knuckleT -= dt;
+          if (_knuckleT <= 0) {
+            _knuckleT = 0.12 + _rng.nextDouble() * 0.18;
+            _latTarget = ((_rng.nextDouble() * 2 - 1) * def.waveAmp - _latOffset * 2.2)
+                .clamp(-def.waveAmp, def.waveAmp);
+          }
+          _lat += (_latTarget - _lat) * min(1.0, dt * 9);
+          _latOffset += _lat * dt;
+          final perp = Vector2(-_baseDir.y, _baseDir.x);
+          velocity = _baseDir * speed + perp * _lat;
+        }
+        break;
+      case ProjectileMotion.straight:
+      case ProjectileMotion.bounce:
+        break;
+    }
 
     // Raycast / Sub-step for high speed bullets
-    Vector2 ds = velocity * dt * slowMult;
+    Vector2 ds = velocity * dt;
     double dist = ds.length;
     int steps = (dist / 4).ceil(); // Check every 4 pixels
 
@@ -2515,6 +2800,11 @@ class Bullet extends PositionComponent
           );
           if (bulletRect.overlaps(obsRect)) {
             // Hit!
+            if (def.onWall == WallBehavior.vanish || _bounces >= def.maxBounces) {
+              removeFromParent();
+              return;
+            }
+            _bounces++;
 
             // Determine Reflection Vector
             // Simple approach: Reverse velocity based on hitting side?
@@ -2536,7 +2826,7 @@ class Bullet extends PositionComponent
               // Standard Axis-Aligned Reflection
               Rect obs = other.toRect();
               Vector2 prev = position + (ds * ((i - 1) / steps));
-              const double bHalf = 4.5; // bullet half-size (9px / 2)
+              final double bHalf = size.x / 2; // bullet half-size
 
               // Determine hit side by checking which face the bullet was
               // OUTSIDE of at the previous sub-step position.
@@ -2593,6 +2883,12 @@ class Bullet extends PositionComponent
       position += velocity.normalized() * 2;
     }
 
+    // Keeper: 포스트·닫힌 벽에 맞으면 튕기고, 열린 입구로 완전히 들어오면 실점
+    final wc = gameRef.worldConfig;
+    if (wc.mode == WorldMode.keeper) {
+      if (_keeperUpdate(wc)) return;
+    }
+
     // Cleanup - Tighter bounds
     if (position.x < -1000 ||
         position.x > ZonberGame.mapWidth + 1000 ||
@@ -2609,6 +2905,80 @@ class Bullet extends PositionComponent
   ) {
     super.onCollisionStart(intersectionPoints, other);
     // Logic captured in update() for tunneling prevention
+  }
+
+  /// 득점 없이 끝난 공 — 키퍼가 건드렸으면 세이브 확정, 아니면 빗나감. 흐려지며 사라진다
+  void _settle() {
+    deflected = true;
+    _deflectAge = _age;
+    if (keeperTouched && gameRef.player.isMounted) gameRef.player.creditSave(position.clone());
+  }
+
+  /// 골키퍼(페널티킥) 판정. 공을 제거했으면 true.
+  bool _keeperUpdate(WorldConfig wc) {
+    final br = def.radius;
+
+    if (scored) {
+      // 그물 안 — 그물 끝에서 멈추고 흐려지며 사라진다
+      velocity *= 0.8;
+      if (position.y > KeeperGoal.lineY + KeeperGoal.depth - br) {
+        position.y = KeeperGoal.lineY + KeeperGoal.depth - br;
+        velocity.setZero();
+      }
+      if (_age - _deflectAge > 0.5) {
+        removeFromParent();
+        return true;
+      }
+      return false;
+    }
+
+    // 1) 골포스트 — 둥근 기둥, 맞은 각도대로 튕긴다
+    for (final pl in [true, false]) {
+      final pc = gameRef.goal.postPos(pl);
+      final off = position - pc;
+      if (off.length < KeeperGoal.postRadius + br && velocity.dot(off) < 0) {
+        // 포스트 — 맞은 각도대로 튕긴다. 맞고 골문 안으로 들어갈 수도 있다(득점 대상 유지)
+        reflectSoft(off, e: 0.75, friction: 0.95);
+        position = pc + off.normalized() * (KeeperGoal.postRadius + br + 1);
+        gameRef.shake(4, 0.18);
+        gameRef.burst(position.clone(), Colors.white, count: 8, speed: 150, size: 2);
+        AudioManager().playSfx('hit.wav', volume: 0.35);
+        return false;
+      }
+    }
+
+    // 2) 골라인 통과 — 골문 안이면 실점(키퍼·포스트를 맞고 들어가도 골), 밖이면 빗나감
+    if (!deflected && position.y >= KeeperGoal.lineY) {
+      final inMouth = position.x > KeeperGoal.left + KeeperGoal.postRadius &&
+          position.x < KeeperGoal.right - KeeperGoal.postRadius;
+      if (inMouth) {
+        scored = true;
+        _deflectAge = _age;
+        gameRef.fxGoal(position.clone());
+        if (gameRef.player.isMounted) gameRef.player.concedeGoal();
+      } else {
+        _settle(); // 골문 옆으로 — 키퍼가 건드렸으면 세이브
+      }
+    }
+
+    // 3) 튕겨서 골문 반대쪽(위)으로 가거나 무대 옆으로 나가면 끝 — 키퍼가 건드렸으면 세이브
+    if (!deflected && !scored && (_free || keeperTouched)) {
+      final away = velocity.y < -20;
+      final outSide = position.x < -10 || position.x > ZonberGame.mapWidth + 10;
+      if (away || outSide) _settle();
+    }
+
+    // 4) 튕긴·빗나간 공 정리
+    if (deflected &&
+        (_fade <= 0 ||
+            position.x < -40 ||
+            position.y < -40 ||
+            position.x > ZonberGame.mapWidth + 40 ||
+            position.y > ZonberGame.mapHeight + 40)) {
+      removeFromParent();
+      return true;
+    }
+    return false;
   }
 }
 
@@ -2634,6 +3004,12 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
 
   final Random _random = Random();
 
+  /// 피구(thrower) — 한 턴에 한 번 캐릭터를 향해 던진다
+  final _DodgeballThrower _thrower = _DodgeballThrower();
+
+  /// 골키퍼(shooter) — 열린 입구를 노리고 턴마다 찬다
+  final _KeeperShooter _shooter = _KeeperShooter();
+
   /// 현재 난이도 레벨 (경과 시간 기반)
   int get currentLevel =>
       _startLevel + (gameRef.survivalTime / _levelDuration).floor();
@@ -2645,12 +3021,25 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
     if (config != null) {
       _baseInterval = config.spawnInterval;
       _baseSpeed = config.bulletSpeed;
-      _baseLimit = config.maxBullets;
     }
+    // 월드가 정하는 값이 우선 — 동시 탄 상한, 스폰 간격, 기본 탄속
+    final world = gameRef.worldConfig;
+    _baseLimit = world.maxBullets;
+    _baseInterval = world.spawnInterval ?? _baseInterval;
+    _baseSpeed = world.bulletSpeed ?? _baseSpeed;
   }
 
   @override
   void update(double dt) {
+    if (gameRef.inIntro) return; // 시작 연출 중엔 공을 내지 않는다
+    if (gameRef.worldConfig.spawner == SpawnStrategy.thrower) {
+      _thrower.update(dt, gameRef);
+      return;
+    }
+    if (gameRef.worldConfig.spawner == SpawnStrategy.shooter) {
+      _shooter.update(dt, gameRef);
+      return;
+    }
     _timeSinceLastSpawn += dt;
 
     final int level = currentLevel;
@@ -2669,7 +3058,11 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
     if (!gameRef.player.isMounted) return;
 
     // Player has anchor=Anchor.center, so position IS the center already
-    Vector2 playerPos = gameRef.player.position;
+    // Keeper 모드는 골대(맵 중앙)를 기준으로 스폰하고 골대를 조준한다
+    final bool keeper = gameRef.worldConfig.mode == WorldMode.keeper;
+    Vector2 playerPos = keeper
+        ? Vector2(ZonberGame.mapWidth / 2, ZonberGame.mapHeight / 2)
+        : gameRef.player.position;
 
     // RAMPING: Increase bullet cap slightly over time
     int currentLimit = _baseLimit + (level * _limitPerLevel);
@@ -2682,10 +3075,13 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
     double currentSpeed =
         (_baseSpeed + (level * _speedPerLevel)).clamp(0, _baseSpeed * 2);
 
-    // Reduced Range
-    double range = 450.0;
-    double angle = _random.nextDouble() * 2 * pi;
-    Vector2 spawnPos = playerPos + Vector2(cos(angle), sin(angle)) * range;
+    final world = gameRef.worldConfig;
+    final def = world.projectiles[_random.nextInt(world.projectiles.length)];
+    final Vector2 spawnPos;
+    // ring — 플레이어(또는 keeper 골대) 중심 원주
+    final double range = world.spawnRadius;
+    final double angle = _random.nextDouble() * 2 * pi;
+    spawnPos = playerPos + Vector2(cos(angle), sin(angle)) * range;
 
     // Safety Check: Don't spawn inside obstacles
     bool safeToSpawn = true;
@@ -2697,331 +3093,481 @@ class BulletSpawner extends Component with HasGameRef<ZonberGame> {
     }
     if (!safeToSpawn) return;
 
+    final double jitter = keeper ? gameRef.worldConfig.goalRadius * 1.2 : 100;
     Vector2 targetPos =
         playerPos +
         Vector2(
-          (_random.nextDouble() - 0.5) * 100,
-          (_random.nextDouble() - 0.5) * 100,
+          (_random.nextDouble() - 0.5) * jitter,
+          (_random.nextDouble() - 0.5) * jitter,
         );
 
-    gameRef.mapArea.add(Bullet(spawnPos, targetPos, speed: currentSpeed));
+    gameRef.mapArea.add(Bullet(spawnPos, targetPos, speed: currentSpeed * def.speedMult, def: def));
   }
 }
 
 // ─────────────────────────────────────────────────────────────
-// BulletWarningOverlay — 맵 밖에서 진입 중인 탄환을 테두리에 표시
+// 골키퍼 — 페널티킥형 (2026-09-21 개편, 같은 날 페널티 에어리어 확대·슛 종류 추가). docs/STAGES.md §3.
+// 화면 아래 가로 골문. 키퍼는 페널티 에어리어(= 나의 존) 안에서 움직인다.
+// 페널티 에어리어 바로 바깥의 슈터(상대 선수)들이 차는 공이 골문 안으로 들어오면 실점, 포스트에 맞으면 튕기고,
+// 골문 밖으로 가면 빗나감. 키퍼에 닿으면 튕겨 낸다(세이브). 5골이면 게임 오버.
 //
-// 탄환은 플레이어 기준 반경 450px 원주에서 스폰되는데 맵 폭이 480이라
-// 좌우 스폰 지점 상당수가 맵 밖이다. MapArea에 clipRect가 걸려 있어
-// 플레이어 입장에서는 "보이지 않는 곳에서 갑자기" 튀어나온다.
-// 이 컴포넌트가 진입 지점을 미리 알려 최소한의 공정성을 보장한다.
+//   단계  시간      슈터  새로 나오는 슛
+//   0     ~15s     1명   직선
+//   1     ~30s     2명   + 강슛(노랑)
+//   2     ~50s     3명   + 감아차기(하늘색, 휘어 들어옴)
+//   3     ~70s     3명   + 꼬불꼬불 슛(분홍) · 두 명 동시
+//   4     ~95s     4명   + 총알슛(주황, 꼬리) · 슈터 좌우 이동
+//   5     ~125s    5명   + 무회전(보라, 어디로 흔들릴지 모름) · 세 명 동시
+//   6     125s~    6명   극악: 특수 슛 위주, 키퍼 반대쪽을 노리는 비율 85%
+// ⚠️ 수치를 바꾸면 골키퍼 리더보드 기록의 의미가 달라진다(시즌 리셋 검토).
 // ─────────────────────────────────────────────────────────────
-class BulletWarningOverlay extends Component with HasGameRef<ZonberGame> {
-  /// 이 거리 안쪽으로 접근한 탄환만 표시 (너무 멀면 화면이 지저분해진다)
-  static const double _showRange = 320.0;
-  static const double _markerLength = 14.0;
+class KeeperGoal {
+  /// 골문 좌우 포스트 x, 골라인 y, 그물 깊이 (무대 좌표 480×768)
+  static const double left = 110, right = 370, lineY = 720, depth = 34;
+  static const double postRadius = 7;
+  /// 키퍼 시작 줄(골라인 앞)
+  static const double keeperY = 690;
+  /// 페널티 에어리어 = 키퍼 이동 영역 = 나의 존 (world_config 의 keeper playArea 와 같은 값).
+  /// 실제 비율(깊이 16.5m · 페널티 마크 11m · 아크 9.15m · 골 에어리어 5.5m)에 맞춰 선을 긋는다.
+  static const Rect penaltyBox = Rect.fromLTRB(12, 420, 468, 720);
+  static const Rect goalArea = Rect.fromLTRB(70, 620, 410, 720);
+  static const Offset penaltySpot = Offset(240, 520);
+  static const double arcRadius = 166;
 
-  @override
-  void render(Canvas canvas) {
-    if (gameRef.isGameOver) return;
+  static const List<int> _shooterCount = [1, 2, 3, 3, 4, 5, 6];
 
-    const double w = ZonberGame.mapWidth;
-    const double h = ZonberGame.mapHeight;
+  final Random _rng = Random();
+  /// 슈터 위치 · 차는 순간 커지는 연출(1→0) · 좌우 이동 속도
+  final List<Vector2> shooters = [];
+  final List<double> kickFlash = [];
+  final List<double> _drift = [];
+  final List<double> _appear = [];
 
-    for (final bullet in gameRef.mapArea.children.whereType<Bullet>()) {
-      final p = bullet.position;
-      final outside = p.x < 0 || p.x > w || p.y < 0 || p.y > h;
-      if (!outside) continue;
+  static int tierAt(double t) {
+    if (t < 15) return 0;
+    if (t < 30) return 1;
+    if (t < 50) return 2;
+    if (t < 70) return 3;
+    if (t < 95) return 4;
+    if (t < 125) return 5;
+    return 6;
+  }
 
-      // 맵 경계에서 가장 가까운 지점 = 진입 예상 위치
-      final edgeX = p.x.clamp(0.0, w);
-      final edgeY = p.y.clamp(0.0, h);
-      final dx = edgeX - p.x;
-      final dy = edgeY - p.y;
-      final dist = sqrt(dx * dx + dy * dy);
-      if (dist > _showRange) continue;
+  Vector2 postPos(bool leftPost) => Vector2(leftPost ? left : right, lineY);
 
-      // 맵을 향해 오는 탄환만 (멀어지는 탄환은 무시)
-      if (bullet.velocity.x * dx + bullet.velocity.y * dy <= 0) continue;
+  /// 등장 연출 0→1
+  double appear(int i) => _appear[i].clamp(0.0, 1.0);
 
-      // 가까울수록 진하고 굵게
-      final t = 1.0 - (dist / _showRange); // 0(먼) ~ 1(코앞)
-      final alpha = (0.25 + t * 0.65).clamp(0.0, 0.9);
-
-      // 경계선에 수직인 짧은 막대로 진입 지점 표시
-      final bool vertical = edgeX == 0.0 || edgeX == w;
-      final half = _markerLength / 2 * (0.6 + t * 0.4);
-      final Offset a, b;
-      if (vertical) {
-        a = Offset(edgeX, edgeY - half);
-        b = Offset(edgeX, edgeY + half);
-      } else {
-        a = Offset(edgeX - half, edgeY);
-        b = Offset(edgeX + half, edgeY);
+  void update(double dt, double t) {
+    final tier = tierAt(t);
+    while (shooters.length < _shooterCount[tier]) {
+      _addShooter();
+    }
+    for (int i = 0; i < shooters.length; i++) {
+      kickFlash[i] = max(0, kickFlash[i] - dt * 4);
+      _appear[i] += dt * 3;
+      if (tier >= 4) {
+        // 좌우로 움직인다 — 차는 각도가 계속 바뀐다
+        shooters[i].x += _drift[i] * dt;
+        if (shooters[i].x < 40 || shooters[i].x > 440) _drift[i] = -_drift[i];
+        shooters[i].x = shooters[i].x.clamp(40.0, 440.0);
       }
-
-      canvas.drawLine(
-        a,
-        b,
-        Paint()
-          ..color = AppColors.secondary.withValues(alpha: alpha)
-          ..strokeWidth = 2.5 + t * 1.5
-          ..strokeCap = StrokeCap.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
-      );
     }
   }
+
+  void _addShooter() {
+    // 페널티 에어리어 바로 바깥(아크 주변), 다른 슈터와 너무 붙지 않는 자리
+    Vector2 p = Vector2(240, 360);
+    for (int tries = 0; tries < 20; tries++) {
+      p = Vector2(50 + _rng.nextDouble() * 380, 280 + _rng.nextDouble() * 115);
+      if (shooters.every((s) => s.distanceTo(p) > 80)) break;
+    }
+    if (shooters.isEmpty) p = Vector2(240, 360); // 첫 슈터는 정면, 아크 바로 위
+    shooters.add(p);
+    kickFlash.add(0);
+    _appear.add(0);
+    _drift.add((_rng.nextBool() ? 1 : -1) * (35 + _rng.nextDouble() * 35));
+  }
 }
 
-// ─────────────────────────────────────────────────────────────
-// PowerUpComponent — 맵 위에 스폰되는 파워업 오브
-// ─────────────────────────────────────────────────────────────
-class PowerUpComponent extends PositionComponent
-    with HasGameRef<ZonberGame> {
-  final PowerUpType type;
-  double _pulseTimer = 0.0;
-  bool _pickedUp = false;
+/// 슛 종류 — 월드의 projectiles 순서와 같다(0 직선 · 1 강슛 · 2 감아차기 · 3 꼬불꼬불 · 4 총알슛 · 5 무회전)
+enum _Kick { straight, power, curl, wave, rocket, knuckle }
 
-  static const double _size = 28.0;
-  static const double _lifetime = 15.0;   // 총 수명
-  static const double _blinkStart = 11.0; // 이 시간 이후 깜빡임 시작
-  static const double _blinkInterval = 0.25;
+class _KeeperShooter {
+  final Random _rng = Random();
+  double _since = 0;
+  double _nextBeat = 1.4;
 
-  double _lifetimer = 0.0;
-  double _blinkTimer = 0.0;
-  bool _blinkVisible = true;
+  /// 턴 간격: 2.0s 에서 1초에 1%씩 짧아지고 0.55s 하한
+  static double beatAt(double t) => max(0.55, 2.0 * pow(0.99, t).toDouble());
 
-  PowerUpComponent({required this.type, required Vector2 spawnPos})
-      : super(
-          position: spawnPos,
-          size: Vector2.all(_size),
-          anchor: Anchor.center,
-        );
+  /// 슛 속도: 200 → 초당 +2.4, 상한 520 (총알슛은 여기에 1.75배)
+  static double speedAt(double t) => min(520.0, 200.0 + 2.4 * t);
 
-  @override
-  Future<void> onLoad() async {
-    add(CircleHitbox(radius: _size / 2, collisionType: CollisionType.passive));
+  /// 키퍼 반대쪽을 노리는 비율
+  static const List<double> _smart = [0.2, 0.35, 0.5, 0.6, 0.7, 0.8, 0.85];
+
+  /// 단계별 슛 비중
+  static const Map<int, Map<_Kick, int>> _weights = {
+    0: {_Kick.straight: 1},
+    1: {_Kick.straight: 6, _Kick.power: 3},
+    2: {_Kick.straight: 3, _Kick.power: 3, _Kick.curl: 4},
+    3: {_Kick.straight: 1, _Kick.power: 2, _Kick.curl: 3, _Kick.wave: 4},
+    4: {_Kick.power: 2, _Kick.curl: 3, _Kick.wave: 3, _Kick.rocket: 3},
+    5: {_Kick.power: 1, _Kick.curl: 3, _Kick.wave: 2, _Kick.rocket: 3, _Kick.knuckle: 4},
+    6: {_Kick.curl: 3, _Kick.wave: 3, _Kick.rocket: 4, _Kick.knuckle: 4},
+  };
+
+  /// 여러 명이 동시에 찰 확률(두 명 · 세 명)
+  static const List<double> _twin = [0, 0, 0, 0.3, 0.3, 0.3, 0.35];
+  static const List<double> _trio = [0, 0, 0, 0, 0.1, 0.2, 0.3];
+
+  _Kick _pick(int tier) {
+    final w = _weights[tier]!;
+    int roll = _rng.nextInt(w.values.reduce((a, b) => a + b));
+    for (final e in w.entries) {
+      roll -= e.value;
+      if (roll < 0) return e.key;
+    }
+    return _Kick.straight;
   }
 
-  void pickup(PowerUpManager manager) {
-    if (_pickedUp) return;
-    _pickedUp = true;
-    manager.applyEffect(type);
-    removeFromParent();
+  void update(double dt, ZonberGame game) {
+    _since += dt;
+    if (_since < _nextBeat) return;
+    _since = 0;
+    final t = game.survivalTime;
+    _nextBeat = beatAt(t);
+    final goal = game.goal;
+    if (goal.shooters.isEmpty || game.isGameOver || !game.player.isMounted) return;
+    final tier = KeeperGoal.tierAt(t);
+    final order = List<int>.generate(goal.shooters.length, (i) => i)..shuffle(_rng);
+    final roll = _rng.nextDouble();
+    final n = roll < _trio[tier] ? 3 : roll < _trio[tier] + _twin[tier] ? 2 : 1;
+    for (int k = 0; k < min(n, order.length); k++) {
+      // 동시 슛은 조금씩 어긋나게 — 한 번에 몰려오지 않고 순서대로 막을 틈을 준다
+      _kick(game, order[k], _pick(tier), t, tier, delay: k * 0.12);
+    }
   }
 
+  /// 골문 안 목표 x — 가끔 포스트, 단계가 오를수록 키퍼 반대쪽
+  double _targetX(ZonberGame game, int tier) {
+    const l = KeeperGoal.left + 14, r = KeeperGoal.right - 14;
+    final roll = _rng.nextDouble();
+    if (roll < 0.07) return _rng.nextBool() ? KeeperGoal.left + 2 : KeeperGoal.right - 2; // 포스트 맞기
+    if (roll < 0.07 + _smart[tier]) {
+      final kx = game.player.position.x;
+      final leftSpan = (kx - 40) - l;
+      final rightSpan = r - (kx + 40);
+      if (leftSpan <= 0 && rightSpan <= 0) return l + _rng.nextDouble() * (r - l);
+      final goLeft = rightSpan <= 0 || (leftSpan > 0 && _rng.nextDouble() < leftSpan / (leftSpan + rightSpan));
+      return goLeft ? l + _rng.nextDouble() * leftSpan : (kx + 40) + _rng.nextDouble() * rightSpan;
+    }
+    return l + _rng.nextDouble() * (r - l);
+  }
+
+  /// 슈터 [si] 가 [kind] 슛을 찬다
+  void _kick(ZonberGame game, int si, _Kick kind, double t, int tier, {double delay = 0}) {
+    if (delay > 0) {
+      game.mapArea.add(TimerComponent(
+        period: delay,
+        removeOnFinish: true,
+        onTick: () {
+          if (!game.isGameOver) _kick(game, si, kind, t, tier);
+        },
+      ));
+      return;
+    }
+    final goal = game.goal;
+    if (si >= goal.shooters.length) return;
+    final world = game.worldConfig;
+    final def = world.projectiles[min(kind.index, world.projectiles.length - 1)];
+    final origin = goal.shooters[si] + Vector2(0, 14);
+    final target = Vector2(_targetX(game, tier), KeeperGoal.lineY + KeeperGoal.depth * 0.5);
+    final speed = speedAt(t) * def.speedMult;
+    goal.kickFlash[si] = 1;
+    final dir = (target - origin).normalized();
+    final perp = Vector2(-dir.y, dir.x);
+    final tt = target.distanceTo(origin) / speed;
+    final sign = _rng.nextBool() ? 1.0 : -1.0;
+    switch (def.motion) {
+      case ProjectileMotion.curve:
+        // 감아차기 — 휘는 만큼 반대쪽을 겨눠 차서 결국 목표로 휘어 들어오게 (d ≈ ½·a·T²)
+        final d = 0.5 * def.lateralAccel * tt * tt;
+        game.mapArea.add(Bullet(origin, target - perp * (sign * d), speed: speed, def: def, curveSign: sign));
+        break;
+      case ProjectileMotion.wave:
+        // 꼬불꼬불 — 도착 순간의 옆 위치(A·sin ωT)만큼 반대로 겨눈다
+        final d = def.waveAmp * sin(2 * pi * def.waveHz * tt);
+        game.mapArea.add(Bullet(origin, target - perp * (sign * d), speed: speed, def: def, curveSign: sign));
+        break;
+      default:
+        // 직선·강슛·총알슛·무회전(무회전은 흔들림이 매번 달라 보정하지 않는다)
+        game.mapArea.add(Bullet(origin, target, speed: speed, def: def));
+    }
+    if (kind == _Kick.rocket) game.shake(2, 0.1);
+  }
+}
+
+/// 골문·페널티 에어리어·슈터 그리기 + 골대 상태 갱신
+class GoalZone extends Component with HasGameRef<ZonberGame> {
   @override
   void update(double dt) {
-    _pulseTimer += dt;
-    _lifetimer += dt;
-
-    // 수명 초과 → 제거
-    if (_lifetimer >= _lifetime) {
-      removeFromParent();
-      return;
-    }
-
-    // 깜빡임 구간
-    if (_lifetimer >= _blinkStart) {
-      _blinkTimer += dt;
-      if (_blinkTimer >= _blinkInterval) {
-        _blinkTimer -= _blinkInterval;
-        _blinkVisible = !_blinkVisible;
-      }
-    }
+    if (!gameRef.isGameOver) gameRef.goal.update(dt, gameRef.survivalTime);
   }
 
   @override
   void render(Canvas canvas) {
-    if (!_blinkVisible) return; // 깜빡임 비가시 프레임 스킵
+    final goal = gameRef.goal;
+    const l = KeeperGoal.left, r = KeeperGoal.right, y = KeeperGoal.lineY, d = KeeperGoal.depth;
+    const box = KeeperGoal.penaltyBox;
+    final line = Paint()
+      ..color = Colors.white.withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
 
-    final def = PowerUpDef.all[type]!;
-    final center = Offset(_size / 2, _size / 2);
-    // 수명이 끝날수록 투명도 감소
-    final lifeFade = ((_lifetime - _lifetimer) / (_lifetime - _blinkStart)).clamp(0.3, 1.0);
-    final pulse = 0.85 + sin(_pulseTimer * 3.0) * 0.15;
-    final r = (_size / 2) * pulse;
+    // 페널티 에어리어 안쪽을 살짝 밝게 — 여기가 나의 존
+    canvas.drawRect(box, Paint()..color = Colors.white.withValues(alpha: 0.06));
+    // 페널티 에어리어 · 골 에어리어 · 페널티 마크 · 페널티 아크(박스 바깥 부분만)
+    canvas.drawRect(box, line);
+    canvas.drawRect(KeeperGoal.goalArea, line);
+    canvas.drawCircle(KeeperGoal.penaltySpot, 4, Paint()..color = Colors.white.withValues(alpha: 0.85));
+    const sp = KeeperGoal.penaltySpot;
+    const ar = KeeperGoal.arcRadius;
+    final half = acos((sp.dy - box.top) / ar); // 박스 윗변과 만나는 각
+    canvas.drawArc(Rect.fromCircle(center: sp, radius: ar), -pi / 2 - half, half * 2, false, line);
 
-    // 외부 글로우
-    canvas.drawCircle(
-      center, r + 5,
-      Paint()
-        ..color = def.color.withOpacity(0.25 * lifeFade)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-    // 코어 원
-    canvas.drawCircle(center, r, Paint()..color = def.color.withOpacity(0.85 * lifeFade));
-    // 링
-    canvas.drawCircle(
-      center, r,
-      Paint()
-        ..color = Colors.white.withOpacity(0.55 * lifeFade)
+    // 그물 — 골라인 뒤
+    final netRect = Rect.fromLTRB(l, y, r, y + d);
+    canvas.drawRect(netRect, Paint()..color = Colors.white.withValues(alpha: 0.28));
+    final net = Paint()
+      ..color = Colors.white.withValues(alpha: 0.5)
+      ..strokeWidth = 1;
+    for (double x = l; x <= r; x += 10) {
+      canvas.drawLine(Offset(x, y), Offset(x, y + d), net);
+    }
+    for (double yy = y; yy <= y + d; yy += 8) {
+      canvas.drawLine(Offset(l, yy), Offset(r, yy), net);
+    }
+    final frame = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawRect(netRect, frame);
+    // 골라인 — 무대 끝까지
+    canvas.drawLine(const Offset(0, y), const Offset(ZonberGame.mapWidth, y), Paint()
+      ..color = Colors.white
+      ..strokeWidth = 3);
+
+    // 골포스트 2개
+    for (final pl in [true, false]) {
+      final p = goal.postPos(pl);
+      final pc = Offset(p.x, p.y);
+      canvas.drawCircle(pc + const Offset(1, 2), KeeperGoal.postRadius, Paint()..color = Colors.black.withValues(alpha: 0.25));
+      canvas.drawCircle(pc, KeeperGoal.postRadius, Paint()..color = Colors.white);
+      canvas.drawCircle(pc, KeeperGoal.postRadius, Paint()
+        ..color = const Color(0xFF0F172A)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-    // Material 아이콘 렌더링
-    final iconDef = _iconForType(type);
-    final tp = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(iconDef.codePoint),
-        style: TextStyle(
-          fontFamily: iconDef.fontFamily,
-          package: iconDef.fontPackage,
-          color: Colors.white.withOpacity(lifeFade),
-          fontSize: 13,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(
-      canvas,
-      Offset(center.dx - tp.width / 2, center.dy - tp.height / 2),
-    );
-  }
+        ..strokeWidth = 2);
+    }
 
-  static IconData _iconForType(PowerUpType t) {
-    switch (t) {
-      case PowerUpType.speedBoost:  return Icons.flash_on;
-      case PowerUpType.shield:      return Icons.favorite;
-      case PowerUpType.bulletClear: return Icons.blur_on;
-      case PowerUpType.slowTime:    return Icons.hourglass_bottom;
+    // 슈터(상대 선수) — 빨간 유니폼 점. 차는 순간 커진다.
+    for (int i = 0; i < goal.shooters.length; i++) {
+      final s = goal.shooters[i];
+      final a = goal.appear(i);
+      final scale = a * (1 + 0.35 * goal.kickFlash[i]);
+      if (scale <= 0) continue;
+      final c = Offset(s.x, s.y);
+      // 슈터 그림 — 차는 순간 차는 그림
+      if (GameArt.draw(canvas, goal.kickFlash[i] > 0.2 ? 'npc_kick' : 'npc_infield', c, 30 * scale)) continue;
+      canvas.drawCircle(c + const Offset(1, 2), 13 * scale, Paint()..color = Colors.black.withValues(alpha: 0.2));
+      canvas.drawCircle(c, 13 * scale, Paint()..color = const Color(0xFFE5484D));
+      canvas.drawCircle(c, 13 * scale, Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5);
+      canvas.drawCircle(c + Offset(0, -2 * scale), 5 * scale, Paint()..color = const Color(0xFFFFE0C2)); // 머리
     }
   }
 }
 
 // ─────────────────────────────────────────────────────────────
-// PowerUpManager — 스폰 타이밍 및 활성 효과 관리
+// 피구 투구 — 상대 코트(위쪽)에서 캐릭터를 향해 **한 턴에 한 번** 던진다.
+// docs/STAGES.md §2. 사방 스폰(갤럭시)과 달리 방향이 하나라 "무엇이 오나"를 읽는 게임.
+//
+// 턴 간격과 공 속도는 시간에 따라 줄고/늘고, 던지는 패턴은 단계(tier)로 어려워진다.
+//   0  워밍업   ~12s   한 개씩 천천히
+//   1  분열     ~30s   한 개 + 가끔 날아오다 3개로 갈라지는 공
+//   2  분열+   ~50s   분열 3 비중 ↑ (세로로 줄지어 오는 일렬 투구는 없다)
+//   3  벽       ~75s   가로 한 줄 3개(나란히 평행 비행) 추가
+//   4  압박     ~100s  분열 5 · 가로 4 · 빠른 공(주황)
+//   5  연타     ~130s  두 곳에서 동시 투구, 가로 5
+//   6  극악     130s~  예측 조준(가는 방향 앞을 노림) + 동시 투구 + 최단 턴
+// ⚠️ 수치를 바꾸면 피구 리더보드 기록의 의미가 달라진다(시즌 리셋 검토).
 // ─────────────────────────────────────────────────────────────
-class PowerUpManager extends Component with HasGameRef<ZonberGame> {
-  final _rng = Random();
-  double _spawnTimer = 0.0;
-  late double _nextSpawnIn;
+enum _Throw { single, fastSingle, split3, split5, row3, row4, row5 }
 
-  PowerUpManager() {
-    _nextSpawnIn = _randomInterval();
+class _DodgeballThrower {
+  final Random _rng = Random();
+  double _sinceThrow = 0;
+  /// 첫 투구는 조금 기다렸다가 — 시작하자마자 맞지 않게
+  double _nextBeat = 1.2;
+
+  // 외야 패스 — 5~10초마다. 패스 도는 동안은 일반 투구를 쉰다.
+  _PassBall? _pass;
+  double _sincePass = 0;
+  double _nextPass = 7;
+
+  static int tierAt(double t) {
+    if (t < 12) return 0;
+    if (t < 30) return 1;
+    if (t < 50) return 2;
+    if (t < 75) return 3;
+    if (t < 100) return 4;
+    if (t < 130) return 5;
+    return 6;
   }
 
-  double _randomInterval() => 8.0 + _rng.nextDouble() * 22.0 + _rng.nextDouble() * 10.0; // 8~40초 이중 랜덤
+  /// 턴 간격(초): 2.0s 에서 시작해 1초에 1%씩 짧아지고 0.4s 가 하한 (~160s 도달)
+  static double beatAt(double t) => max(0.4, 2.0 * pow(0.99, t).toDouble());
 
-  // ── Player에 전달하는 속도 배수
-  double get playerSpeedMultiplier {
-    final active = gameRef.powerUpNotifier.value;
-    return active.any((e) => e.type == PowerUpType.speedBoost) ? 1.6 : 1.0;
+  /// 기본 공 속도(px/s): 150 → 초당 +2.2, 상한 460
+  static double speedAt(double t) => min(460.0, 150.0 + 2.2 * t);
+
+  static const Map<int, Map<_Throw, int>> _weights = {
+    0: {_Throw.single: 1},
+    1: {_Throw.single: 7, _Throw.split3: 3},
+    2: {_Throw.single: 4, _Throw.split3: 6},
+    3: {_Throw.single: 2, _Throw.split3: 4, _Throw.row3: 4},
+    4: {_Throw.fastSingle: 3, _Throw.split3: 2, _Throw.split5: 3, _Throw.row4: 2},
+    5: {_Throw.fastSingle: 3, _Throw.split5: 3, _Throw.row4: 2, _Throw.row5: 2},
+    6: {_Throw.fastSingle: 3, _Throw.split5: 3, _Throw.row5: 4},
+  };
+
+  _Throw _pick(int tier) {
+    final w = _weights[tier]!;
+    int roll = _rng.nextInt(w.values.reduce((a, b) => a + b));
+    for (final e in w.entries) {
+      roll -= e.value;
+      if (roll < 0) return e.key;
+    }
+    return _Throw.single;
   }
 
-  // ── Bullet에 전달하는 속도 배수
-  double get bulletSpeedMultiplier {
-    final active = gameRef.powerUpNotifier.value;
-    return active.any((e) => e.type == PowerUpType.slowTime) ? 0.5 : 1.0;
-  }
-
-  /// 즉시형 효과를 HUD에 남겨두는 시간 (게임플레이에는 영향 없음, 표시 전용)
-  static const double instantDisplayDuration = 1.4;
-
-  /// 파워업 획득 시 호출 (PowerUpComponent → Player → 여기).
-  ///
-  /// **모든 아이템은 먹는 즉시 발동된다.** 보관 슬롯은 없다.
-  /// - 지속형(speedBoost / slowTime) → 지속 시간만큼 효과 유지, HUD에 남은 시간 게이지
-  /// - 즉시형(shield / bulletClear) → 곧바로 발동하고, 무엇을 먹었는지 알 수 있게
-  ///   짧게 HUD에만 남긴다 (타이머 게이지 없음)
-  void applyEffect(PowerUpType type) {
-    final def = PowerUpDef.all[type]!;
-
-    if (def.duration > 0) {
-      _activateTimed(type, def.duration);
+  void update(double dt, ZonberGame game) {
+    // 외야 패스 진행 중 — 끝날 때까지 일반 투구 쉼
+    if (_pass != null) {
+      if (_pass!.finished) {
+        _pass = null;
+        _sincePass = 0;
+        _nextPass = 5 + _rng.nextDouble() * 5;
+        _sinceThrow = 0;
+        _nextBeat = 0.9;
+      }
       return;
     }
-
-    _fireInstant(type);
-    _activateTimed(type, instantDisplayDuration);
+    _sincePass += dt;
+    if (_sincePass >= _nextPass && game.survivalTime >= 5 && !game.isGameOver) {
+      _startPass(game);
+      return;
+    }
+    _sinceThrow += dt;
+    if (_sinceThrow < _nextBeat) return;
+    _sinceThrow = 0;
+    final t = game.survivalTime;
+    _nextBeat = beatAt(t);
+    final tier = tierAt(t);
+    _throw(game, _pick(tier), tier, t);
+    // 5단계부터 가끔 다른 자리에서 한 번 더 (동시 투구). 극악은 절반 확률.
+    if ((tier == 5 && _rng.nextDouble() < 0.3) || (tier == 6 && _rng.nextDouble() < 0.5)) {
+      _throw(game, _pick(tier - 2), tier, t);
+    }
   }
 
-  void _activateTimed(PowerUpType type, double duration) {
-    final current = List<ActiveEffect>.from(gameRef.powerUpNotifier.value);
-    current.removeWhere((e) => e.type == type); // 재획득 시 타이머 갱신
-    current.add(ActiveEffect(type: type, total: duration));
-    gameRef.powerUpNotifier.value = List.unmodifiable(current);
+  /// 외야 패스: 우리 코트 주위(좌·우 외야, 내 뒤)를 3~5번 돌다가(초록 공) 빠른 공으로 던진다
+  void _startPass(ZonberGame game) {
+    final world = game.worldConfig;
+    // 우리 코트 주위 외야 선수들(왼쪽·오른쪽·내 뒤) 사이로 3~5번 돈다. 선수가 움직여도 따라간다.
+    final outs = game.dodgeTeam.outfield;
+    if (outs.isEmpty) return;
+    final hops = 3 + _rng.nextInt(3);
+    final pts = <Vector2>[];
+    int last = -1;
+    for (int k = 0; k <= hops; k++) {
+      int s;
+      do {
+        s = _rng.nextInt(outs.length);
+      } while (s == last && outs.length > 1);
+      last = s;
+      pts.add(outs[s]); // 같은 Vector2 객체 — 선수가 움직이면 패스 목표도 움직인다
+    }
+    final def = world.projectiles.length > 1 ? world.projectiles[1] : world.projectiles.first;
+    final shot = min(700.0, max(380.0, speedAt(game.survivalTime) * 1.7));
+    _pass = _PassBall(points: pts, def: def, shotSpeed: shot);
+    game.mapArea.add(_pass!);
   }
 
-  void _fireInstant(PowerUpType type) {
-    switch (type) {
-      case PowerUpType.bulletClear:
-        for (final b in gameRef.mapArea.children.whereType<Bullet>().toList()) {
-          b.removeFromParent();
+  void _throw(ZonberGame game, _Throw kind, int tier, double t) {
+    if (game.isGameOver || !game.player.isMounted) return;
+    final world = game.worldConfig;
+    final ball = world.projectiles.first;
+    final fast = world.projectiles.length > 1 ? world.projectiles[1] : ball;
+
+    // 상대 선수 한 명이 던진다(던지는 순간 커진다) — 선수가 없으면 무대 위쪽 바깥
+    final team = game.dodgeTeam;
+    final Vector2 origin;
+    if (team.infield.isNotEmpty) {
+      final i = _rng.nextInt(team.infield.length);
+      team.flash[i] = 1;
+      origin = team.infield[i] + Vector2(0, 12);
+    } else {
+      origin = Vector2(60 + _rng.nextDouble() * (ZonberGame.mapWidth - 120), -30);
+    }
+    Vector2 target = game.player.position.clone();
+    // 극악: 캐릭터가 움직이는 방향 앞을 노린다
+    if (tier >= 6) target += game.player.recentVelocity * 0.35;
+    final dir = (target - origin).normalized();
+    final perp = Vector2(-dir.y, dir.x);
+    final speed = speedAt(t);
+
+    void add(Vector2 from, ProjectileDef def, double v, {int splitInto = 0}) {
+      final b = Bullet(from, from + dir * 100, speed: v * def.speedMult, def: def);
+      if (splitInto > 0) {
+        // 캐릭터까지 거리의 40% 지점에서 갈라진다
+        b.splitAfter = (target - from).length * 0.4 / (v * def.speedMult);
+        b.splitInto = splitInto;
+      }
+      game.mapArea.add(b);
+    }
+
+    switch (kind) {
+      case _Throw.single:
+        add(origin, ball, speed);
+        break;
+      case _Throw.fastSingle:
+        add(origin, fast, speed);
+        break;
+      case _Throw.split3:
+        add(origin, ball, speed, splitInto: 3);
+        break;
+      case _Throw.split5:
+        add(origin, ball, speed, splitInto: 5);
+        break;
+      case _Throw.row3:
+      case _Throw.row4:
+      case _Throw.row5:
+        // 가로 한 줄로 나란히(평행) — 벽처럼 오므로 옆으로 크게 빠져야 한다
+        final n = kind == _Throw.row3 ? 3 : kind == _Throw.row4 ? 4 : 5;
+        const gap = 28.0;
+        for (int i = 0; i < n; i++) {
+          final off = perp * ((i - (n - 1) / 2) * gap);
+          final from = origin + off;
+          // 캐릭터 위치 + 대형 폭의 절반만큼만 벌려 조준 → 도착할 때 벽이 좁아진다
+          final b = Bullet(from, target + off * 0.5, speed: speed * ball.speedMult, def: ball);
+          game.mapArea.add(b);
         }
-        if (GameSettings().vibrationEnabled) HapticFeedback.mediumImpact();
-      case PowerUpType.shield:
-        if (gameRef.player.isMounted) gameRef.player.addEnergy(1);
-      default:
         break;
     }
   }
-
-  @override
-  void update(double dt) {
-    if (gameRef.isGameOver) return;
-
-    // 지속 효과 타이머 감소
-    final current = List<ActiveEffect>.from(gameRef.powerUpNotifier.value);
-    if (current.isNotEmpty) {
-      for (final e in current) {
-        e.remaining -= dt;
-      }
-      // ⚠️ 새 리스트로 매 프레임 재할당해야 HUD 게이지가 실제로 줄어든다.
-      // (같은 객체를 수정하면 ValueNotifier가 알리지 않아 링이 멈춰 보인다)
-      gameRef.powerUpNotifier.value =
-          List.unmodifiable(current.where((e) => e.remaining > 0));
-    }
-
-    // 스폰 타이머
-    _spawnTimer += dt;
-    if (_spawnTimer >= _nextSpawnIn) {
-      _spawnTimer = 0;
-      _nextSpawnIn = _randomInterval();
-      _trySpawn();
-    }
-  }
-
-  void _trySpawn() {
-    // 동시 최대 2개
-    final existing =
-        gameRef.mapArea.children.whereType<PowerUpComponent>().length;
-    if (existing >= 2) return;
-
-    final type = PowerUpType.values[_rng.nextInt(PowerUpType.values.length)];
-    final pos = _safePosition();
-    if (pos != null) {
-      gameRef.mapArea.add(PowerUpComponent(type: type, spawnPos: pos));
-    }
-  }
-
-  Vector2? _safePosition() {
-    const margin = 60.0;
-    for (int i = 0; i < 10; i++) {
-      final x = margin + _rng.nextDouble() * (ZonberGame.mapWidth - margin * 2);
-      final y = margin + _rng.nextDouble() * (ZonberGame.mapHeight - margin * 2);
-      final pos = Vector2(x, y);
-
-      // 플레이어와 너무 가까우면 제외
-      if (gameRef.player.isMounted &&
-          gameRef.player.position.distanceTo(pos) < 80) continue;
-
-      // 장애물 내부 제외
-      bool safe = true;
-      for (final child in gameRef.mapArea.children) {
-        if (child is Obstacle) {
-          final rect = Rect.fromLTWH(
-            child.position.x, child.position.y,
-            child.size.x, child.size.y,
-          ).inflate(8);
-          if (rect.contains(Offset(pos.x, pos.y))) {
-            safe = false;
-            break;
-          }
-        }
-      }
-      if (safe) return pos;
-    }
-    return null;
-  }
 }
+

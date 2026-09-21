@@ -50,3 +50,13 @@ app.*.map.json
 # Firebase
 .firebase/
 hosting_root/
+
+# 로컬에 받아 둔 Flutter SDK(./flutter/bin/flutter.bat) — 저장소에 넣지 않는다
+/flutter/
+
+# DB 정리 때 만든 백업·조회 결과 — 유저 개인 데이터라 커밋하지 않는다
+scripts/backup_*
+scripts/unknown_*.json
+
+# 아트 원본(생성 이미지) — 앱은 worlds/·game/ 의 가공본만 쓴다
+assets/images/Gemini_Generated_Image_*

@@ -58,6 +58,14 @@ const missingInEn = [...koKeys].filter(k => !enKeys.has(k)).sort();
 console.log('\n=== translations.dart 키 검사 ===');
 console.log(`EN 키: ${enKeys.size}개 | KO 키: ${koKeys.size}개`);
 
+// 준비 중인 언어(중국어·일본어) — 채운 비율만 알려 준다(비어 있는 키는 앱에서 영어로 보인다)
+for (const lang of ['zh', 'ja']) {
+  const keys = extractKeys(content, lang);
+  if (keys.size === 0) continue;
+  const extra = [...keys].filter(k => !enKeys.has(k));
+  console.log(`${lang.toUpperCase()} 준비 중: ${keys.size}/${enKeys.size}개 번역` + (extra.length ? ` · EN에 없는 키 ${extra.join(', ')}` : ''));
+}
+
 if (missingInKo.length === 0 && missingInEn.length === 0) {
   console.log('✅ EN/KO 키가 모두 일치합니다.\n');
   process.exit(0);

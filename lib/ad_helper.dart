@@ -12,7 +12,9 @@ class AdHelper {
   // - true  = Production ads (REAL revenue)
   // - false = Test ads (NO revenue, for development)
   // ============================================================
-  static const bool isReleaseMode = kReleaseMode; // 👈 Auto-detects mode
+  // 릴리스 빌드라도 --dart-define=FORCE_TEST_ADS=true 면 테스트 광고 (개발자 기기 설치용 — 본인 광고 클릭 = 무효 트래픽 방지)
+  static const bool isReleaseMode =
+      kReleaseMode && !bool.fromEnvironment('FORCE_TEST_ADS'); // 👈 Auto-detects mode
   // ============================================================
 
   // 📱 PRODUCTION AD IDS (Real Ads)

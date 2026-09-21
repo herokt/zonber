@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'coin_store.dart';
 
 class CharacterStats {
   final int maxEnergy;          // 체력: 총 에너지량 (1~5)
@@ -13,6 +14,15 @@ class CharacterStats {
     this.iframeDuration = 1.5,
   });
 
+  /// 모든 캐릭터 공통 능력치(2026-09-21 통일). 캐릭터는 외형만 다르다 — 랭킹이 순수 실력 경쟁이 되게.
+  /// ⚠️ 바꾸면 모든 존의 리더보드 기록 의미가 달라진다(시즌 리셋 검토).
+  static const CharacterStats standard = CharacterStats(
+    maxEnergy: 3,
+    speedMultiplier: 1.0,
+    energyCooldown: 25,
+    iframeDuration: 1.5,
+  );
+
   /// 실질 생존력 지표 — 무적 시간의 총합(초).
   /// 무적 중에는 닿는 탄환이 제거되므로 이 값이 곧 "탄막을 뚫고 지나갈 수 있는 시간"이다.
   double get invulnBudget => maxEnergy * iframeDuration;
@@ -22,12 +32,16 @@ class Character {
   final String id;
   final String name;
   final Color color;
+  /// 성격 한 줄(컨셉 문서 docs/CHARACTER_CONCEPT.md). 능력치는 모두 같다.
   final String description;
   final String? imagePath;
   final CharacterStats stats;
 
   /// 해금 조건이 되는 업적 키. null이면 기본 해금.
   final String? unlockKey;
+
+  /// 상점 가격(코인). 0 이면 기본 캐릭터. 업적 해금 또는 코인 구매 중 하나로 열린다
+  final int price;
 
   const Character({
     required this.id,
@@ -37,124 +51,74 @@ class Character {
     required this.stats,
     this.imagePath,
     this.unlockKey,
+    this.price = 0,
   });
 }
 
 class CharacterData {
   static const List<Character> availableCharacters = [
-    // ──────────────────────────────────────────
-    // 🟢 Neon Green — 올라운더 (기본 해금)
-    // 체력 ★★★  속도 ★★★  기력 ★★★  회피 ★★★   무적예산 4.5s
-    // ──────────────────────────────────────────
     Character(
       id: 'neon_green',
-      name: 'Neon Green',
-      color: Color(0xFF45A29E),
-      description: 'Balanced operator. No weakness, no peak.',
+      name: 'Mint',
+      color: Color(0xFF3FBF97),
+      description: 'The original zoner. Calm, steady, always there.',
       imagePath: 'assets/images/characters/neon_green.png',
-      stats: CharacterStats(
-        maxEnergy: 3,
-        speedMultiplier: 1.0,
-        energyCooldown: 25,
-        iframeDuration: 1.5,
-      ),
+      stats: CharacterStats.standard,
     ),
 
-    // ──────────────────────────────────────────
-    // 🔵 Electric Blue — 속도 특화 (60초 생존)
-    // 체력 ★★  속도 ★★★★★  기력 ★  회피 ★★★★   무적예산 3.2s
-    // ──────────────────────────────────────────
     Character(
       id: 'electric_blue',
-      name: 'Electric Blue',
-      color: Color(0xFF1D8CF2),
-      description: 'Blazing speed. Fragile and slow to recover.',
+      name: 'Zap',
+      color: Color(0xFF3B8EF0),
+      description: 'Restless and quick-witted. Never sits still.',
       imagePath: 'assets/images/characters/electric_blue.png',
       unlockKey: 'ach_survivor',
-      stats: CharacterStats(
-        maxEnergy: 2,
-        speedMultiplier: 1.4,
-        energyCooldown: 50,
-        iframeDuration: 1.6,
-      ),
+      price: 300,
+      stats: CharacterStats.standard,
     ),
 
-    // ──────────────────────────────────────────
-    // 🟣 Plasma Purple — 기력 특화 (120초 생존)
-    // 체력 ★★  속도 ★★  기력 ★★★★★  회피 ★★   무적예산 2.6s
-    // 회복이 압도적이라 무적 시간은 짧게 잡아 균형을 맞춤
-    // ──────────────────────────────────────────
     Character(
       id: 'plasma_purple',
-      name: 'Plasma Purple',
-      color: Color(0xFFD91DF2),
-      description: 'Slow and fragile, but energy refills fastest.',
+      name: 'Luna',
+      color: Color(0xFFA66BF2),
+      description: 'Dreamy and mysterious. Hums while dodging.',
       imagePath: 'assets/images/characters/plasma_purple.png',
       unlockKey: 'ach_veteran',
-      stats: CharacterStats(
-        maxEnergy: 2,
-        speedMultiplier: 0.85,
-        energyCooldown: 10,
-        iframeDuration: 1.3,
-      ),
+      price: 400,
+      stats: CharacterStats.standard,
     ),
 
-    // ──────────────────────────────────────────
-    // 🔴 Cyber Red — 체력+속도 (180초 생존)
-    // 체력 ★★★★  속도 ★★★★  기력 ★  회피 ★★   무적예산 4.8s
-    // ──────────────────────────────────────────
     Character(
       id: 'cyber_red',
-      name: 'Cyber Red',
-      color: Color(0xFFF21D1D),
-      description: 'Tanky and fast, but energy barely recovers.',
+      name: 'Blaze',
+      color: Color(0xFFF2503D),
+      description: 'Hot-headed competitor. Hates losing.',
       imagePath: 'assets/images/characters/cyber_red.png',
       unlockKey: 'ach_elite',
-      stats: CharacterStats(
-        maxEnergy: 4,
-        speedMultiplier: 1.2,
-        energyCooldown: 55,
-        iframeDuration: 1.2,
-      ),
+      price: 500,
+      stats: CharacterStats.standard,
     ),
 
-    // ──────────────────────────────────────────
-    // 🟡 Solar Gold — 체력 생존가 (240초 생존)
-    // 체력 ★★★★★  속도 ★  기력 ★★★  회피 ★   무적예산 5.0s
-    // ──────────────────────────────────────────
     Character(
       id: 'solar_gold',
-      name: 'Solar Gold',
-      color: Color(0xFFFFD700),
-      description: 'Maximum energy. Sluggish, but nearly unkillable.',
+      name: 'Sunny',
+      color: Color(0xFFFFC928),
+      description: 'Easygoing sunshine. Smiles even when hit.',
       imagePath: 'assets/images/characters/solar_gold.png',
       unlockKey: 'ach_master',
-      stats: CharacterStats(
-        maxEnergy: 5,
-        speedMultiplier: 0.70,
-        energyCooldown: 35,
-        iframeDuration: 1.0,
-      ),
+      price: 700,
+      stats: CharacterStats.standard,
     ),
 
-    // ──────────────────────────────────────────
-    // 🤍 Wraith — 원히트 킬 (300초 생존)
-    // 체력 ★  속도 ★★★★  기력 ★★★★  회피 ★★★★★   무적예산 2.5s
-    // 에너지 1칸뿐이라 긴 무적으로 보상 — 한 번의 피격이 곧 탄막 돌파 기회
-    // ──────────────────────────────────────────
     Character(
       id: 'void_dark',
       name: 'Wraith',
-      color: Color(0xFFD1D5DB),
-      description: 'One hit kills. Compensates with speed and a long i-frame.',
+      color: Color(0xFF5B6272),
+      description: 'Quiet shadow. Nobody knows where it came from.',
       imagePath: 'assets/images/characters/void_dark.png',
       unlockKey: 'ach_legend',
-      stats: CharacterStats(
-        maxEnergy: 1,
-        speedMultiplier: 1.25,
-        energyCooldown: 18,
-        iframeDuration: 2.5,
-      ),
+      price: 900,
+      stats: CharacterStats.standard,
     ),
   ];
 
@@ -165,7 +129,7 @@ class CharacterData {
     );
   }
 
-  /// 스탯 등급 (1~5) — UI 스탯 바 표시용
+  /// (구) 스탯 등급 — 능력치 통일 후 UI 에서 쓰지 않는다
   static int energyRating(int maxEnergy) => maxEnergy.clamp(1, 5);
 
   static int speedRating(double mult) {
@@ -196,9 +160,14 @@ class CharacterData {
   /// 해금이 필요 없는 기본 캐릭터인지
   static bool isDefault(String id) => getCharacter(id).unlockKey == null;
 
-  /// 보유 업적 키 목록으로 해금 여부 판정
+  /// 현재는 전 캐릭터 개방 — 업적(뱃지·타이틀) 구조 개편 뒤 해금 조건을 다시 켠다.
+  /// false 로 바꾸면 unlockKey 업적 보유 여부로 판정한다.
+  static const bool allUnlocked = true;
+
+  /// 해금 여부 — 기본 캐릭터 · 업적 달성 · 상점에서 코인으로 구매 중 하나
   static bool isUnlocked(Character char, List<String> achievementKeys) {
+    if (allUnlocked) return true;
     final key = char.unlockKey;
-    return key == null || achievementKeys.contains(key);
+    return key == null || achievementKeys.contains(key) || CoinStore.owns('char_${char.id}');
   }
 }

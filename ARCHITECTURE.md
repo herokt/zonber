@@ -7,7 +7,7 @@
 | 항목 | 값 |
 |---|---|
 | 작성 기준 | 앱 버전 `1.3.0+130`, 브랜치 `main` (워킹 트리 포함) |
-| 최종 갱신 | 2026-08-15 |
+| 최종 갱신 | 2026-09-18 |
 | 패키지명 | `com.zonber.game` |
 | Firebase 프로젝트 | `stayzone-88364` |
 | Flutter SDK | `^3.10.1` / Flame `^1.34.0` |
@@ -22,7 +22,10 @@
 - **승리 조건 없음.** 생존 시간(초, 소수점 3자리)이 곧 점수
 - **패배 조건:** 에너지가 0인 상태에서 피격
 - **조작:** 화면 어디든 **상대 드래그** (손가락이 캐릭터 위에 있을 필요 없음)
-- **출시 범위:** 스테이지 `zone_1_classic` 1종, 캐릭터 6종(생존 업적으로 순차 해금), 파워업 4종
+- **출시 범위:** 스테이지 3종 **전부 플레이 가능·항상 열림** — 1 Cyber(현행 네온 탄막) / 2 Dodgeball(코트 밖 4변) / 3 Keeper(골대 수비, 5골 게임 오버). 리더보드는 3개 모두 신규 mapId(zone_1_classic 미계승). 예고 표시는 진입 그림자 하나. 캐릭터 6종(생존 업적으로 순차 해금). 파워업은 2026-09 제거. 상세: [docs/STAGES.md](docs/STAGES.md)
+- **UI v2 (2026-09-18):** 다크 + 월드 강조색, 하단 탭(홈·랭킹·프로필), 홈 월드 캐러셀, 게임 HUD 목표선·근접 회피, 결과 순위 카드, Hall of Fame 명패. 기획: [docs/UI_DESIGN.md](docs/UI_DESIGN.md), 월드: [docs/GAME_TYPES_DESIGN.md](docs/GAME_TYPES_DESIGN.md)
+- **진입:** 첫 실행은 **게스트로 바로 플레이**(로그인 화면 없음). 랭킹 등록만 계정 필요 — 게스트 기록은 등록되지 않는다
+- **계측:** Firebase Analytics (`services/analytics_service.dart`) — session_ready / game_start / game_over / revive / score_submit / guest_ranking_blocked
 - **비주얼:** 다크 스페이스 + 네온 라인아트
 - **수익 모델:** AdMob (배너 / 전면 / 리워드), IAP는 코드만 존재하고 **현재 비활성**
 - **미출시 기능:** 맵 에디터(UGC), 상점/IAP, 스테이지 2·3 — 코드는 유지, 진입점만 제거
@@ -32,7 +35,7 @@
 | 플랫폼 | 게임 | Firebase | AdMob | IAP | 비고 |
 |---|:-:|:-:|:-:|:-:|---|
 | Android | ✅ | ✅ | ✅ | 🔸 | 주 타깃 |
-| iOS | ✅ | ✅ | ✅ | 🔸 | 게스트 로그인은 iOS에만 노출 |
+| iOS | ✅ | ✅ | ✅ | 🔸 | Apple 로그인은 iOS에만 노출 |
 | Web | ⚠️ | 부분 | ❌ | ❌ | **백오피스 전용.** `RankingSystem`/`MapService`가 웹에서 Firestore 미초기화 |
 | macOS/Windows/Linux | ⚠️ | ❌ | ❌ | ❌ | 개발 편의용, 미지원 |
 
@@ -47,8 +50,8 @@ graph TB
     subgraph Client["📱 Flutter 클라이언트 (lib/)"]
         direction TB
         UI["UI 레이어<br/>MainMenu · ResultPage · Leaderboard<br/>Profile · Statistics · Editor"]
-        GAME["게임 레이어 (Flame)<br/>ZonberGame · Player · Bullet<br/>PowerUpManager · BulletSpawner"]
-        DOMAIN["도메인/설정 레이어<br/>GameConfig · CharacterData<br/>PowerUpDef · AchievementDef"]
+        GAME["게임 레이어 (Flame)<br/>ZonberGame · Player · Bullet<br/>BulletSpawner · BulletWarningOverlay"]
+        DOMAIN["도메인/설정 레이어<br/>GameConfig · CharacterData<br/>AchievementDef"]
         SVC["서비스 레이어 (싱글톤/스태틱)<br/>UserProfileManager · RankingSystem<br/>AchievementManager · AudioManager<br/>AdManager · IAPService · MapService"]
         LOCAL[("SharedPreferences<br/>로컬 캐시")]
     end
@@ -84,7 +87,7 @@ graph TB
 
 | 레이어 | 대표 파일 | 상태 보유 | 규칙 |
 |---|---|---|---|
-| **도메인/설정** | `game_config.dart`, `character_data.dart`, `powerup_system.dart`, `achievement_manager.dart`(정의부) | 없음 (`const`) | 순수 데이터. Flutter 위젯/Firebase 의존 금지 (`Color`/`IconData`만 예외) |
+| **도메인/설정** | `game_config.dart`, `character_data.dart`, `achievement_manager.dart`(정의부) | 없음 (`const`) | 순수 데이터. Flutter 위젯/Firebase 의존 금지 (`Color`/`IconData`만 예외) |
 | **서비스** | `user_profile.dart`, `ranking_system.dart`, `achievement_manager.dart`(Manager), `audio_manager.dart`, `ad_manager.dart`, `map_service.dart` | 싱글톤 또는 스태틱 | I/O 담당. 위젯 미의존 |
 | **게임** | `main.dart`의 Flame 컴포넌트들, `editor_game.dart` | Flame 컴포넌트 트리 | `ValueNotifier`로만 UI에 상태 노출 |
 | **UI** | `*_page.dart`, `*_widget.dart`, `design_system.dart` | `StatefulWidget` | 모든 문자열은 `LanguageManager.translate()` 경유 |
@@ -115,9 +118,10 @@ sequenceDiagram
     A->>A: GameSettings().load()
     A->>A: AudioManager().initialize()
     A->>A: LanguageManager().init()
+    A->>A: AnalyticsService().initialize()
     A->>FB: authStateChanges().first (세션 복원 대기)
     alt user == null
-        A->>A: → 'Login'
+        A->>FB: signInAnonymously() + enableGuestMode() → 'Menu' (게스트 기본화)
     else 로그인됨
         A->>P: syncProfile() → hasProfile()
         A->>A: → 'Menu' 또는 'Profile'(최초 설정)
@@ -136,7 +140,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> Splash
-    Splash --> Login: 미로그인
+    Splash --> Menu: 미로그인 → 자동 게스트
     Splash --> Profile: 프로필 없음
     Splash --> Menu: 프로필 있음
     Splash --> Backoffice: URL /secret_admin
@@ -157,7 +161,8 @@ stateDiagram-v2
 
     MyProfile --> Shop
     MyProfile --> Statistics
-    MyProfile --> Login: 로그아웃
+    MyProfile --> Menu: 로그아웃 → 게스트 복귀
+    MyProfile --> Login: 게스트가 로그인 버튼
 
     Editor --> EditorVerify: 업로드 전 검증
     EditorVerify --> Menu: 30초 생존 성공
@@ -171,20 +176,22 @@ stateDiagram-v2
 | 페이지 키 | 위젯 | 진입 경로 |
 |---|---|---|
 | `Splash` | 인라인 | 앱 시작 |
-| `Login` | `LoginPage` | 미로그인 / 로그아웃 |
+| `Login` | `LoginPage` | 게스트가 랭킹 등록 시도 / 프로필의 로그인 버튼 (첫 실행·로그아웃에는 뜨지 않음) |
 | `Profile` | `UserProfilePage` → `InitialSetupPage` | 최초 설정 (닉네임 + **국가 필수**) |
-| `Menu` | `MainMenu` | 허브 |
+| `Menu` | `HomePage` | 허브(하단 탭 0). 월드 캐러셀 |
+| `Ranking` | `RankingPage` | 하단 탭 1. 월드 탭 × 기간 × 세계/국가 |
+| `HallOfFame` | `HallOfFamePage` | 결과에서 세계 TOP 100 / 국가 TOP 10 진입 시 |
 | `Game` | `Scaffold` + `GameWidget(ZonberGame)` | START / RETRY / 부활 |
 | `Result` | `ResultPage` | 게임 오버 |
 | `CharacterSelect` | `CharacterSelectionPage` | 메뉴 |
-| `MyProfile` / `Shop` / `Statistics` | `MyProfilePage` / `ShopPage` / `StatisticsPage` | 메뉴 → 프로필 |
+| `MyProfile` / `Shop` / `Statistics` | `ProfilePage`(하단 탭 2) / `ShopPage` / `StatisticsPage` | 프로필 탭 |
 | `Editor` / `EditorVerify` | `MapEditorPage` / `ZonberGame(verify_mode)` | **진입점 없음** (UGC 미출시) |
 | `Backoffice` | `BackofficeHome` | 웹 URL `/secret_admin` |
 
-**메인 메뉴 구성:** 프로필 칩 · 설정 아이콘 / 타이틀 / **게임방법 · 아이템 · 랭킹** 버튼 3개 / 캐릭터 선택 카드 / START.
+**메인 메뉴 구성:** 프로필 칩 · 설정 아이콘 / 타이틀 / **게임방법 · 랭킹** 버튼 2개 / 캐릭터 선택 카드 / START.
 랭킹은 페이지 이동이 아니라 `LeaderboardWidget` 다이얼로그로 띄운다 (`_showRankingDialog`).
 
-**Android 백 버튼:** `_handleBack()`이 페이지별로 분기. `Menu`/`Login`에서는 `null`을 반환해 `AppScaffold`가 앱 종료 다이얼로그를 띄운다. `Game`에서는 일시정지 다이얼로그.
+**Android 백 버튼:** `_handleBack()`이 페이지별로 분기. `Menu`에서만 `null`을 반환해 `AppScaffold`가 앱 종료 다이얼로그를 띄운다 (`Login`은 게스트 세션 위에 뜨므로 Menu로 복귀). `Game`에서는 일시정지 다이얼로그.
 
 **중요한 구현 제약:** `ZonberGame` 인스턴스는 `build()`가 아니라 `_navigateTo()` 안에서 생성한다. `build()`에서 만들면 배너 광고 로드 등으로 리빌드될 때마다 게임이 재시작된다 (`main.dart:253` 주석).
 
@@ -223,10 +230,8 @@ ZonberGame (FlameGame, HasCollisionDetection, PanDetector)
 │   └── MapArea               480×768, clipRect
 │       ├── Player            SpriteComponent, priority 10, anchor center
 │       ├── BulletSpawner     로직 전용 Component
-│       ├── PowerUpManager    로직 전용 Component
 │       ├── Obstacle × N      RectangleHitbox
 │       ├── Bullet × N        CircleHitbox(r=3.5)
-│       ├── PowerUpComponent × 0..2  CircleHitbox(passive)
 │       ├── BulletWarningOverlay     priority 15, 렌더 전용
 │       └── ParticleSystemComponent × N  (플레이어 트레일, priority 0)
 └── (overlays: 'GameOverMenu' — 현재 미사용)
@@ -234,14 +239,12 @@ ZonberGame (FlameGame, HasCollisionDetection, PanDetector)
 
 ### 5.3 게임 루프와 UI 브리지
 
-Flame 게임 루프와 Flutter 위젯 트리는 **`ValueNotifier` 3개로만** 연결된다. 게임 상태가 위젯 리빌드를 유발하지 않도록 하기 위함이다.
+Flame 게임 루프와 Flutter 위젯 트리는 **`ValueNotifier` 2개로만** 연결된다. 게임 상태가 위젯 리빌드를 유발하지 않도록 하기 위함이다.
 
 | Notifier | 타입 | 갱신 주체 | 소비자 |
 |---|---|---|---|
 | `survivalTimeNotifier` | `double` | `ZonberGame.update()` | 상단 타이머 텍스트 |
 | `energyNotifier` | `({int current, int max, double chargeProgress, Color color})` | `Player._notifyEnergy()` (매 프레임) | `_EnergyHud` (5칸 고정 바) |
-| `powerUpNotifier` | `List<ActiveEffect>` | `PowerUpManager.update()` | `_PowerUpHud` (원형 카운트다운 링) |
-| `storedPowerUpNotifier` | `PowerUpType?` | `PowerUpManager.applyEffect/activateStored` | `_StoredPowerUpSlot` (탭하면 발동) |
 
 **게임 화면 레이아웃 (고정 높이):**
 
@@ -251,15 +254,12 @@ Flame 게임 루프와 Flutter 위젯 트리는 **`ValueNotifier` 3개로만** �
 ├──────────────────────────────┤
 │ ENERGY ▮▮▮▯▯                 │  32px  ← _EnergyHud (항상 5칸, 초과분은 잠금 표시)
 ├──────────────────────────────┤
-│ [슬롯] │ ⏱ 파워업 링         │  52px  ← _PowerUpHudArea (고정, 게임 뷰포트 불변)
-├──────────────────────────────┤
 │                              │
 │      GameWidget (Expanded)   │
 │                              │
 └──────────────────────────────┘
 ```
 
-> 파워업 HUD를 **고정 52px 영역**으로 잡은 것은 의도적이다. 효과가 켜질 때마다 HUD 높이가 바뀌면 `Expanded` 게임 뷰포트 크기가 변해 카메라 스케일이 튀기 때문.
 
 ### 5.4 충돌 처리
 
@@ -270,7 +270,6 @@ Flame의 `HasCollisionDetection`을 쓰되, **터널링(고속 관통)을 막기
 | Bullet ↔ Obstacle | **서브스텝 레이캐스트**. `dt` 이동거리를 4px 단위로 쪼개 각 지점에서 AABB 겹침 검사 → 반사 | `Bullet.update()` `main.dart:2502` |
 | Player ↔ Obstacle | **축 분리 해소(X→Y 순차)**. 이동 후 최대 3패스 반복하며 최소 침투 방향으로 밀어냄 | `_resolveCollisionsX/Y()` `main.dart:2339` |
 | Player ↔ Bullet | Flame `onCollisionStart` | `main.dart:2391` |
-| Player ↔ PowerUp | Flame `onCollisionStart` (passive 히트박스) | `main.dart:2398` |
 
 **탄환 반사 규칙** (`main.dart:2548`): 이전 서브스텝 위치가 장애물의 어느 면 바깥에 있었는지로 충돌면을 판정한다. 좌우면 → `velocity.x` 반전, 상하면 → `velocity.y` 반전, 모서리/모호 → 지배적 이동축 기준 반전. 반사 후 `bHalf+1`만큼 밀어내 끼임을 방지한다. 회전된 장애물(`angle != 0`)은 ±90°±15° 랜덤 회전으로 "카오스 반사".
 
@@ -280,7 +279,6 @@ Flame의 `HasCollisionDetection`을 쓰되, **터널링(고속 관통)을 막기
 |---|---|---|
 | Player | 42 × 42 | **22 × 22** (중앙 정렬, 모든 캐릭터 동일) |
 | Bullet | 9 × 9 | **반지름 3.5 원** |
-| PowerUp | 28 × 28 | 반지름 14 원 (passive) |
 
 ### 5.6 색 규약 (가독성)
 
@@ -367,7 +365,7 @@ limit    = maxBullets + level×10           # 동시 탄환 상한
 `ZonberGame.onPanUpdate`가 `info.delta.global`을 누적하고, `Player.update()`가 그만큼 위치를 옮긴다. **절대 위치 추종이 아니라 상대 이동이다** — 손가락이 캐릭터 위에 있을 필요가 없고, 화면 아무 데나 드래그하면 된다. (따라서 "터치 오프셋"이나 "왼손잡이 모드" 같은 설정은 이 조작계에서 의미가 없다.)
 
 ```
-최종 이동량 = 손가락 델타 × speedMultiplier × 파워업 배수 × GameSettings.sensitivity
+최종 이동량 = 손가락 델타 × speedMultiplier × GameSettings.sensitivity
 ```
 
 > ⚠️ **프레임당 이동량 상한이 없다.** 빠르게 스와이프하면 캐릭터가 그만큼 순간이동한다. 즉 캐릭터의 `speedMultiplier`는 실질적으로 **최고 속도가 아니라 감도(정밀도 대 이동량 비율)** 를 결정한다. 진짜 속도 상한을 두려면 `dragInput`을 `maxSpeed * dt`로 클램프해야 하는데, 그러면 1:1 드래그 감각이 사라진다. 이건 미해결 설계 결정이다 (§14).
@@ -384,34 +382,20 @@ limit    = maxBullets + level×10           # 동시 탄환 상한
 
 **깜빡임은 무적이 끝날 때까지 계속된다.** 캐릭터마다 무적 시간이 1.0~2.5초로 다르므로 고정 횟수로 끊으면 "아직 무적인지"를 알 수 없다. 종료 직전 0.4초는 깜빡임 간격을 0.12s → 0.05s로 줄여 곧 풀린다는 신호를 준다.
 
-`Player.grantInvincibility(seconds)`로 외부(파워업)에서 무적을 부여·연장할 수 있다. 이미 무적이면 남은 시간에 더해진다.
 
 HUD는 캐릭터 최대치와 무관하게 **항상 5칸**을 그린다. `i >= maxEnergy`인 칸은 잠금(회색) 표시, 충전 중인 칸은 `chargeProgress` 비율만큼 내부를 채운다.
 
-### 6.4 파워업 시스템 (`powerup_system.dart` + `main.dart`)
+### 6.4 파워업 시스템 — 제거됨 (2026-09-18)
 
-| 타입 | 색 | 지속 | 발동 | 효과 |
-|---|---|:-:|---|---|
-| `speedBoost` | 시안 | 8s | 즉시 | 이동속도 ×1.6 |
-| `slowTime` | 연보라 | 8s | 즉시 | **모든 탄환**(비행 중 포함) 속도 ×0.5 |
-| `shield` | 녹색 | — | **슬롯 보관** | 에너지 +1. 만피면 무적 `iframe × 1.5`로 전환 |
-| `bulletClear` | 주황 | — | **슬롯 보관** | 화면의 모든 `Bullet` 제거 |
+속도/감속/실드/클리어 4종 파워업, 보관 슬롯, HUD 링, 가이드 아이템 탭이 모두 삭제됐다 (`powerup_system.dart` 파일 삭제). 실력 표현은 이동·무적 프레임뿐이며, 월드별 기믹은 [docs/GAME_TYPES_DESIGN.md](docs/GAME_TYPES_DESIGN.md)를 따른다.
 
-**보관 슬롯** — 즉시형(shield / bulletClear)은 자동 발동하지 않고 슬롯 1칸에 저장되며, 플레이어가 HUD 좌측 슬롯을 탭해 원하는 타이밍에 쓴다. 슬롯이 찬 상태로 또 먹으면 **새로 먹은 쪽이 즉시 발동**되어 픽업이 낭비되지 않는다. (`PowerUpManager.applyEffect` / `activateStored`, `ZonberGame.storedPowerUpNotifier`)
+### 6.5 월드 (`world_config.dart`) — 2026-09-18 골격
 
-**slowTime 적용 지점** — 스폰 시점이 아니라 `Bullet.update()`에서 매 프레임 곱한다. 스폰 시점에 `velocity`를 깎으면 비행 시간(1.5~3초) 때문에 효과 체감이 늦고, 버프 종료 후에도 느린 탄환이 영구히 남는다.
+`WorldData.worlds`가 스테이지 목록의 단일 진실 공급원(난이도 순 3개, 항상 열림). 월드 = `difficulty` + `mode`(dodge/keeper) + `layoutId`(§6.5-1 스테이지) + `projectiles`(`ProjectileDef`: 속도 배수·히트박스 반지름·시각 크기·straight/curve/homing/bounce·vanish/reflect·maxBounces·색) + `spawner`(ring = 플레이어/골대 중심 원주, sideline = 맵 4변 바깥 36px) + `spawnInterval`/`bulletSpeed` 오버라이드 + 테마(accent/floor/line) + `rankingMapId`(월드별 완전 분리·신규). **Keeper 모드:** `GoalZone`이 맵 중앙 `goalRadius` 원을 그리고, `Bullet.update()`가 원 안에 들어온 공을 `Player.concedeGoal()`로 실점 처리(목숨 = `lives` 5, 회복 없음). 플레이어가 공에 닿으면 `Player.onCollisionStart`가 세이브로 처리(카운터는 `grazeNotifier` 재사용, HUD 라벨 SAVES). 스포너는 골대 중심 반경에서 골대를 조준한다. **예고:** `BulletWarningOverlay`가 맵 밖 탄의 진입 지점에 그림자 타원을 그린다(막대·색·와인드업 없음). **아트 슬롯:** `assets/images/worlds/{id}_bg.png`(게임 배경, `_addStageBackground`)·`{id}_hero.png`(홈 카드) — 없으면 코드 드로잉, 현재 더미(`scripts/make_dummy_assets.mjs`). 상세 기획: [docs/STAGES.md](docs/STAGES.md), 리소스: [docs/RESOURCES.md](docs/RESOURCES.md).
 
-**shield 초과분** — `Player.addEnergy()`는 에너지가 이미 최대라 흡수하지 못하면 버리지 않고 무적으로 전환한다. 에너지 1칸짜리 Wraith에게 shield가 죽은 픽업이 되는 문제를 막는다.
+진행 데이터(`progress_store.dart`): 월드별 최고 기록(`world_best_times`, 해금 판정) · 순위 캐시(`world_rank_cache`, 결과 화면이 채움) · 명패(`world_plates`) — 로컬 + `users/{uid}.bestTimes/plates`. 순위는 `RankingSystem.getGlobalRank()`의 **count 집계**(전체 기간, 기록 단위)로 계산해 복합 인덱스를 피한다.
 
-**스폰 규칙** (`PowerUpManager`):
-- 주기: `8.0 + rand()*22 + rand()*10` → **8~40초** (이중 랜덤이라 중앙값 부근에 몰림)
-- 동시 최대 **2개**
-- 배치: 가장자리 60px 마진 안쪽 랜덤. 플레이어 반경 80px 이내 / 장애물(+8px 팽창) 내부는 최대 10회 재시도로 회피
-- 수명 **15초**, 11초부터 0.25초 간격 점멸, 남은 수명에 비례해 페이드
-
-> 가이드 시트(`game_guide_sheet.dart`)는 `translations.dart`의 설명 문구와 `PowerUpDef.duration` 값을 **같은 카드에 나란히** 표시한다. 지속 시간을 바꾸면 반드시 EN/KO 문구도 함께 수정할 것.
-
-### 6.5 스테이지 (`game_config.dart`)
+### 6.5-1 스테이지(장애물 레이아웃) (`game_config.dart`)
 
 `GameConfig.stages`가 스테이지 목록의 **단일 진실 공급원**이다.
 
@@ -451,11 +435,10 @@ HUD는 캐릭터 최대치와 무관하게 **항상 5칸**을 그린다. `i >= m
 
 ### 7.1 랭킹 (`ranking_system.dart`)
 
-**4개 기간** (`RankingPeriod`) — 모두 **기기 로컬 타임존 기준**:
+**3개 기간** (`RankingPeriod`, 일일은 2026-09-18 제거) — 모두 **기기 로컬 타임존 기준**:
 
 | 기간 | 시작점 |
 |---|---|
-| `daily` | 오늘 00:00 (로컬) |
 | `weekly` | 이번 주 월요일 00:00 (로컬) |
 | `monthly` | 이번 달 1일 00:00 (로컬) |
 | `allTime` | **올해 1월 1일** (전체 기간이 아니라 연 단위) |
@@ -508,7 +491,7 @@ getMyRank(mapId, userId, period)
 
 **저장:** SharedPreferences(`user_achievements`) + Firestore `users/{uid}.achievements` **이중 저장**. 로그인 시 `syncFromFirestore()`로 합집합 병합, 로그아웃 시 `clearLocal()`.
 
-**해금 시점:** `ResultPage._submitScore()` → `_unlockAchievements()`. 생존 업적은 즉시 계산하고, 순위 업적은 **4개 기간 × (글로벌 + 국가) = 8회 쿼리**로 자기 순위를 찾는다.
+**해금 시점:** `ResultPage._submitScore()` → `_unlockAchievements()`. 생존 업적은 즉시 계산하고, 순위 업적은 **3개 기간 × (글로벌 + 국가) = 6회 쿼리**(현재 `kShowAchievementBadges`로 비활성)로 자기 순위를 찾는다.
 
 **리더보드 표시:** 각 행에 최고 등급 엠블럼(`_AchievementEmblem`)을 표시. 유저별 업적은 랭킹 로드 시 30개씩 배치 조회해 캐시한다. 엠블럼을 탭하면 `_UserProfilePopup`이 전체 업적 목록을 보여준다.
 
@@ -529,7 +512,9 @@ getMyRank(mapId, userId, period)
 
 ### 7.4 프로필 & 인증
 
-**3가지 로그인:** Google / Apple / 게스트(익명). 게스트 버튼은 **iOS에서만** 노출된다 (`login_page.dart:115`).
+**게스트 기본화(2026-09-18):** 첫 실행은 `_enterAsGuest()`가 익명 로그인 + `enableGuestMode()` 후 바로 `Menu`로 보낸다. 로그인 화면은 게스트가 **랭킹 등록을 시도**하거나 프로필에서 로그인을 누를 때만 뜬다. 로그아웃도 로그인 화면 대신 게스트로 복귀한다.
+
+**3가지 로그인:** Google / Apple(iOS 전용 노출) / 게스트(익명, 모든 플랫폼).
 
 **프로필 필수 항목:** 닉네임(최대 8자) + **국가** — 단, **정식 계정에 한한다.**
 
@@ -544,7 +529,7 @@ getMyRank(mapId, userId, period)
 2. `syncProfile()`: Firestore 프로필에 국가 없으면 🇰🇷로 설정 후 원격에도 write-back
 3. 백오피스 "국가 기본값" 버튼: 전체 유저 일괄 마이그레이션 (500건 배치 커밋)
 
-**게스트 제약:** 랭킹 등록 불가(로그인 유도 다이얼로그). **리워드 광고 부활은 게스트도 가능하다** — 계정이 필요한 기능이 아니고, 광고 수익 관점에서 제외할 이유가 없다.
+**게스트 제약:** 랭킹 등록 불가(로그인 유도 다이얼로그) — **게스트 기록은 증발한다.** 계정 전환 시 uid가 바뀌므로 통계도 이어지지 않는다(의도된 결정, 2026-09-18). **리워드 광고 부활은 게스트도 가능하다** — 계정이 필요한 기능이 아니고, 광고 수익 관점에서 제외할 이유가 없다.
 
 ### 7.5 광고 (`ad_manager.dart` / `ad_helper.dart`)
 
@@ -794,16 +779,6 @@ public: hosting_root
 
 > `Player.render()` 수정은 **불필요**하다. 스프라이트 기반이라 `imagePath`만 있으면 자동 렌더링된다.
 
-### 새 파워업
-1. `powerup_system.dart` — `PowerUpType`에 값 추가 + `PowerUpDef.all`에 스펙 등록
-   - `duration > 0`이면 즉시 발동되는 지속형, `0`이면 **슬롯 보관형**으로 자동 분류된다
-2. `main.dart` `PowerUpManager._fireInstant()`(즉시형) 또는 `_activateTimed()` 경로에 효과 추가
-3. 아이콘 매핑 3곳: `PowerUpComponent._iconForType()`, `_EffectRing._icons`, `_StoredPowerUpSlot._icons`
-4. `translations.dart` — `powerup_*` / `powerup_*_desc` EN + KO
-5. 지속 효과라면 `playerSpeedMultiplier`처럼 `PowerUpManager`에 게터를 만들고 소비처에서 매 프레임 곱함
-   (스폰 시점에 값을 굽지 말 것 — §6.4 slowTime 사례)
-6. ⚠️ 지속 시간을 바꾸면 `translations.dart` 설명 문구도 함께 수정 (가이드 시트가 둘을 나란히 표시)
-
 ### 새 업적
 1. `achievement_manager.dart` — `AchievementDef` 상수 + `allAchs` 리스트에 **등급 순서대로** 삽입
 2. 체크 함수를 최상위 함수로 정의 (`const` 생성자 제약)
@@ -854,9 +829,12 @@ public: hosting_root
 `firebase.json`에서 `/` → `/secret_admin/` 302 리다이렉트, SPA catch-all rewrite 제거됨. 의도적이라면 문제없으나 공개 웹 랜딩이 필요하면 재설계 필요.
 
 ### 🟢 8. 에셋
-- `assets/audio/`가 **비어 있다** (`.gitkeep`만 존재). BGM/SFX 4개가 모두 없어 `AudioManager`가 조용히 실패한다. `weekly_check.mjs`가 이걸 실패로 리포트한다
+- `assets/audio/`의 BGM/SFX 4개는 **합성 플레이스홀더**(2026-09-18, Node로 생성)다. 정식 에셋으로 교체 필요. `shoot.wav`는 슬롯만 있고 미사용
 - `assets/images/characters/태양 금속성 별 문양.png` (812KB) — 미사용 파일이 폴더 단위 등록 때문에 APK에 포함됨
 - `solar_gold.png` 1.8MB — 다른 캐릭터 대비 20배 크기, 압축 필요
+
+### 🟢 11. 숨김 상태인 뱃지·칭호
+`kShowAchievementBadges = false`(`achievement_manager.dart`)로 리더보드 엠블럼·유저 팝업·통계 칭호·순위 업적 계산(§14-1의 8회 쿼리)을 끈 상태. 뱃지 구조 개편 후 플래그와 분기를 함께 제거할 것.
 
 ### 🟢 9. 웹에서 Firestore 미초기화
 `RankingSystem`과 `MapService`가 생성자에서 `!kIsWeb && (Android || iOS)` 조건으로만 `_db`를 설정한다. 웹에서는 랭킹·커스텀 맵이 전부 무동작(예외 없이 빈 값 반환). 백오피스는 자체적으로 `FirebaseFirestore.instance`를 직접 쓰므로 영향 없다.
@@ -875,7 +853,6 @@ public: hosting_root
 | `main.dart` | 2687 | 진입점 · 라우팅 · 메인메뉴 · Flame 게임 코어 · HUD · 결과 화면 · 파워업 · 진입 경고 |
 | `game_config.dart` | 63 | 스테이지 정의 (SSOT) |
 | `character_data.dart` | 185 | 캐릭터 6종 + 4축 스탯 + 해금 조건 |
-| `powerup_system.dart` | 56 | 파워업 타입/스펙/활성효과 |
 | `maze_generator.dart` | 120 | Recursive Backtracker 미로 생성 |
 | `editor_game.dart` | 846 | 맵 에디터 (Flame) + UI ⚠️ 진입점 없음 |
 
@@ -895,7 +872,7 @@ public: hosting_root
 | `leaderboard_widget.dart` | 627 | 리더보드 (+ `leaderboard_widget_popup.dart` 214줄, `part of`) |
 | `character_selection_page.dart` | 423 | 캐릭터 선택 (회전 이미지 + 파티클 + 4축 스탯 바 + 해금 잠금) |
 | `shop_page.dart` | 424 | 상점 ⚠️ COMING SOON 스텁 |
-| `game_guide_sheet.dart` | 384 | 게임 방법 / 아이템 가이드 |
+| `game_guide_sheet.dart` | 215 | 게임 방법 가이드 (단일 페이지) |
 | `login_page.dart` | 163 | 로그인 |
 
 ### 서비스 / 인프라

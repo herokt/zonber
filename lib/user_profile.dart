@@ -6,13 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'design_system.dart';
-import 'game_settings.dart';
 
 import 'language_manager.dart';
-import 'services/auth_service.dart';
 import 'achievement_manager.dart';
+import 'progress_store.dart';
+import 'coin_store.dart';
 
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
@@ -78,6 +77,12 @@ class UserProfileManager {
     return 'Unknown';
   }
 
+  /// 가입 완료 조건 — 닉네임과 국가(국기·이름)를 모두 골랐다
+  static bool isCompleteProfile(String? nickname, String? flag, String? countryName) {
+    final n = (nickname ?? '').trim();
+    return n.isNotEmpty && n != 'Unknown' && (flag ?? '').isNotEmpty && (countryName ?? '').isNotEmpty;
+  }
+
   static Future<bool> hasProfile() async {
     print('=== CHECKING PROFILE ===');
     final prefs = await SharedPreferences.getInstance();
@@ -105,33 +110,15 @@ class UserProfileManager {
         return false;
       }
 
+      final nickname = prefs.getString(_keyNickname) ?? '';
       final flag = prefs.getString(_keyFlag) ?? '';
       final countryName = prefs.getString(_keyCountryName) ?? '';
-      if (flag.isNotEmpty && countryName.isNotEmpty) {
+      if (isCompleteProfile(nickname, flag, countryName)) {
         print('Profile found locally');
         return true;
       }
-      // Existing user without country — default to South Korea.
-      // ⚠️ prefs만 채우면 Firestore users 문서에는 국가가 계속 비어 있어
-      // 랭킹에 국기가 안 뜨고 백오피스에도 '-'로 남는다. 원격까지 함께 채운다.
-      print('Local profile missing country — defaulting to South Korea');
-      await prefs.setString(_keyFlag, '🇰🇷');
-      await prefs.setString(_keyCountryName, 'South Korea');
-      final authedUser = FirebaseAuth.instance.currentUser;
-      if (authedUser != null && !authedUser.isAnonymous) {
-        try {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(authedUser.uid)
-              .set({
-            'flag': '🇰🇷',
-            'countryName': 'South Korea',
-          }, SetOptions(merge: true));
-        } catch (e) {
-          print('Failed to backfill country to Firestore: $e');
-        }
-      }
-      return true;
+      // 닉네임·국가 중 하나라도 비었으면 로컬로는 가입 미완료 — 원격을 확인하고, 거기도 없으면 설정 화면
+      print('Local profile incomplete — checking remote');
     }
 
     // Check remote if not found locally
@@ -191,22 +178,11 @@ class UserProfileManager {
             await prefs.setStringList(_keyManuallyResetPurchases, resetList);
           }
 
-          String restoredFlag = data['flag'] ?? '';
-          String restoredCountry = data['countryName'] ?? '';
-          if (restoredFlag.isEmpty || restoredCountry.isEmpty) {
-            // Existing account without country — default to South Korea
-            print('Firestore profile missing country — defaulting to South Korea');
-            restoredFlag = '🇰🇷';
-            restoredCountry = 'South Korea';
-            await prefs.setString(_keyFlag, restoredFlag);
-            await prefs.setString(_keyCountryName, restoredCountry);
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .set({
-              'flag': restoredFlag,
-              'countryName': restoredCountry,
-            }, SetOptions(merge: true));
+          // 닉네임·국가를 다 고른 계정만 가입 완료. 하나라도 비었으면 설정 화면으로
+          if (!isCompleteProfile(data['nickname'] as String?, data['flag'] as String?, data['countryName'] as String?)) {
+            print('Firestore profile incomplete — requiring profile setup');
+            await prefs.setBool(_keyInitialSetupDone, false);
+            return false;
           }
 
           await prefs.setBool(_keyInitialSetupDone, true);
@@ -216,6 +192,11 @@ class UserProfileManager {
               List<String>.from(data['achievements'] ?? []);
           if (remoteAchievements.isNotEmpty) {
             await AchievementManager.syncFromFirestore(remoteAchievements);
+          }
+          // 월드별 최고 기록·명패 병합
+          {
+            await ProgressStore.mergeFromRemote(data);
+            await CoinStore.mergeFromRemote(data);
           }
 
           // Update platform and login info on sync
@@ -773,8 +754,10 @@ class UserProfileManager {
 
 class InitialSetupPage extends StatefulWidget {
   final VoidCallback onComplete;
+  /// 가입 취소(게스트로 계속) — 닉네임·국가를 다 고르기 전에는 가입이 끝나지 않는다
+  final VoidCallback? onCancel;
 
-  const InitialSetupPage({super.key, required this.onComplete});
+  const InitialSetupPage({super.key, required this.onComplete, this.onCancel});
 
   @override
   State<InitialSetupPage> createState() => _InitialSetupPageState();
@@ -789,13 +772,13 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
     if (_nicknameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Please enter a nickname')));
+      ).showSnackBar(SnackBar(content: Text(LanguageManager.of(context, listen: false).translate('setup_need_nickname'))));
       return;
     }
     if (_selectedCountryName.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Please select your country')));
+      ).showSnackBar(SnackBar(content: Text(LanguageManager.of(context, listen: false).translate('setup_need_country'))));
       return;
     }
 
@@ -916,10 +899,7 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                                   ),
                                 )
                               else ...[
-                                Text(
-                                  _selectedFlag,
-                                  style: const TextStyle(fontSize: 28),
-                                ),
+                                CountryChip(flag: _selectedFlag, height: 20),
                                 const SizedBox(width: 12),
                                 Flexible(
                                   child: Text(
@@ -956,6 +936,16 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                   ),
                 ),
               ),
+              if (widget.onCancel != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: widget.onCancel,
+                  child: Text(
+                    LanguageManager.of(context).translate('continue_guest'),
+                    style: TextStyle(color: AppColors.textDim, fontSize: 13),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Text(
                 LanguageManager.of(context).translate('setup_warning'),
@@ -1005,761 +995,11 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
   }
 }
 
-class MyProfilePage extends StatefulWidget {
-  final VoidCallback onBack;
-  final VoidCallback onOpenShop;
-  final Future<void> Function() onLogout;
-  final VoidCallback? onStatistics;
-
-  const MyProfilePage({
-    super.key,
-    required this.onBack,
-    required this.onOpenShop,
-    required this.onLogout,
-    this.onStatistics,
-  });
-
-  @override
-  State<MyProfilePage> createState() => _MyProfilePageState();
-}
-
-class _MyProfilePageState extends State<MyProfilePage> {
-  Map<String, String> _profile = {};
-  int _nicknameTickets = 0;
-  int _countryTickets = 0;
-  bool _isAdsRemoved = false;
-  bool _soundEnabled = true;
-  bool _vibrationEnabled = true;
-  User? _currentUser;
-  bool _firstEdit = true;
-  String _appVersion = '';
-  double _sensitivity = GameSettings.defaultSensitivity;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    final profile = await UserProfileManager.getProfile();
-    final nicknameTickets = await UserProfileManager.getNicknameTickets();
-    final countryTickets = await UserProfileManager.getCountryTickets();
-    final firstEdit = await UserProfileManager.isFirstEditAvailable();
-    final packageInfo = await PackageInfo.fromPlatform();
-    setState(() {
-      _profile = profile;
-      _nicknameTickets = nicknameTickets;
-      _countryTickets = countryTickets;
-      _firstEdit = firstEdit;
-      _isAdsRemoved = false; // Will check async
-      _checkAds();
-      _soundEnabled = GameSettings().soundEnabled;
-      _vibrationEnabled = GameSettings().vibrationEnabled;
-      _sensitivity = GameSettings().sensitivity;
-      _appVersion = 'v${packageInfo.version}';
-      _currentUser = FirebaseAuth.instance.currentUser;
-    });
-  }
-
-  Future<void> _checkAds() async {
-    bool removed = await UserProfileManager.isAdsRemoved();
-    if (mounted) setState(() => _isAdsRemoved = removed);
-  }
-
-  Future<void> _editNickname() async {
-    final controller = TextEditingController(text: _profile['nickname']);
-    final result = await showNeonDialog<String>(
-      context: context,
-      title: LanguageManager.of(context).translate('change_nickname'),
-      content: TextField(
-        controller: controller,
-        style: AppTextStyles.body.copyWith(fontSize: 16),
-        maxLength: 8,
-        textAlign: TextAlign.center,
-        decoration: InputDecoration(
-          hintText: LanguageManager.of(context).translate('new_nickname_hint'),
-          hintStyle: TextStyle(color: AppColors.textDim),
-          enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: AppColors.textDim),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: AppColors.primary),
-          ),
-          counterStyle: TextStyle(color: AppColors.textDim),
-        ),
-      ),
-      actions: [
-        NeonButton(
-          text: LanguageManager.of(context).translate('cancel'),
-          color: AppColors.secondary,
-          isPrimary: false,
-          onPressed: () => Navigator.pop(context),
-        ),
-        NeonButton(
-          text: LanguageManager.of(context).translate('confirm'),
-          onPressed: () => Navigator.pop(context, controller.text.trim()),
-        ),
-      ],
-    );
-    if (result != null && result.isNotEmpty && result != _profile['nickname']) {
-      bool canEdit = false;
-
-      // Check if first edit is available or has ticket
-      if (_firstEdit) {
-        canEdit = true;
-        await UserProfileManager.useFirstEdit();
-      } else {
-        canEdit = await UserProfileManager.useNicknameTicket();
-      }
-
-      if (canEdit) {
-        await UserProfileManager.saveProfile(
-          result,
-          _profile['flag']!,
-          _profile['countryName']!,
-        );
-        _loadData();
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                LanguageManager.of(context).translate('nickname_changed'),
-              ),
-            ),
-          );
-      } else {
-        _showNoTicketDialog(
-          LanguageManager.of(context).translate('ticket_nickname'),
-        );
-      }
-    }
-  }
-
-  void _showNoTicketDialog(String type) {
-    final lang = LanguageManager.of(context);
-    showNeonDialog(
-      context: context,
-      title: lang.translate('no_ticket_title'),
-      message: lang.translate('ticket_required').replaceAll('{type}', type),
-      actions: [
-        NeonButton(
-          text: lang.translate('shop'),
-          onPressed: () {
-            Navigator.pop(context);
-            widget.onOpenShop();
-          },
-        ),
-        NeonButton(
-          text: lang.translate('close'),
-          color: AppColors.textDim,
-          isPrimary: false,
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _handleDeleteAccount() async {
-    print('MyProfilePage: _handleDeleteAccount started');
-    // Use listen: false to avoid rebuild issues
-    final lang = LanguageManager.of(context, listen: false);
-
-    // Show confirmation dialog
-    print('MyProfilePage: Showing confirmation dialog');
-    final confirmed = await showNeonDialog<bool>(
-      context: context,
-      title: lang.translate('delete_account_confirm'),
-      message: lang.translate('delete_account_message'),
-      actions: [
-        NeonButton(
-          text: lang.translate('cancel'),
-          isPrimary: true,
-          onPressed: () => Navigator.pop(context, false),
-        ),
-        NeonButton(
-          text: lang.translate('delete'),
-          color: AppColors.secondary,
-          isPrimary: false,
-          onPressed: () => Navigator.pop(context, true),
-        ),
-      ],
-    );
-    print('MyProfilePage: Dialog result: $confirmed');
-
-    if (confirmed == true) {
-      if (!mounted) return;
-
-      // Show loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
-        ),
-      );
-
-      // Delete account
-      final authService = AuthService();
-      final success = await authService.deleteAccount();
-
-      // Close loading
-      if (mounted) Navigator.pop(context);
-
-      if (success) {
-        // Clear local profile
-        await UserProfileManager.clearProfile();
-
-        // Show success message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(lang.translate('delete_success'))),
-          );
-        }
-
-        // Logout
-        await widget.onLogout();
-      } else {
-        // Show error message
-        if (mounted) {
-          showNeonDialog(
-            context: context,
-            title: "ERROR",
-            message: lang.translate('delete_fail'),
-            actions: [
-              NeonButton(
-                text: lang.translate('ok'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          );
-        }
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return NeonScaffold(
-      title: LanguageManager.of(context).translate('my_profile'),
-      showBackButton: true,
-      onBack: widget.onBack,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            NeonCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader(
-                    LanguageManager.of(context).translate('account'),
-                    Icons.account_circle,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildInfoRow(
-                    Icons.email,
-                    LanguageManager.of(context).translate('email'),
-                    (_currentUser == null || _currentUser!.isAnonymous)
-                        ? LanguageManager.of(context).translate('guest_account')
-                        : (_currentUser!.email ??
-                              LanguageManager.of(
-                                context,
-                              ).translate('provider_unknown')),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoRow(
-                    Icons.verified_user,
-                    LanguageManager.of(context).translate('provider'),
-                    _getProviderName(),
-                  ),
-                  const SizedBox(height: 12),
-                  // _buildInfoRow(
-                  //   Icons.block,
-                  //   LanguageManager.of(context).translate('remove_ads'),
-                  //   _isAdsRemoved
-                  //       ? LanguageManager.of(context).translate('ads_removed')
-                  //       : LanguageManager.of(context).translate('visit_shop'),
-                  //   valueColor: _isAdsRemoved
-                  //       ? const Color(0xFF00FF88)
-                  //       : AppColors.primary,
-                  //   onTap: () {
-                  //     if (!_isAdsRemoved) widget.onOpenShop();
-                  //   },
-                  // ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            NeonCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader(
-                    LanguageManager.of(context).translate('profile'),
-                    Icons.person,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Guest Warning Removed as per request
-                  _buildEditableRow(
-                    Icons.badge,
-                    LanguageManager.of(context).translate('nickname'),
-                    _profile['nickname'] ?? 'Unknown',
-                    _nicknameTickets,
-                    // Disable edit if Guest OR (No First Edit AND No Tickets)
-                    (_currentUser == null || _currentUser!.isAnonymous)
-                        ? null
-                        : ((_firstEdit || _nicknameTickets > 0)
-                              ? _editNickname
-                              : null),
-                    isFirstEdit: _firstEdit,
-                    isEditDisabled:
-                        (_currentUser == null || _currentUser!.isAnonymous),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildEditableRow(
-                    Icons.flag,
-                    LanguageManager.of(context).translate('country'),
-                    "${_profile['flag'] ?? ''} ${_profile['countryName'] ?? 'Unknown'}",
-                    _countryTickets,
-                    null, // Disable Country Edit as per request
-                    isEditDisabled: true, // Visual lock
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            NeonCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader(
-                    LanguageManager.of(context).translate("settings"),
-                    Icons.settings,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildCellRow(
-                    icon: Icons.language,
-                    label: LanguageManager.of(context).translate("language"),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildLanguageOption(context, "en"),
-                        const SizedBox(width: 12),
-                        _buildLanguageOption(context, "ko"),
-                      ],
-                    ),
-                  ),
-                  _buildCellRow(
-                    icon: Icons.vibration,
-                    label: LanguageManager.of(context).translate("vibration"),
-                    trailing: Switch(
-                      value: _vibrationEnabled,
-                      onChanged: (v) async {
-                        setState(() => _vibrationEnabled = v);
-                        await GameSettings().setVibration(v);
-                      },
-                      activeColor: AppColors.primary,
-                      activeTrackColor: AppColors.primary.withOpacity(0.3),
-                      inactiveThumbColor: AppColors.textDim,
-                      inactiveTrackColor: AppColors.textDim.withOpacity(0.3),
-                    ),
-                  ),
-                  _buildSensitivityRow(context),
-                  if (widget.onStatistics != null)
-                    _buildCellRow(
-                      icon: Icons.bar_chart_rounded,
-                      label: LanguageManager.of(context).translate("statistics"),
-                      onTap: widget.onStatistics,
-                      trailing: const Icon(Icons.chevron_right, color: AppColors.textDim, size: 20),
-                    ),
-                  _buildCellRow(
-                    icon: Icons.info_outline,
-                    label: LanguageManager.of(context).translate("app_version"),
-                    trailing: Text(
-                      _appVersion,
-                      style: const TextStyle(color: AppColors.textDim, fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-            const SizedBox(height: 16),
-            if (_currentUser != null && _currentUser!.isAnonymous) ...[
-              // Guest Mode -> Show Login Button
-              SizedBox(
-                width: double.infinity,
-                child: NeonButton(
-                  text: LanguageManager.of(context).translate('login'),
-                  color: AppColors.primary,
-                  icon: Icons.login,
-                  onPressed: () async {
-                    // Logging out navigates to Login Page
-                    await widget.onLogout();
-                  },
-                ),
-              ),
-            ] else ...[
-              // Normal Mode -> Show Logout & Delete
-              SizedBox(
-                width: double.infinity,
-                child: NeonButton(
-                  text: LanguageManager.of(context).translate('logout'),
-                  color: AppColors.textDim, // Neutral Grey
-                  icon: Icons.logout,
-                  isPrimary: false, // Outline style
-                  onPressed: () {
-                    print('MyProfilePage: Logout button tapped');
-                    final langManager = LanguageManager.of(
-                      context,
-                      listen: false,
-                    );
-                    showNeonDialog(
-                      context: context,
-                      title: langManager.translate('logout'),
-                      message: langManager.translate('logout_confirm'),
-                      actions: [
-                        NeonButton(
-                          text: langManager.translate('cancel'),
-                          isPrimary: true,
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        NeonButton(
-                          text: langManager.translate('logout'),
-                          color: AppColors.secondary,
-                          isPrimary: false,
-                          onPressed: () async {
-                            Navigator.pop(context);
-                            await widget.onLogout();
-                          },
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity, // Match Logout button width
-                child: NeonButton(
-                  text: LanguageManager.of(context).translate('delete_account'),
-                  color: AppColors.secondary,
-                  isPrimary: false,
-                  icon: Icons.delete_forever,
-                  onPressed: () async {
-                    print('MyProfilePage: Delete Account Pressed');
-                    try {
-                      await _handleDeleteAccount();
-                    } catch (e) {
-                      print('MyProfilePage: Delete Account Error: $e');
-                    }
-                  },
-                ),
-              ),
-            ],
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getProviderName() {
-    if (_currentUser == null) {
-      return LanguageManager.of(context).translate('provider_unknown');
-    }
-    for (var info in _currentUser!.providerData) {
-      if (info.providerId == 'google.com') {
-        return LanguageManager.of(context).translate('provider_google');
-      }
-      if (info.providerId == 'apple.com') {
-        return LanguageManager.of(context).translate('provider_apple');
-      }
-      if (info.providerId == 'password') {
-        return LanguageManager.of(context).translate('provider_password');
-      }
-      if (info.providerId == 'anonymous') {
-        return LanguageManager.of(context).translate('provider_anonymous');
-      }
-    }
-    if (_currentUser!.isAnonymous) {
-      return LanguageManager.of(context).translate('provider_anonymous');
-    }
-    return LanguageManager.of(context).translate('provider_unknown');
-  }
-
-  Widget _buildCellRow({
-    required IconData icon,
-    required String label,
-    Widget? trailing,
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        height: 52,
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.primary, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-              ),
-            ),
-            if (trailing != null) trailing,
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 드래그 감도 슬라이더.
-  /// 조작은 상대 드래그(손가락 이동량만큼 캐릭터가 움직임)이므로 이 값이
-  /// 곧 "손가락 1cm당 캐릭터가 몇 cm 움직이는가"를 결정한다.
-  Widget _buildSensitivityRow(BuildContext context) {
-    final lm = LanguageManager.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.open_with, color: AppColors.primary, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  lm.translate('sensitivity'),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                ),
-              ),
-              Text(
-                '${_sensitivity.toStringAsFixed(2)}x',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 32, right: 4),
-            child: Text(
-              lm.translate('sensitivity_desc'),
-              style: const TextStyle(color: AppColors.textDim, fontSize: 11),
-            ),
-          ),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppColors.primary,
-              inactiveTrackColor: AppColors.primary.withOpacity(0.2),
-              thumbColor: AppColors.primary,
-              overlayColor: AppColors.primary.withOpacity(0.15),
-              trackHeight: 3,
-            ),
-            child: Slider(
-              value: _sensitivity,
-              min: GameSettings.minSensitivity,
-              max: GameSettings.maxSensitivity,
-              divisions: 12,
-              onChanged: (v) => setState(() => _sensitivity = v),
-              onChangeEnd: (v) => GameSettings().setSensitivity(v),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, IconData icon, {Color? color}) {
-    return Row(
-      children: [
-        Icon(icon, color: color ?? AppColors.primary, size: 20),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            color: color ?? AppColors.primary,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(
-    IconData icon,
-    String label,
-    String value, {
-    Color? valueColor,
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        height: 52,
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.textDim, size: 18),
-            const SizedBox(width: 12),
-            Text(
-              "$label:",
-              style: const TextStyle(color: AppColors.textDim, fontSize: 14),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                value,
-                style: TextStyle(
-                  color: valueColor ?? Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (onTap != null)
-              const Icon(Icons.arrow_forward_ios, color: AppColors.primary, size: 14),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditableRow(
-    IconData icon,
-    String label,
-    String value,
-    int ticketCount,
-    VoidCallback? onEdit, {
-    bool isFirstEdit = false,
-    bool isEditDisabled = false,
-  }) {
-    return SizedBox(
-      height: 52,
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.textDim, size: 18),
-          const SizedBox(width: 12),
-          Text(
-            "$label:",
-            style: const TextStyle(color: AppColors.textDim, fontSize: 14),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (onEdit != null && !isEditDisabled)
-            GestureDetector(
-              onTap: onEdit,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.edit, color: AppColors.primary, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      isFirstEdit ? "FREE" : "EDIT",
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Icon(Icons.lock, color: AppColors.textDim.withOpacity(0.5), size: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingRow(
-    IconData icon,
-    String label,
-    bool value,
-    ValueChanged<bool> onChanged,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: AppColors.primary, size: 20),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-          ],
-        ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: AppColors.primary,
-          activeTrackColor: AppColors.primary.withOpacity(0.3),
-          inactiveThumbColor: AppColors.textDim,
-          inactiveTrackColor: AppColors.textDim.withOpacity(0.3),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLanguageOption(BuildContext context, String code) {
-    bool isSelected = LanguageManager.of(context).currentLanguage == code;
-    String flagEmoji = code == 'en' ? '🇺🇸' : '🇰🇷';
-
-    return GestureDetector(
-      onTap: () async {
-        print('MyProfilePage: Language option $code tapped');
-        // Use singleton directly in event handler (not Provider.of with listen=true)
-        await LanguageManager().changeLanguage(code);
-        if (mounted) {
-          setState(() {
-            // Trigger rebuild to update UI
-          });
-        }
-      },
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.primary),
-        ),
-        alignment: Alignment.center,
-        child: Text(flagEmoji, style: const TextStyle(fontSize: 24)),
-      ),
-    );
-  }
-}
 
 class UserProfilePage extends StatefulWidget {
   final VoidCallback onComplete;
-  const UserProfilePage({super.key, required this.onComplete});
+  final VoidCallback? onCancel;
+  const UserProfilePage({super.key, required this.onComplete, this.onCancel});
   @override
   State<UserProfilePage> createState() => _UserProfilePageState();
 }
@@ -1767,5 +1007,5 @@ class UserProfilePage extends StatefulWidget {
 class _UserProfilePageState extends State<UserProfilePage> {
   @override
   Widget build(BuildContext context) =>
-      InitialSetupPage(onComplete: widget.onComplete);
+      InitialSetupPage(onComplete: widget.onComplete, onCancel: widget.onCancel);
 }
