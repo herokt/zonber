@@ -12,7 +12,8 @@ class InviteService {
         .replaceAll('{code}', nickname);
     final link = lang.translate('download_link');
 
-    return '$title\n$body\n\n$link';
+    // 클립보드로 나가는 문구 — 화면용 줄바꿈 제어 문자 제거
+    return LanguageManager.stripJoiners('$title\n$body\n\n$link');
   }
 
   static Future<void> copyToClipboard(

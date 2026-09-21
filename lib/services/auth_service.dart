@@ -4,6 +4,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
+import '../world_config.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -104,6 +105,24 @@ class AuthService {
     try {
       final user = _auth.currentUser;
       if (user == null) return false;
+
+      // 랭킹 기록 삭제 — 존별 리더보드(maps/{mapId}/records)에서 내 기록을 모두 지운다.
+      // (firestore.rules: 본인 userId 기록만 삭제 허용) docs/privacy.html §3 과 일치해야 한다.
+      for (final w in WorldData.worlds) {
+        try {
+          final mine = await FirebaseFirestore.instance
+              .collection('maps')
+              .doc(w.rankingMapId)
+              .collection('records')
+              .where('userId', isEqualTo: user.uid)
+              .get();
+          for (final d in mine.docs) {
+            await d.reference.delete();
+          }
+        } catch (e) {
+          print('⚠️ Error deleting ranking records (${w.rankingMapId}): $e');
+        }
+      }
 
       // Delete user data from Firestore
       try {

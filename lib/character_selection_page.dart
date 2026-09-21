@@ -5,6 +5,7 @@ import 'user_profile.dart';
 import 'design_system.dart';
 import 'language_manager.dart';
 import 'achievement_manager.dart';
+import 'zonber_painter.dart';
 
 class CharacterSelectionPage extends StatefulWidget {
   final VoidCallback onBack;
@@ -87,14 +88,27 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
       showBackButton: true,
       onBack: widget.onBack,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : GridView.builder(
-        padding: const EdgeInsets.all(16),
+          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : Column(
+              children: [
+                // 능력치는 모두 같다 — 고르는 건 외형뿐
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Text(
+                    LanguageManager.of(context).translate('char_same_stats'),
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.text(12, color: AppColors.textDim, weight: FontWeight.w700),
+                  ),
+                ),
+                // 세로로 긴 카드를 좌우로 넘긴다(한 줄)
+                const SizedBox(height: 12),
+                SizedBox(height: 240, child: GridView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.72,
+          crossAxisCount: 1,
+          mainAxisSpacing: 12,
+          childAspectRatio: 240 / 132, // 가로 목록 — 높이/폭
         ),
         itemCount: CharacterData.availableCharacters.length,
         itemBuilder: (context, index) {
@@ -151,17 +165,14 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
                     ),
                     const SizedBox(height: 6),
 
-                    if (unlocked)
-                      // 스탯 바 4개
-                      _StatBars(char: char, accentColor: char.color)
-                    else
+                    if (!unlocked)
                       Text(
                         lm
                             .translate('unlock_requirement')
-                            .replaceAll('{name}', lm.translate(char.unlockKey!)),
+                            .replaceAll('{name}', '${lm.translate(char.unlockKey!)} · ${lm.translate('${char.unlockKey!}_desc')}'),
                         textAlign: TextAlign.center,
                         maxLines: 2,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textDim,
                           fontSize: 10,
                           height: 1.4,
@@ -173,7 +184,9 @@ class _CharacterSelectionPageState extends State<CharacterSelectionPage> {
             ),
           );
         },
-      ),
+      )),
+              ],
+            ),
     );
   }
 }
@@ -271,29 +284,24 @@ class _RotatingCharacterImageState extends State<_RotatingCharacterImage>
                 ),
               ],
             ),
+            // 존버 — 제자리에서 통통 튄다(선택되면 신난 표정)
             child: AnimatedBuilder(
               animation: _rotController,
-              builder: (_, child) => Transform.rotate(
-                angle: _rotController.value * 2 * pi,
-                child: child,
-              ),
-              child: char.imagePath != null
-                  ? Image.asset(
-                      char.imagePath!,
-                      width: 76,
-                      height: 76,
-                      fit: BoxFit.contain,
-                      errorBuilder: (ctx, _, __) => Icon(
-                        Icons.rocket_launch,
-                        color: char.color,
-                        size: 48,
-                      ),
-                    )
-                  : Icon(
-                      Icons.rocket_launch,
+              builder: (_, __) {
+                final t = _rotController.value * 6;
+                return Transform.translate(
+                  offset: Offset(0, -3 * sin(t * 2 * pi / 3).abs()),
+                  child: CustomPaint(
+                    size: const Size(76, 76),
+                    painter: ZonberPainter(ZonberLook(
                       color: char.color,
-                      size: 48,
-                    ),
+                      body: char.id,
+                      face: isSelected ? ZonberFace.happy : ZonberFace.normal,
+                      t: t,
+                    )),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -366,99 +374,4 @@ class _ParticlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ParticlePainter old) => old.progress != progress;
-}
-
-// ── 스탯 3개 바 ──────────────────────────────────────────
-class _StatBars extends StatelessWidget {
-  final Character char;
-  final Color accentColor;
-
-  const _StatBars({required this.char, required this.accentColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = char.stats;
-    final lm = LanguageManager.of(context);
-    final ratings = [
-      (label: lm.translate('stat_energy'), rating: CharacterData.energyRating(s.maxEnergy)),
-      (label: lm.translate('stat_speed'), rating: CharacterData.speedRating(s.speedMultiplier)),
-      (label: lm.translate('stat_recovery'), rating: CharacterData.cooldownRating(s.energyCooldown)),
-      (label: lm.translate('stat_evasion'), rating: CharacterData.iframeRating(s.iframeDuration)),
-    ];
-
-    return Column(
-      children: ratings
-          .map((r) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: _SingleStatBar(
-                  label: r.label,
-                  rating: r.rating,
-                  maxRating: 5,
-                  color: accentColor,
-                ),
-              ))
-          .toList(),
-    );
-  }
-}
-
-class _SingleStatBar extends StatelessWidget {
-  final String label;
-  final int rating;
-  final int maxRating;
-  final Color color;
-
-  const _SingleStatBar({
-    required this.label,
-    required this.rating,
-    required this.maxRating,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 36,
-          child: Text(
-            label,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.clip,
-            style: const TextStyle(
-              color: AppColors.textDim,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Row(
-            children: List.generate(maxRating, (i) {
-              final filled = i < rating;
-              return Expanded(
-                child: Container(
-                  height: 6,
-                  margin: const EdgeInsets.symmetric(horizontal: 1),
-                  decoration: BoxDecoration(
-                    color: filled ? color : color.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(3),
-                    boxShadow: filled
-                        ? [
-                            BoxShadow(
-                              color: color.withOpacity(0.5),
-                              blurRadius: 4,
-                            ),
-                          ]
-                        : null,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
 }
