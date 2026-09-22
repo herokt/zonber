@@ -6,13 +6,14 @@ import 'package:flutter/material.dart';
 import 'game_art.dart';
 
 // ─────────────────────────────────────────────────────────────
-// 꾸미기 — 이동 잔상(trail) · 캐릭터 오라(aura). 코인으로 사고 종류마다 하나씩 착용한다.
+// 꾸미기 — 몸통 스킨(skin) · 이동 잔상(trail) · 캐릭터 오라(aura). 코인으로 사고 종류마다 하나씩 착용한다.
+// 스킨은 캐릭터와 상관없이 몸 전체를 덮는다(그림은 zonber_painter.dart 의 _paintSkin).
 // 존별 장비(날개·머리띠·장갑 등)는 gear.dart. 전부 코드로 그린다(이미지 없음). 게임 판정에는 아무 영향이 없다. docs/SHOP.md
 //
 // 그리기 함수는 게임(Player)과 상점 미리보기가 같이 쓴다 — 보이는 그대로 산다.
 // ─────────────────────────────────────────────────────────────
 
-enum CosmeticKind { trail, aura }
+enum CosmeticKind { skin, trail, aura }
 
 class Cosmetic {
   final String id;
@@ -26,8 +27,18 @@ class Cosmetic {
 class Cosmetics {
   static const String defaultTrail = 'trail_basic';
   static const String defaultAura = 'aura_none';
+  static const String defaultSkin = 'skin_none';
 
   static const List<Cosmetic> all = [
+    // 몸통 스킨
+    Cosmetic('skin_none', CosmeticKind.skin, 0),
+    Cosmetic('skin_silver', CosmeticKind.skin, 400),
+    Cosmetic('skin_candy', CosmeticKind.skin, 450),
+    Cosmetic('skin_ice', CosmeticKind.skin, 500),
+    Cosmetic('skin_gold', CosmeticKind.skin, 650),
+    Cosmetic('skin_lava', CosmeticKind.skin, 700),
+    Cosmetic('skin_galaxy', CosmeticKind.skin, 750),
+    Cosmetic('skin_rainbow', CosmeticKind.skin, 900),
     // 잔상
     Cosmetic('trail_basic', CosmeticKind.trail, 0),
     Cosmetic('trail_sparkle', CosmeticKind.trail, 200),
@@ -53,8 +64,12 @@ class Cosmetics {
     return null;
   }
 
-  static String kindKey(CosmeticKind k) => k == CosmeticKind.trail ? 'trail' : 'aura';
-  static String defaultOf(CosmeticKind k) => k == CosmeticKind.trail ? defaultTrail : defaultAura;
+  static String kindKey(CosmeticKind k) => k.name;
+  static String defaultOf(CosmeticKind k) => switch (k) {
+        CosmeticKind.skin => defaultSkin,
+        CosmeticKind.trail => defaultTrail,
+        CosmeticKind.aura => defaultAura,
+      };
 }
 
 // ── 잔상 입자 ────────────────────────────────────────────────
@@ -356,6 +371,7 @@ class _PreviewPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
+    if (item.kind == CosmeticKind.skin) return; // 스킨은 캐릭터 그림 자체(상점이 따로 그린다)
     if (item.kind == CosmeticKind.aura) {
       // 미리보기는 캐릭터가 작아서(지름 s*0.5) 오라도 같은 비율로 키운다
       canvas.save();

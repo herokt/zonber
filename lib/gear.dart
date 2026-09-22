@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────
 // 존 장비 — 존마다 부위(머리·손·발·등)별로 하나씩 장착한다. docs/SHOP.md · docs/CHARACTER_CONCEPT.md
 //
-//   갤럭시  : 등(날개) · 발(로켓 부츠)
-//   피구    : 머리(머리띠) · 발(운동화)
-//   골키퍼  : 머리(모자) · 손(장갑) · 발(축구화)
+//   갤럭시  : 머리(헤드셋·고글·헬멧) · 손(우주 장갑) · 등(날개) · 발(로켓 부츠)
+//   피구    : 머리(머리띠) · 손(손목 밴드) · 발(운동화)
+//   골키퍼  : 머리(모자·털모자) · 손(장갑) · 발(축구화)
 //
-// 부위마다 기본 장비(무료, 자동 장착) · 코인 장비 · 명패 보상 장비가 있다.
+// 부위마다 무료 장비 · 코인 장비 · 명패 보상 장비가 있다. 처음에는 아무것도 안 입은 상태다(2026-09-22).
 // 장비는 능력치 보너스(GearBonus)를 가질 수 있다 — 지금은 전부 0(구조만). 캐릭터 기본 능력치는 모두 같다.
-// 그림은 zonber_painter.dart 가 부위·스타일 id 로 그린다(이미지 없음).
+// 그림은 gear_painter.dart 가 id 로 그린다(이미지 없음). 상점 카드는 GearIconPainter.
 // ─────────────────────────────────────────────────────────────
 
 enum GearSlot { head, hands, feet, back }
@@ -46,26 +46,45 @@ class GearItem {
 
 class Gear {
   static const List<GearItem> all = [
-    // ── 갤럭시 ──
+    // ── 갤럭시 ── 머리 · 손 · 등 · 발
+    GearItem('antenna_basic', 'cyber', GearSlot.head),
+    GearItem('goggles_space', 'cyber', GearSlot.head, price: 300),
+    GearItem('helmet_bubble', 'cyber', GearSlot.head, price: 450),
+    GearItem('mitts_space', 'cyber', GearSlot.hands),
+    GearItem('gauntlet_neon', 'cyber', GearSlot.hands, price: 350),
     GearItem('wings_white', 'cyber', GearSlot.back),
     GearItem('wings_star', 'cyber', GearSlot.back, price: 400),
+    GearItem('wings_bat', 'cyber', GearSlot.back, price: 450),
+    GearItem('wings_mech', 'cyber', GearSlot.back, price: 550),
     GearItem('wings_gold', 'cyber', GearSlot.back, needsPlate: true),
     GearItem('rocket_red', 'cyber', GearSlot.feet),
     GearItem('rocket_plasma', 'cyber', GearSlot.feet, price: 350),
-    // ── 피구 ──
+    GearItem('rocket_chrome', 'cyber', GearSlot.feet, price: 500),
+    // ── 피구 ── 머리 · 손 · 발
     GearItem('band_red', 'dodgeball', GearSlot.head),
     GearItem('band_blue', 'dodgeball', GearSlot.head, price: 250),
+    GearItem('band_stripe', 'dodgeball', GearSlot.head, price: 300),
     GearItem('band_flame', 'dodgeball', GearSlot.head, needsPlate: true),
+    GearItem('wrist_white', 'dodgeball', GearSlot.hands),
+    GearItem('wrist_red', 'dodgeball', GearSlot.hands, price: 200),
+    GearItem('wrist_rainbow', 'dodgeball', GearSlot.hands, price: 350),
     GearItem('sneakers_white', 'dodgeball', GearSlot.feet),
     GearItem('sneakers_neon', 'dodgeball', GearSlot.feet, price: 400),
-    // ── 골키퍼 ──
+    GearItem('sneakers_hightop', 'dodgeball', GearSlot.feet, price: 450),
+    GearItem('sneakers_gold', 'dodgeball', GearSlot.feet, price: 600),
+    // ── 골키퍼 ── 머리 · 손 · 발
     GearItem('cap_blue', 'keeper', GearSlot.head),
     GearItem('cap_red', 'keeper', GearSlot.head, price: 250),
+    GearItem('cap_black', 'keeper', GearSlot.head, price: 300),
+    GearItem('beanie_stripe', 'keeper', GearSlot.head, price: 400),
     GearItem('gloves_basic', 'keeper', GearSlot.hands),
     GearItem('gloves_pro', 'keeper', GearSlot.hands, price: 400),
+    GearItem('gloves_fire', 'keeper', GearSlot.hands, price: 500),
     GearItem('gloves_gold', 'keeper', GearSlot.hands, needsPlate: true),
     GearItem('boots_black', 'keeper', GearSlot.feet),
     GearItem('boots_orange', 'keeper', GearSlot.feet, price: 350),
+    GearItem('boots_mint', 'keeper', GearSlot.feet, price: 400),
+    GearItem('boots_white', 'keeper', GearSlot.feet, price: 450),
   ];
 
   static GearItem? byId(String id) {
@@ -87,8 +106,14 @@ class Gear {
   static List<GearItem> itemsOf(String zone, GearSlot slot) =>
       all.where((g) => g.zone == zone && g.slot == slot).toList();
 
-  /// 부위의 기본(무료·자동) 장비 — 목록의 첫 번째
-  static GearItem defaultOf(String zone, GearSlot slot) => itemsOf(zone, slot).first;
+  /// 아무것도 안 입은 상태(기본). 착용 슬롯 값이 '' 이면 그 부위는 비어 있다
+  static const String none = '';
+
+  /// 그 부위에 지금 착용한 장비 id — 기본은 [none]
+  static String wornId(String zone, GearSlot slot, String Function(String key, String fallback) equipped) {
+    final id = equipped(slotKey(zone, slot), none);
+    return byId(id) == null ? none : id;
+  }
 
   /// 착용 슬롯 키(CoinStore.equipped)
   static String slotKey(String zone, GearSlot slot) => 'gear_${zone}_${slot.name}';

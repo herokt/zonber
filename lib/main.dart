@@ -21,7 +21,6 @@ import 'user_profile.dart';
 import 'map_service.dart'; // Import MapService
 import 'maze_generator.dart'; // Import MazeGenerator
 import 'game_settings.dart';
-import 'character_selection_page.dart';
 import 'character_data.dart';
 import 'audio_manager.dart';
 import 'ad_manager.dart';
@@ -464,7 +463,6 @@ class _ZonberAppState extends State<ZonberApp> {
         _cancelSignup();
         break;
       case 'Editor':
-      case 'CharacterSelect':
       case 'EditorVerify':
         _navigateTo('Menu');
         break;
@@ -719,7 +717,7 @@ class _ZonberAppState extends State<ZonberApp> {
           onOpenShop: () => _navigateTo('Shop'),
           onStatistics: () => _navigateTo('Statistics'),
           onLogin: () => _navigateTo('Login'),
-          onCharacterSelect: () => _navigateTo('CharacterSelect'),
+          onCharacterSelect: () => _navigateTo('Shop'), // 캐릭터 고르기 = 상점 캐릭터 탭(첫 탭)
           onLogout: () async {
             print('Main: onLogout called');
 
@@ -786,8 +784,6 @@ class _ZonberAppState extends State<ZonberApp> {
           onVerify: _startVerification,
           onExit: () => _navigateTo('Menu'),
         );
-      case 'CharacterSelect':
-        return CharacterSelectionPage(onBack: () => _navigateTo('Menu'));
       case 'Menu':
       default:
         return HomePage(
@@ -797,7 +793,7 @@ class _ZonberAppState extends State<ZonberApp> {
           rankCache: _rankCache,
           onWorldSelected: (id) => _currentWorldId = id,
           onStart: () => _navigateTo('Game'),
-          onCharacterSelect: () => _navigateTo('CharacterSelect'),
+          onCharacterSelect: () => _navigateTo('Shop'), // 캐릭터 고르기 = 상점 캐릭터 탭(첫 탭)
           onLogin: () => _navigateTo('Login'),
           onGuide: () => GameGuideSheet.show(context),
           onSettings: () => _navigateTo('MyProfile'),
@@ -922,11 +918,13 @@ class _ZonberAppState extends State<ZonberApp> {
       _previousBest = prev;
       _runCoins = 0;
     }
-    // 코인 — 5초당 1개. 부활로 이어진 판은 이미 준 만큼 빼고 더 준다
-    final earned = (CoinStore.coinsForRun(time) - _runCoins).clamp(0, 1 << 30);
+    // 코인 — 5초당 1개 + 추가 기록 보너스. 부활로 이어진 판은 이미 준 만큼 빼고 더 준다
+    final bonus = CoinStore.bonusFor(_currentWorld.statKey, (result['graze'] as num?)?.toInt() ?? 0);
+    final earned = (CoinStore.coinsForRun(time) + bonus - _runCoins).clamp(0, 1 << 30);
     _runCoins += earned;
     await CoinStore.add(earned);
     result['coinsEarned'] = earned;
+    result['coinsBonus'] = bonus;
     _bestTimes = await ProgressStore.getBestTimes();
 
     // Update Stats
@@ -1125,12 +1123,13 @@ class _GameScreen extends StatelessWidget {
                                           scale: scale,
                                           // GOAL! · SAVE! 는 글자 그림(assets/images/game/text_*.png), 'SAVE ×5' 같은 문구는 글자
                                           child: (p.text == 'GOAL!' || p.text == 'SAVE!')
-                                              ? Image.asset(
-                                                  'assets/images/game/text_${p.text == 'GOAL!' ? 'goal' : 'save'}.png',
+                                              ? GameArt.image(
+                                                  'text_${p.text == 'GOAL!' ? 'goal' : 'save'}',
                                                   width: big ? 260 : 150,
-                                                  filterQuality: FilterQuality.medium,
-                                                  errorBuilder: (_, __, ___) => Text(p.text,
-                                                      style: AppTextStyles.display(big ? 64 : 30, color: p.color)),
+                                                  fallback: () => Text(p.text,
+                                                      style: AppTextStyles.display(big ? 64 : 30, color: p.color).copyWith(
+                                                        shadows: const [Shadow(color: Colors.white, blurRadius: 0, offset: Offset(0, 3))],
+                                                      )),
                                                 )
                                               : Text(p.text,
                                                   style: AppTextStyles.display(big ? 64 : 30, color: p.color).copyWith(
@@ -1162,14 +1161,13 @@ class _GameScreen extends StatelessWidget {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                                   decoration: BoxDecoration(
-                                    color: isStart ? Colors.transparent : Colors.black.withValues(alpha: 0.55),
+                                    color: isStart ? (GameArt.enabled ? Colors.transparent : accent) : Colors.black.withValues(alpha: 0.55),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: isStart
-                                      ? Image.asset('assets/images/game/text_start.png',
+                                      ? GameArt.image('text_start',
                                           width: 230,
-                                          filterQuality: FilterQuality.medium,
-                                          errorBuilder: (_, __, ___) => Text(lm.translate('intro_start'),
+                                          fallback: () => Text(lm.translate('intro_start'),
                                               textAlign: TextAlign.center,
                                               style: AppTextStyles.display(44, color: Colors.white)))
                                       // 스테이지별 미션 — 존버 정체성: [존]에서 [버]텨라 · [존]에서 [생]존하라 · [존]에서 [막]아라
@@ -1206,7 +1204,7 @@ class _GameScreen extends StatelessWidget {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Text(lm.translate(world.mode == WorldMode.keeper ? 'saves' : 'graze'),
+                                        Text(lm.translate(world.statKey),
                                             style: AppTextStyles.label(color: ink)),
                                         const SizedBox(width: 6),
                                         Text('×$g', style: AppTextStyles.display(14, color: accent)),
@@ -1422,26 +1420,24 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   void fxHit(Vector2 at, Color ballColor) {
     shake(7, 0.3);
     hitStop(0.07);
-    burst(at, ballColor, count: 10, speed: 240, art: 'fx_shard');
+    burst(at, ballColor, count: GameArt.enabled ? 10 : 18, speed: 240, art: 'fx_shard');
     burst(at, Colors.white, count: 8, speed: 140, size: 2);
     flash();
   }
 
-  /// 실점(골키퍼) — 큰 흔들림 · 멈칫 · 그물 앞 파편 · GOAL!
+  /// 실점(골키퍼) — 큰 흔들림 · 멈칫 · 그물 앞 파편(문구는 띄우지 않는다)
   void fxGoal(Vector2 at) {
     shake(11, 0.45);
     hitStop(0.12);
-    burst(at, Colors.white, count: 10, speed: 260, size: 3.5, art: 'fx_star');
+    burst(at, Colors.white, count: GameArt.enabled ? 10 : 22, speed: 260, size: GameArt.enabled ? 3.5 : 3, art: 'fx_star');
     burst(at, const Color(0xFFE5484D), count: 12, speed: 180);
     flash();
-    pop('GOAL!', const Color(0xFFE5484D));
   }
 
-  /// 세이브 — 가벼운 흔들림 · 파편 · SAVE!
-  void fxSave(Vector2 at, int saves) {
+  /// 세이브 — 가벼운 흔들림 · 파편(문구·연속 표시는 띄우지 않는다)
+  void fxSave(Vector2 at) {
     shake(3.5, 0.15);
-    burst(at, Colors.white, count: 8, speed: 200, size: 3, art: 'fx_star');
-    pop(saves >= 3 && saves % 5 == 0 ? 'SAVE ×$saves' : 'SAVE!', worldConfig.accent);
+    burst(at, Colors.white, count: GameArt.enabled ? 8 : 12, speed: 200, size: GameArt.enabled ? 3 : 2.5, art: 'fx_star');
   }
 
   /// 골키퍼 — 페널티킥 골문·슈터 상태
@@ -1834,6 +1830,7 @@ class Player extends SpriteComponent
   /// 꾸미기 — 착용한 잔상·오라(상점). 판정에는 영향 없음
   String trailId = Cosmetics.defaultTrail;
   String auraId = Cosmetics.defaultAura;
+  String skinId = Cosmetics.defaultSkin;
   /// 존 장비 — 부위별 장착 id(gear.dart). 존에 맞춰 자동 장착, 상점에서 바꾼다
   List<String> gearIds = const [];
   double _auraT = 0;
@@ -1868,13 +1865,16 @@ class Player extends SpriteComponent
   double _blinkTimer = 0;
   bool _blinkVisible = true;
 
-  // --- 근접 회피(Graze): 히트박스 바깥 링을 스치고 지나간 탄 ---
+  // --- 추가 기록(스테이지별, WorldConfig.statKey). 셀 때마다 보너스 코인 ---
+  // 갤럭시 근접 회피 · 피구 아슬 회피: 히트박스 바깥 링을 스치고 지나간 탄(피구는 링이 더 좁다)
   int grazeCount = 0;
   final Set<Bullet> _grazing = {};
-  static const double _grazeRing = 8.0;
+  // 난이도를 비슷하게: 탄이 많은 갤럭시는 링을 더 좁게, 공이 적은 피구는 조금 넓게
+  static const double _grazeRing = 4.0;
+  static const double _closeDodgeRing = 5.0;
 
   void _updateGraze() {
-    final ring = _hbHalf + _grazeRing;
+    final ring = _hbHalf + (gameRef.worldConfig.statKey == 'close_dodge' ? _closeDodgeRing : _grazeRing);
     _grazing.removeWhere((b) => !b.isMounted); // 피격·소멸된 탄은 카운트하지 않는다
     for (final c in gameRef.mapArea.children) {
       if (c is! Bullet) continue;
@@ -1902,13 +1902,14 @@ class Player extends SpriteComponent
     await CoinStore.load();
     trailId = CoinStore.equipped(Cosmetics.kindKey(CosmeticKind.trail), Cosmetics.defaultTrail);
     auraId = CoinStore.equipped(Cosmetics.kindKey(CosmeticKind.aura), Cosmetics.defaultAura);
-    // 존 장비 — 부위마다 장착한 것(없으면 기본). 능력치 보너스를 모은다(지금은 전부 0)
+    skinId = CoinStore.equipped(Cosmetics.kindKey(CosmeticKind.skin), Cosmetics.defaultSkin);
+    // 존 장비 — 부위마다 장착한 것(기본은 없음). 능력치 보너스를 모은다(지금은 전부 0)
     final zone = gameRef.worldConfig.id;
     var bonus = GearBonus.none;
     final ids = <String>[];
     for (final slot in Gear.slotsOf(zone)) {
-      final id = CoinStore.equipped(Gear.slotKey(zone, slot), Gear.defaultOf(zone, slot).id);
-      final item = Gear.byId(id) ?? Gear.defaultOf(zone, slot);
+      final item = Gear.byId(Gear.wornId(zone, slot, CoinStore.equipped));
+      if (item == null) continue; // 안 입은 부위
       ids.add(item.id);
       bonus = bonus + item.bonus;
     }
@@ -1988,6 +1989,7 @@ class Player extends SpriteComponent
       ZonberLook(
         color: trailColor,
         body: characterId,
+        skin: skinId,
         face: _face,
         gear: gearIds,
         t: _auraT,
@@ -2197,12 +2199,20 @@ class Player extends SpriteComponent
   }
 
 
+  // 골키퍼 연속 선방 — 직전 세이브 후 이 시간(초) 안에 또 막으면 1 센다
+  static const double _streakWindow = 1.0;
+  double _lastSaveAt = -100;
+
   /// Keeper: 키퍼에 맞은 공이 골문을 벗어났다 — 세이브 확정
   void creditSave(Vector2 at) {
     if (gameRef.isGameOver) return;
-    grazeCount++;
-    gameRef.grazeNotifier.value = grazeCount;
-    gameRef.fxSave(at, grazeCount);
+    final now = gameRef.survivalTime;
+    if (now - _lastSaveAt <= _streakWindow) {
+      grazeCount++;
+      gameRef.grazeNotifier.value = grazeCount;
+    }
+    _lastSaveAt = now;
+    gameRef.fxSave(at);
     showFace(ZonberFace.happy, 0.7);
     AudioManager().playSfx('shoot.wav', volume: 0.7);
     if (GameSettings().vibrationEnabled) HapticFeedback.lightImpact();
@@ -3201,8 +3211,12 @@ class _KeeperShooter {
   /// 턴 간격: 2.0s 에서 1초에 1%씩 짧아지고 0.55s 하한
   static double beatAt(double t) => max(0.55, 2.0 * pow(0.99, t).toDouble());
 
-  /// 슛 속도: 200 → 초당 +2.4, 상한 520 (총알슛은 여기에 1.75배)
-  static double speedAt(double t) => min(520.0, 200.0 + 2.4 * t);
+  /// 슛 속도: 200 → 초당 +2.2, 상한 480 (총알슛은 여기에 1.6배). 2026-09-22 꼬불꼬불 슛 구간부터 너무 빨라 조금 낮춤
+  static double speedAt(double t) => min(480.0, 200.0 + 2.2 * t);
+
+  /// 공이 골라인에 닿는 시각(예상)들 — 여러 공이 한꺼번에 도착하지 않게 이 간격 이상 벌린다(간발의 차는 허용)
+  final List<double> _arrivals = [];
+  static const double _arrivalGap = 0.3;
 
   /// 키퍼 반대쪽을 노리는 비율
   static const List<double> _smart = [0.2, 0.35, 0.5, 0.6, 0.7, 0.8, 0.85];
@@ -3244,9 +3258,27 @@ class _KeeperShooter {
     final order = List<int>.generate(goal.shooters.length, (i) => i)..shuffle(_rng);
     final roll = _rng.nextDouble();
     final n = roll < _trio[tier] ? 3 : roll < _trio[tier] + _twin[tier] ? 2 : 1;
+    _arrivals.removeWhere((a) => a < t - 0.5);
+    final world = game.worldConfig;
+    final center = Vector2((KeeperGoal.left + KeeperGoal.right) / 2, KeeperGoal.lineY);
     for (int k = 0; k < min(n, order.length); k++) {
-      // 동시 슛은 조금씩 어긋나게 — 한 번에 몰려오지 않고 순서대로 막을 틈을 준다
-      _kick(game, order[k], _pick(tier), t, tier, delay: k * 0.12);
+      final si = order[k];
+      final kind = _pick(tier);
+      final def = world.projectiles[min(kind.index, world.projectiles.length - 1)];
+      // 골라인까지 걸리는 시간(휘는 공은 조금 더) — 이미 날아오는 공과 도착이 겹치면 늦게 찬다
+      final fly = goal.shooters[si].distanceTo(center) / (speedAt(t) * def.speedMult) * (def.motion == ProjectileMotion.straight ? 1.0 : 1.08);
+      var arrive = t + k * 0.12 + fly;
+      for (bool moved = true; moved;) {
+        moved = false;
+        for (final a in _arrivals) {
+          if ((a - arrive).abs() < _arrivalGap) {
+            arrive = a + _arrivalGap;
+            moved = true;
+          }
+        }
+      }
+      _arrivals.add(arrive);
+      _kick(game, si, kind, t, tier, delay: arrive - fly - t);
     }
   }
 
@@ -3484,13 +3516,13 @@ class _DodgeballThrower {
     }
   }
 
-  /// 외야 패스: 우리 코트 주위(좌·우 외야, 내 뒤)를 3~5번 돌다가(초록 공) 빠른 공으로 던진다
+  /// 외야 패스: 우리 코트 주위(좌·우 외야, 내 뒤)를 1~5번(무작위) 돌다가(초록 공) 빠른 공으로 던진다
   void _startPass(ZonberGame game) {
     final world = game.worldConfig;
-    // 우리 코트 주위 외야 선수들(왼쪽·오른쪽·내 뒤) 사이로 3~5번 돈다. 선수가 움직여도 따라간다.
+    // 우리 코트 주위 외야 선수들(왼쪽·오른쪽·내 뒤) 사이로 1~5번(무작위) 돈다. 선수가 움직여도 따라간다.
     final outs = game.dodgeTeam.outfield;
     if (outs.isEmpty) return;
-    final hops = 3 + _rng.nextInt(3);
+    final hops = 1 + _rng.nextInt(5);
     final pts = <Vector2>[];
     int last = -1;
     for (int k = 0; k <= hops; k++) {

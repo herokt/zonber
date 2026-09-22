@@ -10,6 +10,10 @@ import 'package:flutter/widgets.dart';
 // 그림이 아직 없거나 못 읽으면 null — 그리는 쪽은 코드 그림으로 대신한다.
 // ─────────────────────────────────────────────────────────────
 class GameArt {
+  /// 그림 사용 스위치. false 면 그림을 하나도 읽지 않고 전부 코드 그림으로 그린다(1차 아트 적용 전 모습).
+  /// 2026-09-22: 1차 아트(AI 시트)를 적용 전으로 되돌림 — 그림 파일은 assets/images/game/ 에 그대로 있다. true 로 바꾸면 다시 켜진다.
+  static const bool enabled = false;
+
   static const List<String> names = [
     // 캐릭터
     'body_neon_green', 'body_electric_blue', 'body_plasma_purple', 'body_cyber_red', 'body_solar_gold', 'body_void_dark',
@@ -39,6 +43,7 @@ class GameArt {
   static Future<void> load() => _loading ??= _loadAll();
 
   static Future<void> _loadAll() async {
+    if (!enabled) return;
     await Future.wait(names.map((n) async {
       try {
         final data = await rootBundle.load('assets/images/game/$n.png');
@@ -75,6 +80,13 @@ class GameArt {
   static double aspect(String name) {
     final im = _images[name];
     return im == null ? 1 : im.height / im.width;
+  }
+
+  /// 위젯용 그림 — 스위치가 꺼져 있거나 파일이 없으면 [fallback]
+  static Widget image(String name, {double? width, double? height, BoxFit fit = BoxFit.contain, required Widget Function() fallback}) {
+    if (!enabled) return fallback();
+    return Image.asset('assets/images/game/$name.png',
+        width: width, height: height, fit: fit, filterQuality: FilterQuality.medium, errorBuilder: (_, __, ___) => fallback());
   }
 
   static double rand01(int seed) => (sin(seed * 12.9898) * 43758.5453) % 1.0;

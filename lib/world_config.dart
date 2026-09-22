@@ -86,6 +86,11 @@ class ProjectileDef {
 
 class WorldConfig {
   final String id;
+
+  /// 게임 중·결과 화면의 추가 기록 항목(번역 키) — 스테이지마다 다르고, 셀 때마다 보너스 코인(CoinStore.bonusFor).
+  ///   갤럭시: 근접 회피(탄을 아슬아슬하게 스침) · 피구: 아슬 회피(큰 공을 몸 가까이서 스침, 더 좁은 링)
+  ///   골키퍼: 연속 선방(직전 세이브 후 짧은 시간 안에 또 막으면 1)
+  String get statKey => mode == WorldMode.keeper ? 'save_streak' : (id == 'dodgeball' ? 'close_dodge' : 'graze');
   /// 난이도 = 스테이지 번호(1~3). 캐러셀 순서와 같다.
   final int difficulty;
   final WorldMode mode;
@@ -244,20 +249,20 @@ class WorldData {
         // 꼬불꼬불 슛 — 분홍 축구공, 좌우로 흔들리며 온다
         ProjectileDef(
           id: 'wave', nameKey: 'proj_keeper_wave', art: 'ammo_soccer_wave',
-          speedMult: 0.95, radius: 7, visualSize: 19,
+          speedMult: 0.9, radius: 7, visualSize: 19,
           motion: ProjectileMotion.wave, waveAmp: 34, waveHz: 1.6,
           onWall: WallBehavior.vanish, color: Color(0xFFFFB8D9), soccer: true,
         ),
         // 총알슛 — 주황 축구공 + 꼬리, 아주 빠르다
         ProjectileDef(
           id: 'bullet', nameKey: 'proj_keeper_bullet', art: 'ammo_soccer_rocket',
-          speedMult: 1.75, radius: 7, visualSize: 18,
+          speedMult: 1.6, radius: 7, visualSize: 18,
           onWall: WallBehavior.vanish, color: Color(0xFFFF8A3D), soccer: true, trail: true,
         ),
         // 무회전 — 보라 축구공, 돌지 않고 어디로 휠지 모르게 흔들린다
         ProjectileDef(
           id: 'knuckle', nameKey: 'proj_keeper_knuckle', art: 'ammo_soccer_knuckle',
-          speedMult: 1.1, radius: 7, visualSize: 19,
+          speedMult: 1.0, radius: 7, visualSize: 19,
           motion: ProjectileMotion.knuckle, waveAmp: 150,
           onWall: WallBehavior.vanish, color: Color(0xFFD9CCFF), soccer: true,
         ),

@@ -59,6 +59,7 @@ class _ResultPageState extends State<ResultPage> {
   bool _coinsDoubled = false;
 
   int get _coinsEarned => (widget.result['coinsEarned'] as num?)?.toInt() ?? 0;
+  int get _coinsBonus => (widget.result['coinsBonus'] as num?)?.toInt() ?? 0;
 
   /// 보상형 광고를 보면 이번 판 코인을 한 번 더 준다(2배)
   void _doubleCoins(LanguageManager lm) {
@@ -87,6 +88,15 @@ class _ResultPageState extends State<ResultPage> {
           const CoinIcon(size: 22),
           const SizedBox(width: 10),
           Text('+${formatCount(earned)}', style: AppTextStyles.display(18, color: AppColors.coin)),
+          if (_coinsBonus > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(color: AppColors.coin.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(999)),
+              child: Text(lm.translate('coin_bonus').replaceAll('{n}', formatCount(_coinsBonus * (_coinsDoubled ? 2 : 1))),
+                  style: AppTextStyles.text(11, color: AppColors.coin, weight: FontWeight.w800)),
+            ),
+          ],
           const SizedBox(width: 8),
           Flexible(
             child: ValueListenableBuilder<int>(
@@ -298,7 +308,7 @@ class _ResultPageState extends State<ResultPage> {
                 children: [
                   _stat(lm.translate('level'), Text('$level', style: AppTextStyles.display(20))),
                   const SizedBox(width: 10),
-                  _stat(lm.translate(widget.world.mode == WorldMode.keeper ? 'saves' : 'graze'), Text('$graze', style: AppTextStyles.display(20))),
+                  _stat(lm.translate(widget.world.statKey), Text('$graze', style: AppTextStyles.display(20))),
                   const SizedBox(width: 10),
                   _stat(
                     lm.translate('character'),

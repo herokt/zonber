@@ -30,6 +30,11 @@ class CoinStore {
 
   static int coinsForRun(double survivalTime) => max(1, (survivalTime / secondsPerCoin).floor());
 
+  /// 추가 기록 보너스 코인 — 스테이지마다 난이도를 비슷하게 맞춰서 모두 1번에 1개
+  ///   (근접 회피 · 아슬 회피 · 연속 선방. 세는 기준은 Player 의 _grazeRing · _closeDodgeRing · _streakWindow)
+  static int bonusFor(String statKey, int count) =>
+      const {'graze', 'close_dodge', 'save_streak'}.contains(statKey) ? count : 0;
+
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     balance.value = prefs.getInt(_keyCoins) ?? 0;
