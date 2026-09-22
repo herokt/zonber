@@ -1,3 +1,4 @@
+import 'gear.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -175,6 +176,18 @@ class RankingSystem {
         r['nickname'] = (user['nickname'] as String?) ?? r['nickname'] ?? 'Unknown';
         final userFlag = (user['flag'] as String?) ?? '';
         r['flag'] = userFlag.isNotEmpty ? userFlag : ((r['flag'] as String?) ?? '');
+        // 프로필 그림은 기록 당시가 아니라 지금 고른 캐릭터 · 그 존에서 지금 입은 장비
+        final charId = user['characterId'];
+        if (charId is String && charId.isNotEmpty) r['characterId'] = charId;
+        final equipped = user['equipped'];
+        if (equipped is Map && equipped['skin'] is String) r['skin'] = equipped['skin'];
+        if (worldId != null && equipped is Map) {
+          r['gear'] = <String>[
+            for (final slot in Gear.slotsOf(worldId))
+              if (equipped[Gear.slotKey(worldId, slot)] is String && Gear.byId(equipped[Gear.slotKey(worldId, slot)] as String) != null)
+                equipped[Gear.slotKey(worldId, slot)] as String,
+          ];
+        }
         final plates = user['plates'];
         if (worldId != null && plates is Map && plates[worldId] is Map) {
           final p = plates[worldId] as Map;

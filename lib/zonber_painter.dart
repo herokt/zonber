@@ -4,11 +4,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'game_art.dart';
+import 'gear.dart';
+import 'gear_painter.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 존버 — 동글동글한 메인 캐릭터(코드로 그린다, 이미지 없음). docs/CHARACTER_CONCEPT.md
-// 동그란 몸 · 얼굴(눈·볼·입) · 양손 · 양발. 캐릭터마다 몸 색만 다르다.
-// 존 장비(gear.dart)는 부위별로 겹쳐 그린다: 등 → 발 → 몸 → 얼굴 → 손 → 머리.
+// 찹쌀떡 몸(아래가 약간 납작) · 머리 위 한 가닥 · 반쯤 감은 눈 · 작은 손 · 짧은 발. 캐릭터마다 몸 색만 다르다.
+// 커비와 겹치지 않게: 세로 타원 눈·볼터치·완전한 원형 몸은 쓰지 않는다(2026-09-22 시안 A 확정).
+// 존 장비(gear.dart)는 gear_painter.dart 가 부위별로 겹쳐 그린다: 등 → 몸·얼굴 → 발 → 손 → 머리.
 // 게임(Player)·아바타(CharacterAvatar)·상점 미리보기가 모두 이 함수를 쓴다.
 // 그림(assets/images/game — 몸통·표정·장비)이 있으면 그림으로, 없으면 아래 코드 그림으로 그린다.
 // ─────────────────────────────────────────────────────────────
@@ -30,9 +33,12 @@ class ZonberLook {
   final Offset look;
   /// 캐릭터 id — 몸통 그림(body_{id}.png)을 고른다. null 이면 코드 그림
   final String? body;
+  /// 몸통 스킨(cosmetics.dart skin_*). null·skin_none 이면 캐릭터 색
+  final String? skin;
   const ZonberLook({
     required this.color,
     this.body,
+    this.skin,
     this.face = ZonberFace.normal,
     this.gear = const [],
     this.t = 0,
@@ -41,6 +47,23 @@ class ZonberLook {
     this.look = Offset.zero,
   });
 }
+
+const Color _ink = Color(0xFF1F2A44);
+
+/// 찹쌀떡 몸 윤곽 — 가로 ±1.06r, 위 -0.92r, 아래 0.96r
+Path mochiPath(double r) => Path()
+  ..moveTo(-1.06 * r, 0.36 * r)
+  ..cubicTo(-1.06 * r, -0.62 * r, -0.56 * r, -0.92 * r, 0, -0.92 * r)
+  ..cubicTo(0.56 * r, -0.92 * r, 1.06 * r, -0.62 * r, 1.06 * r, 0.36 * r)
+  ..cubicTo(1.06 * r, 0.84 * r, 0.68 * r, 0.96 * r, 0, 0.96 * r)
+  ..cubicTo(-0.68 * r, 0.96 * r, -1.06 * r, 0.84 * r, -1.06 * r, 0.36 * r)
+  ..close();
+
+Paint _outline(double r) => Paint()
+  ..color = _ink
+  ..style = PaintingStyle.stroke
+  ..strokeJoin = StrokeJoin.round
+  ..strokeWidth = max(1.0, r * 0.08);
 
 Color _shade(Color c, double amount) {
   final h = HSLColor.fromColor(c);
@@ -56,84 +79,90 @@ void paintZonber(Canvas canvas, Offset center, double r, ZonberLook k) {
     return null;
   }
 
-  final wings = gearOf('wings_');
-  final rocket = gearOf('rocket_');
-  final sneakers = gearOf('sneakers_');
-  final boots = gearOf('boots_');
-  final gloves = gearOf('gloves_');
-  final band = gearOf('band_');
-  final cap = gearOf('cap_');
-
   if (k.body != null && GameArt.img('body_${k.body}') != null) {
     _paintZonberArt(canvas, center, r, k, gearOf);
     return;
   }
 
-  final body = k.color;
-  final dark = _shade(body, -0.16);
-  final light = _shade(body, 0.16);
+  // 부위별 장착 장비(gear_painter.dart 가 그린다)
+  String? back, head, hands, feet;
+  for (final id in k.gear) {
+    switch (Gear.byId(id)?.slot) {
+      case GearSlot.back:
+        back = id;
+      case GearSlot.head:
+        head = id;
+      case GearSlot.hands:
+        hands = id;
+      case GearSlot.feet:
+        feet = id;
+      case null:
+        break;
+    }
+  }
+
+  // 손·발·머리 한 가닥은 스킨의 대표 색으로
+  final body = skinPartColor(k.skin, k.color, k.t);
   final step = k.moving ? sin(k.t * 16) : 0.0;
+  // 몸·손·머리는 통통 튀고(걸음) 숨 쉬듯 움직인다 — 발은 땅에 붙어 있다
+  final bob = k.moving ? -step.abs() * r * 0.07 : sin(k.t * 3) * r * 0.025;
 
   canvas.save();
   canvas.translate(center.dx, center.dy);
-
-  // ── 등: 날개 ──
-  if (wings != null) _paintWings(canvas, r, wings, k.t);
-
-  // ── 발 ──
-  for (final sx in [-1.0, 1.0]) {
-    final fc = Offset(sx * r * 0.44, r * 0.86 + sx * step * r * 0.07);
-    final rect = Rect.fromCenter(center: fc, width: r * 0.72, height: r * 0.44);
-    if (rocket != null) {
-      _paintRocketBoot(canvas, rect, r, rocket, k.t, k.moving);
-    } else if (sneakers != null) {
-      _paintShoe(canvas, rect, r, sneakers == 'sneakers_neon' ? const Color(0xFFB6F23A) : Colors.white,
-          sneakers == 'sneakers_neon' ? const Color(0xFF111827) : const Color(0xFFE5484D), studs: false);
-    } else if (boots != null) {
-      _paintShoe(canvas, rect, r, boots == 'boots_orange' ? const Color(0xFFFF7A1A) : const Color(0xFF1F2937),
-          Colors.white, studs: true);
-    } else {
-      canvas.drawOval(rect, Paint()..color = dark);
-    }
-  }
-
-  // ── 몸 — 맞으면 납작해졌다 돌아온다 ──
-  canvas.save();
+  // 맞으면 발밑을 기준으로 장비까지 통째로 납작해졌다 돌아온다
   if (k.squash > 0) {
-    canvas.translate(0, r);
+    canvas.translate(0, r * 1.15);
     canvas.scale(1 + 0.18 * k.squash, 1 - 0.24 * k.squash);
-    canvas.translate(0, -r);
+    canvas.translate(0, -r * 1.15);
   }
-  canvas.drawCircle(Offset.zero, r, Paint()
-    ..shader = ui.Gradient.radial(Offset(-r * 0.35, -r * 0.4), r * 1.5, [light, body, dark], const [0, 0.55, 1]));
-  canvas.drawCircle(Offset.zero, r, Paint()
-    ..color = _shade(body, -0.28).withValues(alpha: 0.6)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = max(1.0, r * 0.06));
-  // 하이라이트
-  canvas.drawOval(Rect.fromCenter(center: Offset(-r * 0.38, -r * 0.5), width: r * 0.42, height: r * 0.26),
-      Paint()..color = Colors.white.withValues(alpha: 0.45));
 
-  _paintFace(canvas, r, k);
+  canvas.save();
+  canvas.translate(0, bob);
+  // ── 등 ──
+  if (back != null) paintGearBack(canvas, r, back, k.t);
+  // ── 머리 위 한 가닥(모자류를 쓰면 숨긴다) ──
+  if (head == null || !gearHidesTuft(head)) {
+    final tuft = Path()
+      ..moveTo(0.02 * r, -0.86 * r)
+      ..cubicTo(-0.04 * r, -1.25 * r, 0.33 * r, -1.4 * r, 0.44 * r, -1.18 * r)
+      ..cubicTo(0.3 * r, -1.22 * r, 0.14 * r, -1.1 * r, 0.24 * r, -0.88 * r)
+      ..close();
+    canvas.drawPath(tuft, Paint()..color = body);
+    canvas.drawPath(tuft, _outline(r)..strokeWidth = max(1.0, r * 0.07));
+  }
+  // ── 몸 ──
+  final mochi = mochiPath(r);
+  _paintSkin(canvas, r, mochi, k.skin, k.color, k.t);
+  canvas.drawPath(mochi, _outline(r));
+  canvas.drawOval(Rect.fromCenter(center: Offset(-r * 0.46, -r * 0.46), width: r * 0.36, height: r * 0.2),
+      Paint()..color = Colors.white.withValues(alpha: 0.4));
+  _paintFace(canvas, r, k, _darkSkins.contains(k.skin) ? const Color(0xFFF5F3FF) : const Color(0xFF1B1B2F));
   canvas.restore();
 
-  // ── 손 ──
+  // ── 발 — 몸 아래에 짧게 보인다(신발을 신을 자리) ──
   for (final sx in [-1.0, 1.0]) {
-    final hc = Offset(sx * r * 0.98, r * 0.14 - (k.moving ? step * sx : 0) * r * 0.06);
-    if (gloves != null) {
-      _paintGlove(canvas, hc, r, gloves, sx);
+    final fc = footAnchor(r, sx) + Offset(0, sx * step * r * 0.07);
+    if (feet != null) {
+      paintGearFoot(canvas, r, feet, fc, sx, k.t, k.moving);
     } else {
-      canvas.drawCircle(hc, r * 0.27, Paint()..color = light);
-      canvas.drawCircle(hc, r * 0.27, Paint()
-        ..color = _shade(body, -0.28).withValues(alpha: 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = max(0.8, r * 0.05));
+      paintBareFoot(canvas, r, fc, body);
     }
   }
 
+  canvas.save();
+  canvas.translate(0, bob);
+  // ── 손 — 몸 옆에 작게 삐져나온다(장갑을 낄 자리) ──
+  for (final sx in [-1.0, 1.0]) {
+    final hc = handAnchor(r, sx) + Offset(0, -(k.moving ? step * sx : 0) * r * 0.06);
+    if (hands != null) {
+      paintGearHand(canvas, r, hands, hc, sx, body);
+    } else {
+      paintBareHand(canvas, r, hc, body);
+    }
+  }
   // ── 머리 ──
-  if (band != null) _paintBand(canvas, r, band, k.t);
-  if (cap != null) _paintCap(canvas, r, cap == 'cap_red' ? const Color(0xFFE5484D) : const Color(0xFF2F6FE4));
+  if (head != null) paintGearHead(canvas, r, head, k.t);
+  canvas.restore();
 
   canvas.restore();
 }
@@ -214,27 +243,193 @@ void _paintZonberArt(Canvas canvas, Offset center, double r, ZonberLook k, Strin
   canvas.restore();
 }
 
-void _paintFace(Canvas canvas, double r, ZonberLook k) {
-  final ink = Paint()..color = const Color(0xFF1B1B2F);
+/// 어두운 스킨 — 얼굴을 밝은 색으로 그린다
+const Set<String?> _darkSkins = {'skin_galaxy', 'skin_lava'};
+
+/// 몸통 스킨의 대표 색 — 손·발·머리 한 가닥에 쓴다
+Color skinPartColor(String? skin, Color base, double t) => switch (skin) {
+      'skin_silver' => const Color(0xFFC3CCD8),
+      'skin_gold' => const Color(0xFFF2C14E),
+      'skin_rainbow' => HSVColor.fromAHSV(1, (t * 40) % 360, 0.55, 1).toColor(),
+      'skin_galaxy' => const Color(0xFF4B3A8C),
+      'skin_candy' => const Color(0xFFFF9EC7),
+      'skin_ice' => const Color(0xFFA5DDF5),
+      'skin_lava' => const Color(0xFF4A3036),
+      _ => base,
+    };
+
+/// 아래쪽을 살짝 어둡게 — 평평한 무늬 스킨에 입체감
+void _volume(Canvas c, double r, Path mochi) {
+  c.drawPath(mochi, Paint()
+    ..shader = ui.Gradient.radial(Offset(-r * 0.35, -r * 0.45), r * 1.7,
+        [Colors.white.withValues(alpha: 0.18), Colors.transparent, Colors.black.withValues(alpha: 0.22)], const [0, 0.5, 1]));
+}
+
+/// 몸통 칠하기 — 기본은 캐릭터 색 그라데이션, 스킨이면 스킨 무늬
+void _paintSkin(Canvas c, double r, Path mochi, String? skin, Color base, double t) {
+  final b = mochi.getBounds();
+  switch (skin) {
+    case 'skin_silver':
+    case 'skin_gold':
+      // 금속 — 대각 그라데이션 + 천천히 지나가는 반사 띠
+      final cols = skin == 'skin_gold'
+          ? const [Color(0xFFFFF6C8), Color(0xFFF2C14E), Color(0xFFB7801A), Color(0xFFF6D776)]
+          : const [Color(0xFFFFFFFF), Color(0xFFC3CCD8), Color(0xFF7D8A9E), Color(0xFFDDE3EB)];
+      c.drawPath(mochi, Paint()..shader = ui.Gradient.linear(b.topLeft, b.bottomRight, cols, const [0, 0.4, 0.75, 1]));
+      c.save();
+      c.clipPath(mochi);
+      final x = -r * 1.8 + ((t * 0.35) % 1.0) * r * 3.6;
+      c.drawPath(
+          Path()
+            ..moveTo(x, -r)
+            ..lineTo(x + r * 0.35, -r)
+            ..lineTo(x - r * 0.25, r)
+            ..lineTo(x - r * 0.6, r)
+            ..close(),
+          Paint()..color = Colors.white.withValues(alpha: 0.38));
+      c.restore();
+    case 'skin_rainbow':
+      // 무지개 — 색이 천천히 흘러간다
+      final h0 = (t * 40) % 360;
+      c.drawPath(
+          mochi,
+          Paint()
+            ..shader = ui.Gradient.linear(b.topLeft, b.bottomRight,
+                [for (int i = 0; i < 6; i++) HSVColor.fromAHSV(1, (h0 + i * 60) % 360, 0.6, 1).toColor()],
+                const [0, 0.2, 0.4, 0.6, 0.8, 1]));
+      _volume(c, r, mochi);
+    case 'skin_galaxy':
+      // 은하 — 짙은 보라 바탕 · 분홍 성운 · 반짝이는 별
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.radial(Offset(-r * 0.3, -r * 0.3), r * 1.5,
+            const [Color(0xFF6D4DD6), Color(0xFF2A1F63), Color(0xFF0F0B2E)], const [0, 0.55, 1]));
+      c.save();
+      c.clipPath(mochi);
+      c.drawCircle(Offset(r * 0.35, r * 0.35), r * 0.5,
+          Paint()
+            ..color = const Color(0x66FF6AD5)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.3));
+      final rnd = Random(7);
+      for (int i = 0; i < 14; i++) {
+        final pos = Offset((rnd.nextDouble() * 2 - 1) * r, (rnd.nextDouble() * 2 - 1) * r * 0.9);
+        final size = r * (0.025 + 0.03 * rnd.nextDouble());
+        final tw = 0.5 + 0.5 * sin(t * 3 + i * 1.3);
+        c.drawCircle(pos, size, Paint()..color = Colors.white.withValues(alpha: 0.35 + 0.65 * tw));
+      }
+      c.restore();
+    case 'skin_candy':
+      // 사탕 — 분홍 바탕에 흰 사선 줄무늬
+      c.drawPath(mochi, Paint()..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r), const [Color(0xFFFFC2DC), Color(0xFFFF8CBF)]));
+      c.save();
+      c.clipPath(mochi);
+      final stripe = Paint()
+        ..color = Colors.white.withValues(alpha: 0.75)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = r * 0.16;
+      for (double d = -2.5; d <= 2.5; d += 0.5) {
+        c.drawLine(Offset((d - 1) * r, -r * 1.1), Offset((d + 1) * r, r * 1.1), stripe);
+      }
+      c.restore();
+      _volume(c, r, mochi);
+    case 'skin_ice':
+      // 얼음 — 투명한 하늘색 · 각진 반사면 · 금
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.linear(b.topLeft, b.bottomRight, const [Color(0xFFEFFBFF), Color(0xFFA5DDF5), Color(0xFF5BB3DE)], const [0, 0.5, 1]));
+      c.save();
+      c.clipPath(mochi);
+      final facet = Paint()..color = Colors.white.withValues(alpha: 0.35);
+      c.drawPath(
+          Path()
+            ..moveTo(-r, -r * 0.2)
+            ..lineTo(-r * 0.2, -r)
+            ..lineTo(r * 0.1, -r)
+            ..lineTo(-r, r * 0.2)
+            ..close(),
+          facet);
+      c.drawPath(
+          Path()
+            ..moveTo(r * 0.2, r)
+            ..lineTo(r, r * 0.1)
+            ..lineTo(r, r * 0.4)
+            ..lineTo(r * 0.5, r)
+            ..close(),
+          facet);
+      c.drawPath(
+          Path()
+            ..moveTo(-r * 0.1, r * 0.25)
+            ..lineTo(r * 0.2, -r * 0.05)
+            ..lineTo(r * 0.55, -r * 0.5),
+          Paint()
+            ..color = Colors.white.withValues(alpha: 0.7)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = max(0.8, r * 0.04));
+      c.restore();
+    case 'skin_lava':
+      // 용암 — 검붉은 바위에 빛나는 균열(맥박처럼 밝아졌다 어두워진다)
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.radial(Offset(-r * 0.3, -r * 0.3), r * 1.5, const [Color(0xFF5A3A40), Color(0xFF2E1D22)]));
+      c.save();
+      c.clipPath(mochi);
+      final glow = 0.6 + 0.4 * sin(t * 3);
+      final crack = Paint()
+        ..color = Color.lerp(const Color(0xFFFF4D2E), const Color(0xFFFFC23D), glow)!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(1.0, r * 0.07)
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round;
+      final halo = Paint()
+        ..color = const Color(0xFFFF6A2E).withValues(alpha: 0.5 * glow)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = r * 0.2
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.1);
+      final cracks = [
+        Path()
+          ..moveTo(-r * 0.95, r * 0.2)
+          ..lineTo(-r * 0.5, r * 0.35)
+          ..lineTo(-r * 0.35, r * 0.75)
+          ..moveTo(-r * 0.5, r * 0.35)
+          ..lineTo(-r * 0.2, r * 0.18),
+        Path()
+          ..moveTo(r * 1.0, -r * 0.1)
+          ..lineTo(r * 0.58, r * 0.15)
+          ..lineTo(r * 0.62, r * 0.55)
+          ..lineTo(r * 0.28, r * 0.9),
+        Path()
+          ..moveTo(-r * 0.2, -r * 0.9)
+          ..lineTo(-r * 0.05, -r * 0.62)
+          ..lineTo(-r * 0.32, -r * 0.5),
+      ];
+      for (final p in cracks) {
+        c.drawPath(p, halo);
+        c.drawPath(p, crack);
+      }
+      c.restore();
+    default:
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.radial(Offset(-r * 0.35, -r * 0.4), r * 1.6, [_shade(base, 0.16), base, _shade(base, -0.16)], const [0, 0.55, 1]));
+  }
+}
+
+void _paintFace(Canvas canvas, double r, ZonberLook k, Color inkColor) {
+  final ink = Paint()..color = inkColor;
   final lx = k.look.dx.clamp(-1.0, 1.0) * r * 0.05;
   final ly = k.look.dy.clamp(-1.0, 1.0) * r * 0.04;
-  // 볼
-  for (final sx in [-1.0, 1.0]) {
-    canvas.drawOval(Rect.fromCenter(center: Offset(sx * r * 0.52, r * 0.16), width: r * 0.3, height: r * 0.16),
-        Paint()..color = const Color(0xFFFF7AA8).withValues(alpha: 0.55));
-  }
   switch (k.face) {
     case ZonberFace.normal:
-      // 세로로 긴 눈 + 흰 반짝임 · 작은 웃는 입
+      // 반쯤 감은 눈(눈꺼풀 선 + 아래 반달) — 무심하게 버티는 표정 · 작은 입
+      final lid = Paint()
+        ..color = inkColor
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = max(1.2, r * 0.075);
       for (final sx in [-1.0, 1.0]) {
-        final e = Offset(sx * r * 0.24 + lx, -r * 0.12 + ly);
-        canvas.drawOval(Rect.fromCenter(center: e, width: r * 0.17, height: r * 0.34), ink);
-        canvas.drawOval(Rect.fromCenter(center: e + Offset(0, -r * 0.07), width: r * 0.09, height: r * 0.12),
-            Paint()..color = Colors.white);
+        final e = Offset(sx * r * 0.31 + lx, -r * 0.14 + ly);
+        canvas.drawArc(Rect.fromCenter(center: e, width: r * 0.31, height: r * 0.28), 0, pi, true, ink);
+        canvas.drawLine(e + Offset(-r * 0.19, 0), e + Offset(r * 0.19, 0), lid);
       }
-      canvas.drawArc(Rect.fromCenter(center: Offset(0, r * 0.2), width: r * 0.26, height: r * 0.18), 0.2, pi - 0.4, false,
+      canvas.drawArc(Rect.fromCenter(center: Offset(0, r * 0.14), width: r * 0.24, height: r * 0.14), 0.2, pi - 0.4, false,
           Paint()
-            ..color = const Color(0xFF1B1B2F)
+            ..color = inkColor
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round
             ..strokeWidth = max(1.0, r * 0.06));
@@ -242,7 +437,7 @@ void _paintFace(Canvas canvas, double r, ZonberLook k) {
     case ZonberFace.hurt:
       // >< 눈 · 오므린 입
       final p = Paint()
-        ..color = const Color(0xFF1B1B2F)
+        ..color = inkColor
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeWidth = max(1.2, r * 0.08);
@@ -256,7 +451,7 @@ void _paintFace(Canvas canvas, double r, ZonberLook k) {
     case ZonberFace.happy:
       // ^^ 눈 · 크게 벌린 입
       final p = Paint()
-        ..color = const Color(0xFF1B1B2F)
+        ..color = inkColor
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeWidth = max(1.2, r * 0.08);
@@ -273,151 +468,6 @@ void _paintFace(Canvas canvas, double r, ZonberLook k) {
           Paint()..color = const Color(0xFFFF6B81));
       break;
   }
-}
-
-// ── 장비 그림 ─────────────────────────────────────────────────
-
-void _paintWings(Canvas canvas, double r, String id, double t) {
-  final flap = sin(t * 9) * 0.22;
-  final fill = switch (id) {
-    'wings_gold' => const Color(0xFFFFD66B),
-    'wings_star' => const Color(0xFFBFE3FF),
-    _ => Colors.white,
-  };
-  final edge = switch (id) {
-    'wings_gold' => const Color(0xFFB8860B),
-    'wings_star' => const Color(0xFF4F8FE8),
-    _ => const Color(0xFF94A3B8),
-  };
-  for (final sx in [-1.0, 1.0]) {
-    canvas.save();
-    canvas.translate(sx * r * 0.7, -r * 0.25);
-    canvas.rotate(sx * (-0.35 + flap));
-    // 깃털 세 장
-    for (int i = 0; i < 3; i++) {
-      final fr = Rect.fromCenter(
-          center: Offset(sx * r * (0.42 + i * 0.12), -r * 0.12 + i * r * 0.2), width: r * (0.95 - i * 0.18), height: r * 0.34);
-      canvas.drawOval(fr, Paint()..color = fill);
-      canvas.drawOval(fr, Paint()
-        ..color = edge
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = max(0.8, r * 0.05));
-    }
-    if (id == 'wings_star') {
-      canvas.drawCircle(Offset(sx * r * 0.6, -r * 0.2), r * 0.06, Paint()..color = Colors.white);
-    }
-    canvas.restore();
-  }
-}
-
-void _paintRocketBoot(Canvas canvas, Rect rect, double r, String id, double t, bool moving) {
-  final plasma = id == 'rocket_plasma';
-  // 불꽃 — 발밑으로 뿜는다(움직이면 길게)
-  final len = r * (moving ? 0.55 : 0.3) * (0.85 + 0.15 * sin(t * 30));
-  final flame = Path()
-    ..moveTo(rect.left + rect.width * 0.2, rect.bottom - r * 0.05)
-    ..quadraticBezierTo(rect.center.dx, rect.bottom + len * 1.6, rect.right - rect.width * 0.2, rect.bottom - r * 0.05)
-    ..close();
-  canvas.drawPath(flame, Paint()
-    ..shader = ui.Gradient.linear(Offset(0, rect.bottom), Offset(0, rect.bottom + len * 1.4), plasma
-        ? [const Color(0xFFE0F2FE), const Color(0xFF38BDF8), const Color(0x00A855F7)]
-        : [const Color(0xFFFFF3A0), const Color(0xFFFF8A3D), const Color(0x00E5334D)], const [0, 0.5, 1]));
-  final boot = RRect.fromRectAndRadius(rect, Radius.circular(r * 0.2));
-  canvas.drawRRect(boot, Paint()..color = plasma ? const Color(0xFF6D5BD0) : const Color(0xFFE5484D));
-  canvas.drawRect(Rect.fromLTWH(rect.left, rect.bottom - rect.height * 0.35, rect.width, rect.height * 0.35),
-      Paint()..color = const Color(0xFF9CA3AF));
-  canvas.drawRRect(boot, Paint()
-    ..color = Colors.black.withValues(alpha: 0.35)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = max(0.8, r * 0.05));
-}
-
-void _paintShoe(Canvas canvas, Rect rect, double r, Color main, Color accent, {required bool studs}) {
-  final shoe = RRect.fromRectAndRadius(rect, Radius.circular(r * 0.22));
-  canvas.drawRRect(shoe, Paint()..color = main);
-  // 줄무늬
-  canvas.drawLine(Offset(rect.left + rect.width * 0.25, rect.top + rect.height * 0.3),
-      Offset(rect.right - rect.width * 0.25, rect.top + rect.height * 0.55), Paint()
-        ..color = accent
-        ..strokeWidth = max(1.0, r * 0.08)
-        ..strokeCap = StrokeCap.round);
-  // 밑창
-  canvas.drawRect(Rect.fromLTWH(rect.left + r * 0.04, rect.bottom - rect.height * 0.22, rect.width - r * 0.08, rect.height * 0.22),
-      Paint()..color = studs ? const Color(0xFF374151) : const Color(0xFFE5E7EB));
-  if (studs) {
-    for (int i = 0; i < 3; i++) {
-      canvas.drawCircle(Offset(rect.left + rect.width * (0.25 + i * 0.25), rect.bottom + r * 0.02), r * 0.04,
-          Paint()..color = Colors.white);
-    }
-  }
-  canvas.drawRRect(shoe, Paint()
-    ..color = Colors.black.withValues(alpha: 0.35)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = max(0.8, r * 0.05));
-}
-
-void _paintGlove(Canvas canvas, Offset c, double r, String id, double sx) {
-  final (Color main, Color palm) = switch (id) {
-    'gloves_gold' => (const Color(0xFFFFD66B), const Color(0xFFB8860B)),
-    'gloves_pro' => (const Color(0xFF111827), const Color(0xFFB6F23A)),
-    _ => (Colors.white, const Color(0xFF22C55E)),
-  };
-  final rect = Rect.fromCenter(center: c + Offset(sx * r * 0.04, 0), width: r * 0.62, height: r * 0.7);
-  final g = RRect.fromRectAndRadius(rect, Radius.circular(r * 0.26));
-  canvas.drawRRect(g, Paint()..color = main);
-  // 손목 밴드
-  canvas.drawRect(Rect.fromLTWH(rect.left, rect.bottom - rect.height * 0.28, rect.width, rect.height * 0.28),
-      Paint()..color = palm);
-  // 엄지
-  canvas.drawOval(Rect.fromCenter(center: c + Offset(-sx * r * 0.26, -r * 0.02), width: r * 0.22, height: r * 0.3),
-      Paint()..color = main);
-  canvas.drawRRect(g, Paint()
-    ..color = Colors.black.withValues(alpha: 0.35)
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = max(0.8, r * 0.05));
-}
-
-void _paintBand(Canvas canvas, double r, String id, double t) {
-  final col = switch (id) {
-    'band_blue' => const Color(0xFF2F8CF2),
-    'band_flame' => const Color(0xFFFF7A1A),
-    _ => const Color(0xFFE5484D),
-  };
-  // 이마를 두르는 띠
-  canvas.save();
-  canvas.clipPath(Path()..addOval(Rect.fromCircle(center: Offset.zero, radius: r * 1.01)));
-  canvas.drawRect(Rect.fromLTWH(-r, -r * 0.62, r * 2, r * 0.24), Paint()..color = col);
-  canvas.drawRect(Rect.fromLTWH(-r * 0.12, -r * 0.62, r * 0.24, r * 0.24), Paint()..color = Colors.white.withValues(alpha: 0.85));
-  canvas.restore();
-  // 매듭 끝자락 두 가닥 — 바람에 날린다
-  final knot = Offset(r * 0.9, -r * 0.5);
-  for (int i = 0; i < 2; i++) {
-    final wave = sin(t * 10 + i * 1.7) * r * 0.12;
-    final end = knot + Offset(r * (0.55 + i * 0.12), r * (0.02 + i * 0.22) + wave);
-    canvas.drawLine(knot, end, Paint()
-      ..color = col
-      ..strokeWidth = r * 0.16
-      ..strokeCap = StrokeCap.round);
-    if (id == 'band_flame') {
-      canvas.drawCircle(end, r * 0.14 + sin(t * 18 + i) * r * 0.03, Paint()
-        ..color = const Color(0xFFFFD23F)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.06));
-    }
-  }
-}
-
-void _paintCap(Canvas canvas, double r, Color col) {
-  // 모자 — 머리 위 반구 + 앞으로 나온 챙
-  final dome = Rect.fromCenter(center: Offset(0, -r * 0.55), width: r * 1.5, height: r * 1.0);
-  canvas.save();
-  canvas.clipRect(Rect.fromLTRB(-r * 2, -r * 2, r * 2, -r * 0.55));
-  canvas.drawOval(dome, Paint()..color = col);
-  canvas.restore();
-  canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(r * 0.18, -r * 0.55), width: r * 1.7, height: r * 0.18),
-          Radius.circular(r * 0.09)),
-      Paint()..color = _shade(col, -0.15));
-  canvas.drawCircle(Offset(0, -r * 1.05), r * 0.08, Paint()..color = _shade(col, -0.15));
 }
 
 /// 위젯용 — 정적인 존버(아바타·상점 카드)

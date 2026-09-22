@@ -120,37 +120,13 @@ class _RankingPageState extends State<RankingPage> {
               ),
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 34,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: WorldData.worlds.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  final w = WorldData.worlds[i];
-                  final sel = w.id == _worldId;
-                  return GestureDetector(
-                    onTap: () {
-                      if (sel) return;
-                      setState(() => _worldId = w.id);
-                      _load();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: sel ? w.accent : AppColors.surface,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        lm.translate(w.nameKey).toUpperCase(),
-                        style: AppTextStyles.text(12,
-                            color: sel ? AppColors.background : AppColors.textDim,
-                            weight: FontWeight.w800),
-                      ),
-                    ),
-                  );
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: StageFilter(
+                selectedId: _worldId,
+                onChanged: (id) {
+                  setState(() => _worldId = id);
+                  _load();
                 },
               ),
             ),
@@ -219,6 +195,8 @@ class _RankingPageState extends State<RankingPage> {
                                         nickname: (_records[i]['nickname'] as String?) ?? lm.translate('unknown'),
                                         flag: (_records[i]['flag'] as String?) ?? '',
                                         characterId: (_records[i]['characterId'] as String?) ?? 'neon_green',
+                                        gear: _gearOf(_records[i]),
+                                        skin: _records[i]['skin'] as String?,
                                         survivalTime: ((_records[i]['survivalTime'] as num?) ?? 0).toDouble(),
                                         highlighted: i == _myIndex,
                                         accent: accent,
@@ -309,7 +287,7 @@ class _RankingPageState extends State<RankingPage> {
           children: [
             Text(_myIndex >= 0 ? '#${_myIndex + 1}' : lm.translate('my_record'), style: AppTextStyles.display(14)),
             const SizedBox(width: 10),
-            CharacterAvatar(characterId: (_mine!['characterId'] as String?) ?? 'neon_green', size: 28),
+            CharacterAvatar(characterId: (_mine!['characterId'] as String?) ?? 'neon_green', gear: _gearOf(_mine!), skin: _mine!['skin'] as String?, size: 28),
             const SizedBox(width: 10),
             Expanded(
               child: Row(
@@ -390,6 +368,8 @@ class _Podium extends StatelessWidget {
                     ),
                     child: CharacterAvatar(
                       characterId: (r['characterId'] as String?) ?? 'neon_green',
+                      gear: _gearOf(r),
+                      skin: r['skin'] as String?,
                       size: avatar,
                     ),
                   ),
@@ -481,3 +461,6 @@ class _Podium extends StatelessWidget {
     );
   }
 }
+
+/// 기록 주인이 지금 이 존에서 입은 장비(ranking_system 이 유저 문서에서 채운다)
+List<String> _gearOf(Map<String, dynamic> r) => (r['gear'] as List?)?.whereType<String>().toList() ?? const [];

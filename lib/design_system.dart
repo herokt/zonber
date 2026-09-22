@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'character_data.dart';
 import 'zonber_painter.dart';
+import 'game_art.dart';
 import 'language_manager.dart';
+import 'world_config.dart';
 
 // ─────────────────────────────────────────────────────────────
 // ZONBER 디자인 시스템 v2.2 — docs/UI_DESIGN.md §2
@@ -666,14 +668,7 @@ class CoinIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 코인 그림(assets/images/game/coin.png). 없으면 아래 코드 그림
-    return Image.asset(
-      'assets/images/game/coin.png',
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (_, __, ___) => _fallback(),
-    );
+    return GameArt.image('coin', width: size, height: size, fallback: _fallback);
   }
 
   Widget _fallback() {
@@ -696,6 +691,65 @@ class CoinIcon extends StatelessWidget {
 }
 
 /// 세그먼트 컨트롤 — 기간·범위 선택
+/// 스테이지 필터 — 상단 탭(AppSegmented)과 구분되게 스테이지 색 칩. 스크롤 밖에 고정해서 쓴다(랭킹 · 상점 장비).
+/// 고른 칩은 스테이지 색으로 채우고, 나머지는 번호 배지만 스테이지 색.
+class StageFilter extends StatelessWidget {
+  final String selectedId;
+  final ValueChanged<String> onChanged;
+  const StageFilter({super.key, required this.selectedId, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final lm = LanguageManager.of(context);
+    return Row(
+      children: [
+        for (int i = 0; i < WorldData.worlds.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(child: _chip(lm, WorldData.worlds[i])),
+        ],
+      ],
+    );
+  }
+
+  Widget _chip(LanguageManager lm, WorldConfig w) {
+    final sel = w.id == selectedId;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (!sel) {
+          HapticFeedback.selectionClick();
+          onChanged(w.id);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 40,
+        decoration: BoxDecoration(
+          color: sel ? w.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: sel ? w.accent : AppColors.line, width: 1.5),
+          boxShadow: sel ? [BoxShadow(color: w.accent.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 3))] : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: sel ? Colors.white : w.accent.withValues(alpha: 0.16), shape: BoxShape.circle),
+              child: Text('${w.difficulty}', style: AppTextStyles.display(11, color: w.accent)),
+            ),
+            const SizedBox(width: 6),
+            Text(lm.translate('stage_label'),
+                style: AppTextStyles.text(12, color: sel ? Colors.white : AppColors.textDim, weight: FontWeight.w900)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AppSegmented extends StatelessWidget {
   final List<String> items;
   final int index;
@@ -742,12 +796,16 @@ class AppSegmented extends StatelessWidget {
   }
 }
 
-/// 캐릭터 아바타 — 코드로 그린 동글동글한 존버(몸 색 = 캐릭터 색). 사진 업로드 없음.
+/// 캐릭터 아바타 — 코드로 그린 동글동글한 존버(몸 색 = 캐릭터 색) + 그 존에서 입은 장비. 사진 업로드 없음.
 class CharacterAvatar extends StatelessWidget {
   final String characterId;
   final double size;
   final Color? borderColor;
-  const CharacterAvatar({super.key, required this.characterId, this.size = 32, this.borderColor});
+  /// 입은 장비 id(gear.dart) — 랭킹에서는 그 유저가 지금 그 존에서 입은 것
+  final List<String> gear;
+  /// 몸통 스킨(cosmetics.dart skin_*)
+  final String? skin;
+  const CharacterAvatar({super.key, required this.characterId, this.size = 32, this.borderColor, this.gear = const [], this.skin});
 
   @override
   Widget build(BuildContext context) {
@@ -760,7 +818,7 @@ class CharacterAvatar extends StatelessWidget {
         shape: BoxShape.circle,
         border: borderColor != null ? Border.all(color: borderColor!, width: 2) : null,
       ),
-      child: CustomPaint(painter: ZonberPainter(ZonberLook(color: c.color, body: c.id))),
+      child: ClipOval(child: CustomPaint(painter: ZonberPainter(ZonberLook(color: c.color, body: c.id, gear: gear, skin: skin)))),
     );
   }
 }
@@ -1022,6 +1080,9 @@ class RankRow extends StatelessWidget {
   final String nickname;
   final String flag;
   final String characterId;
+  /// 그 유저가 지금 이 존에서 입은 장비
+  final List<String> gear;
+  final String? skin;
   final double survivalTime;
   final bool highlighted;
   final Color? accent;
@@ -1037,6 +1098,8 @@ class RankRow extends StatelessWidget {
     required this.nickname,
     required this.flag,
     required this.characterId,
+    this.gear = const [],
+    this.skin,
     required this.survivalTime,
     this.highlighted = false,
     this.accent,
@@ -1071,6 +1134,8 @@ class RankRow extends StatelessWidget {
             ),
             CharacterAvatar(
               characterId: characterId,
+              gear: gear,
+              skin: skin,
               size: 32,
               borderColor: plate != null ? PlateStyle.of(plate!).edge : null,
             ),
