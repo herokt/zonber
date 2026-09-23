@@ -1,3 +1,4 @@
+import 'balance.dart';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,21 +6,27 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'services/auth_service.dart';
+
 // ─────────────────────────────────────────────────────────────
-// 코인 — 판마다 버틴 시간만큼 쌓이고, 상점에서 외형(캐릭터)·변경권을 산다.
-// 능력치를 파는 물건은 없다(랭킹 공정성). docs/SHOP.md
+// 코인 — 판마다 버틴 시간 · 추가 기록 · 일일 미션으로 쌓이고, 상점에서 캐릭터·장비·꾸미기·변경권을 산다.
+// 장비는 작은 능력치 보너스가 있다(gear.dart). docs/SHOP.md
 //
-// SharedPreferences(로컬) + Firestore users/{uid}.coins · ownedItems(원격, 로그인 유저만).
+// SharedPreferences(로컬) + Firestore users/{uid}.coins · ownedItems · equipped(원격, 회원만).
 // 값이 바뀔 때마다 원격에 덮어쓰므로 원격이 최신이다 → 로그인 시 원격 값을 따른다.
-// 게스트로 모은 코인은 처음 로그인한 계정에 원격 값이 없을 때만 그대로 올라간다.
+// 게스트(로그인 안 함)는 코인을 모으지도 쓰지도 않는다 — 아무것도 저장하지 않는다.
 // ─────────────────────────────────────────────────────────────
+/// 닉네임·국가 변경권 값(코인) — 프로필에서 바로 산다(가방은 입는 것만 다룬다)
+const int kTicketPrice = 150;
+
 class CoinStore {
   static const _keyCoins = 'coins';
   static const _keyOwned = 'owned_items';
   static const _keyEquipped = 'equipped_items'; // 'trail:trail_sparkle' 형식 목록
+  static const _keyGuest = 'coins_guest'; // 예전 버전이 남긴 게스트 표시 — clearLocal 에서 지우기만 한다
 
   /// 5초 버틸 때마다 1코인(최소 1)
-  static const double secondsPerCoin = 5;
+  static const double secondsPerCoin = Balance.secondsPerCoin;
 
   /// 현재 잔액 — 홈·상점·결과 화면이 구독한다
   static final ValueNotifier<int> balance = ValueNotifier<int>(0);
@@ -33,7 +40,7 @@ class CoinStore {
   /// 추가 기록 보너스 코인 — 스테이지마다 난이도를 비슷하게 맞춰서 모두 1번에 1개
   ///   (근접 회피 · 아슬 회피 · 연속 선방. 세는 기준은 Player 의 _grazeRing · _closeDodgeRing · _streakWindow)
   static int bonusFor(String statKey, int count) =>
-      const {'graze', 'close_dodge', 'save_streak'}.contains(statKey) ? count : 0;
+      const {'graze', 'close_dodge', 'save_streak'}.contains(statKey) ? count * Balance.bonusCoinsPerStat : 0;
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -51,6 +58,7 @@ class CoinStore {
   }
 
   static Future<void> _save({bool remote = true}) async {
+    if (AuthService.isGuest) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyCoins, balance.value);
     await prefs.setStringList(_keyOwned, _owned.toList());
@@ -73,7 +81,7 @@ class CoinStore {
   }
 
   static Future<void> add(int amount) async {
-    if (amount <= 0) return;
+    if (amount <= 0 || AuthService.isGuest) return;
     await _ensure();
     balance.value += amount;
     await _save();
@@ -89,6 +97,13 @@ class CoinStore {
   }
 
   static bool owns(String itemId) => _owned.contains(itemId);
+  static Iterable<String> get ownedIds => _owned;
+
+  /// 무료로 준다(이미 쓰던 캐릭터 인정 등)
+  static Future<void> grant(String itemId) async {
+    await _ensure();
+    if (_owned.add(itemId)) await _save();
+  }
 
   /// 착용 중인 꾸미기 id (없으면 [fallback])
   static String equipped(String kind, String fallback) => _equipped[kind] ?? fallback;
@@ -135,6 +150,7 @@ class CoinStore {
     await prefs.remove(_keyCoins);
     await prefs.remove(_keyOwned);
     await prefs.remove(_keyEquipped);
+    await prefs.remove(_keyGuest);
     balance.value = 0;
     _owned = {};
     _equipped = {};

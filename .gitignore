@@ -58,5 +58,8 @@ hosting_root/
 scripts/backup_*
 scripts/unknown_*.json
 
-# 아트 원본(생성 이미지) — 앱은 worlds/·game/ 의 가공본만 쓴다
+# 아트 원본(생성 이미지) — 앱은 worlds/ 의 가공본만 쓴다
 assets/images/Gemini_Generated_Image_*
+
+# Claude Code 로컬 설정(개인 권한) — 저장소에 넣지 않는다
+.claude/settings.local.json

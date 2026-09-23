@@ -1,7 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../achievement_manager.dart';
+import '../badges.dart';
+import '../audio_manager.dart';
+import '../haptics.dart';
 import '../design_system.dart';
 import '../coin_store.dart';
 import '../ad_manager.dart';
@@ -9,10 +10,11 @@ import '../language_manager.dart';
 import '../progress_store.dart';
 import '../ranking_system.dart';
 import '../services/analytics_service.dart';
+import '../services/auth_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
 
-/// 결과 화면 A — 생존 시간·델타·순위 카드. 조건 충족 시 B(Hall of Fame)로 넘긴다.
+/// 결과 화면 — 생존 시간·델타·순위 카드·새로 얻은 뱃지.
 /// (docs/UI_DESIGN.md §4.4)
 class ResultPage extends StatefulWidget {
   final WorldConfig world;
@@ -23,7 +25,6 @@ class ResultPage extends StatefulWidget {
   final VoidCallback onExit;
   final VoidCallback onNavigateToLogin;
   final VoidCallback onShowRanking;
-  final void Function(PlateData plate) onHallOfFame;
   /// 부활 콜백 — 보상 지급 시 삭제해야 할 제출 기록 id를 함께 넘긴다.
   final void Function(String? submittedRecordId)? onRevive;
   final int revivesLeft;
@@ -37,7 +38,6 @@ class ResultPage extends StatefulWidget {
     required this.onExit,
     required this.onNavigateToLogin,
     required this.onShowRanking,
-    required this.onHallOfFame,
     this.onRevive,
     this.revivesLeft = 0,
   });
@@ -51,11 +51,8 @@ class _ResultPageState extends State<ResultPage> {
   String? _savedRecordId;
   bool _rankLoading = true;
   int? _worldRank;
-  int? _worldTotal;
   int? _countryRank;
-  int? _countryTotal;
   double? _untilTop100;
-  bool _hofScheduled = false;
   bool _coinsDoubled = false;
 
   int get _coinsEarned => (widget.result['coinsEarned'] as num?)?.toInt() ?? 0;
@@ -139,12 +136,32 @@ class _ResultPageState extends State<ResultPage> {
   }
 
   double get _time => (widget.result['survivalTime'] as num).toDouble();
-  bool get _isGuest => FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
+  bool get _isGuest => AuthService.isGuest;
+
+  int _badgeSounded = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _run());
+    // 보상 소리 — 코인 받음(0.35초 뒤) · 새 뱃지(0.9초 뒤, 순위 뱃지가 나중에 오면 그때 한 번 더)
+    if (_coinsEarned > 0) {
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted) AudioManager().playSfx(Sfx.coin, volume: 0.7);
+      });
+    }
+    Future.delayed(const Duration(milliseconds: 900), _soundBadges);
+    Badges.fresh.addListener(_soundBadges);
+  }
+
+  void _soundBadges() {
+    if (!mounted) return;
+    final n = Badges.fresh.value.length;
+    if (n > _badgeSounded) {
+      _badgeSounded = n;
+      AudioManager().playSfx(Sfx.badge, volume: 0.8);
+      Haptics.medium();
+    }
   }
 
   Future<void> _run() async {
@@ -158,7 +175,6 @@ class _ResultPageState extends State<ResultPage> {
       try {
         _savedRecordId = await _ranking.saveRecord(mapId, _time, characterId: characterId, flag: flag);
         AnalyticsService().logScoreSubmit(mapId: mapId, characterId: characterId, survivalTime: _time);
-        _unlockSurvivalAchievements();
       } catch (e) {
         debugPrint('Score submit failed: $e');
       }
@@ -170,18 +186,14 @@ class _ResultPageState extends State<ResultPage> {
     final global = await _ranking.getGlobalRank(mapId, _time);
     final topTimes = await _ranking.getTopTimes(mapId, limit: 100);
     int? natRank;
-    int? natTotal;
     if (flag.isNotEmpty) {
       final nat = await _ranking.getNationalRankings(mapId, flag, period: RankingPeriod.allTime, limit: 500);
-      natTotal = nat.length;
       natRank = nat.where((r) => ((r['survivalTime'] as num?) ?? 0).toDouble() > _time).length + 1;
     }
     if (!mounted) return;
     setState(() {
       _worldRank = global?.rank;
-      _worldTotal = global?.total;
       _countryRank = natRank;
-      _countryTotal = natTotal;
       _untilTop100 = topTimes.length >= 100 ? (topTimes[99] - _time).clamp(0, double.infinity) : null;
       _rankLoading = false;
     });
@@ -189,40 +201,199 @@ class _ResultPageState extends State<ResultPage> {
       ProgressStore.setRankCache(widget.world.id, global.rank, global.total);
     }
 
-    // 3. Hall of Fame — 세계 TOP 100 또는 국가 TOP 10
-    if (!_isGuest && global != null) {
-      PlateData? plate;
-      if (global.rank <= 100) {
-        plate = PlateData(worldId: widget.world.id, rank: global.rank, total: global.total, survivalTime: _time, date: DateTime.now(), scope: 'world');
-      } else if (natRank != null && natRank <= 10) {
-        plate = PlateData(worldId: widget.world.id, rank: natRank, total: natTotal ?? 0, survivalTime: _time, date: DateTime.now(), scope: 'country');
-      }
-      if (plate != null) {
-        final isNew = await ProgressStore.savePlate(plate);
-        if (isNew && mounted) {
-          _hofScheduled = true;
-          final p = plate;
-          Future.delayed(const Duration(milliseconds: 1100), () {
-            if (mounted) widget.onHallOfFame(p);
-          });
-        }
+    // 3. 랭킹 뱃지 — 기록을 낸 회원만(세계 TOP 100 · 30 · 10 · 1위, 국가 TOP 10 · 1위)
+    if (!_isGuest && _savedRecordId != null && global != null) {
+      try {
+        await Badges.evaluate(BadgeContext(stats: await BadgeStatsStore.load(), worldRank: global.rank, countryRank: natRank ?? 0));
+      } catch (e) {
+        debugPrint('Rank badge check failed: $e');
       }
     }
   }
 
-  Future<void> _unlockSurvivalAchievements() async {
-    try {
-      final keys = AchievementManager.survivalKeys(_time);
-      final owned = (await AchievementManager.getMine()).toSet();
-      final fresh = keys.where((k) => !owned.contains(k)).toList();
-      await AchievementManager.unlock(keys);
-      for (final k in fresh) {
-        AnalyticsService().logAchievementUnlock(k);
-      }
-    } catch (e) {
-      debugPrint('Achievement unlock failed: $e');
-    }
+  @override
+  void dispose() {
+    Badges.fresh.removeListener(_soundBadges);
+    Badges.fresh.value = const []; // 보여 준 새 뱃지는 비운다
+    super.dispose();
   }
+
+  /// 이번 판에 새로 얻은 뱃지 — 아이콘 · 이름 · 조건(3개까지, 나머지는 +N)
+  Widget _newBadges(LanguageManager lm) => ValueListenableBuilder<List<BadgeDef>>(
+        valueListenable: Badges.fresh,
+        builder: (context, list, _) => list.isEmpty
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.55)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.military_tech_rounded, size: 18, color: AppColors.gold),
+                          const SizedBox(width: 6),
+                          Text(lm.translate('new_badges'), style: AppTextStyles.label(color: AppColors.gold)),
+                          const Spacer(),
+                          Text('${list.length}', style: AppTextStyles.display(14, color: AppColors.gold)),
+                        ],
+                      ),
+                      for (final b in list.take(3))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Row(
+                            children: [
+                              BadgeIcon(badge: b, size: 34),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(lm.translate(b.nameKey), style: AppTextStyles.text(14, weight: FontWeight.w900)),
+                                    Text(lm.translate(b.descKey),
+                                        maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.text(11.5, color: AppColors.textDim)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (list.length > 3)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(lm.translate('result_badges_more').replaceAll('{n}', '${list.length - 3}'),
+                              style: AppTextStyles.text(12, color: AppColors.textDim, weight: FontWeight.w800)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+      );
+
+  /// 생존 시간 | 세계 순위 — 같은 크기
+  Widget _hero(LanguageManager lm, Color accent, bool isBest, double delta) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: accent.withValues(alpha: 0.6), width: 1.5),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(lm.translate('survival_time'), style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(formatSurvival(_time), style: AppTextStyles.display(36).copyWith(letterSpacing: -0.5)),
+                        const SizedBox(width: 2),
+                        Text('s', style: AppTextStyles.display(15, color: AppColors.textDim)),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  const SizedBox(height: 6),
+                  // 게스트는 이전 기록이 없다 — 최고 기록 비교를 보이지 않는다
+                  if (!_isGuest)
+                  Row(
+                    children: [
+                      Icon(isBest ? Icons.arrow_upward_rounded : Icons.remove_rounded, size: 13, color: isBest ? AppColors.up : AppColors.textDim),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          widget.previousBest <= 0
+                              ? lm.translate('first_record')
+                              : isBest
+                                  ? lm.translate('best_delta_up').replaceAll('{d}', formatSurvival(delta))
+                                  : lm.translate('best_delta_down').replaceAll('{d}', formatSurvival(-delta)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.text(11, color: isBest ? AppColors.up : AppColors.textDim, weight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(width: 1, margin: const EdgeInsets.symmetric(horizontal: 14), color: AppColors.line),
+            Expanded(child: _heroRank(lm, accent)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _heroRank(LanguageManager lm, Color accent) {
+    final label = Text(lm.translate('rank_world'), style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w800));
+    if (_rankLoading) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [label, const Spacer(), SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: accent)), const Spacer()],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        label,
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(_worldRank == null ? '—' : '#${formatCount(_worldRank!)}',
+              style: AppTextStyles.display(36, color: _isGuest ? AppColors.textDim : accent).copyWith(letterSpacing: -0.5)),
+        ),
+        const Spacer(),
+        const SizedBox(height: 6),
+        Text(
+          _isGuest
+              ? lm.translate('result_guest_rank_note')
+              : [
+                  if (_countryRank != null) '${lm.translate('rank_country')} #${formatCount(_countryRank!)}',
+                ].join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w800),
+        ),
+      ],
+    );
+  }
+
+  /// TOP 100 까지 남은 시간
+  Widget _top100(LanguageManager lm, Color accent) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(lm.translate('until_top').replaceAll('{n}', '100').replaceAll('{s}', formatSurvival(_untilTop100!)),
+              style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              minHeight: 4,
+              value: (_time / (_time + _untilTop100!)).clamp(0.0, 1.0),
+              backgroundColor: AppColors.surface2,
+              valueColor: AlwaysStoppedAnimation(accent),
+            ),
+          ),
+        ],
+      );
 
   void _showReviveConfirmDialog() {
     final t = LanguageManager.of(context, listen: false);
@@ -280,62 +451,43 @@ class _ResultPageState extends State<ResultPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 22),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(formatSurvival(_time), style: AppTextStyles.display(60).copyWith(letterSpacing: -1)),
-                  const SizedBox(width: 4),
-                  Text('s', style: AppTextStyles.display(20, color: AppColors.textDim, weight: FontWeight.w700)),
-                ],
-              ),
+              const SizedBox(height: 18),
+              // 생존 시간과 세계 순위를 같은 무게로
+              _hero(lm, accent, isBest, delta),
               const SizedBox(height: 10),
-              Center(
-                child: AppChip(
-                  label: widget.previousBest <= 0
-                      ? lm.translate('first_record')
-                      : isBest
-                          ? lm.translate('best_delta_up').replaceAll('{d}', formatSurvival(delta))
-                          : lm.translate('best_delta_down').replaceAll('{d}', formatSurvival(-delta)),
-                  icon: isBest ? Icons.arrow_upward_rounded : Icons.remove_rounded,
-                  color: isBest ? AppColors.up : AppColors.textDim,
-                ),
-              ),
-              const SizedBox(height: 22),
               Row(
                 children: [
-                  _stat(lm.translate('level'), Text('$level', style: AppTextStyles.display(20))),
-                  const SizedBox(width: 10),
-                  _stat(lm.translate(widget.world.statKey), Text('$graze', style: AppTextStyles.display(20))),
-                  const SizedBox(width: 10),
                   _stat(
-                    lm.translate('character'),
-                    FutureBuilder<Map<String, String>>(
-                      future: UserProfileManager.getProfile(),
-                      builder: (context, snap) => Row(
-                        children: [
-                          CharacterAvatar(characterId: snap.data?['characterId'] ?? 'neon_green', size: 22),
+                    lm.translate(widget.world.statKey),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text('$graze', style: AppTextStyles.display(22)),
+                        if (_coinsBonus > 0) ...[
                           const SizedBox(width: 6),
                           Flexible(
-                            child: Text(
-                              lm.translate('char_${snap.data?['characterId'] ?? 'neon_green'}').split(' ').last,
-                              style: AppTextStyles.text(13, weight: FontWeight.w700),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            child: Text(lm.translate('coin_bonus').replaceAll('{n}', formatCount(_coinsBonus)),
+                                maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.text(11, color: AppColors.coin, weight: FontWeight.w800)),
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  _stat(lm.translate('level'), Text('$level', style: AppTextStyles.display(22))),
                 ],
               ),
-              const SizedBox(height: 14),
-              _rankCard(lm, accent),
+              if (_isGuest) ...[
+                const SizedBox(height: 10),
+                _rankCard(lm, accent),
+              ] else if (!_rankLoading && _untilTop100 != null && _untilTop100! > 0) ...[
+                const SizedBox(height: 12),
+                _top100(lm, accent),
+              ],
+              _newBadges(lm),
               const SizedBox(height: 10),
-              _coinRow(lm),
+              _coinRow(lm), // 게스트는 +0 · 잔액 0
               const Spacer(),
               NeonButton(
                 text: lm.translate('retry'),
@@ -391,7 +543,7 @@ class _ResultPageState extends State<ResultPage> {
   Widget _rankCard(LanguageManager lm, Color accent) {
     final borderColor = _isGuest ? AppColors.line : accent;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
@@ -402,108 +554,30 @@ class _ResultPageState extends State<ResultPage> {
               height: 64,
               child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: accent))),
             )
-          : _isGuest
-              ? _guestRank(lm, accent)
-              : _memberRank(lm, accent),
+          : _guestRank(lm, accent),
     );
   }
 
-  Widget _memberRank(LanguageManager lm, Color accent) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.emoji_events_rounded, size: 18, color: accent),
-            const SizedBox(width: 8),
-            Text(lm.translate('result_rank_title'), style: AppTextStyles.label()),
-            if (_hofScheduled) ...[
-              const Spacer(),
-              Text(lm.translate('hof_title'), style: AppTextStyles.label(color: AppColors.gold)),
-            ],
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(child: _rankCell(lm.translate('rank_world'), _worldRank, _worldTotal, lm)),
-            Container(width: 1, height: 36, color: AppColors.line),
-            const SizedBox(width: 12),
-            Expanded(child: _rankCell(lm.translate('rank_country'), _countryRank, _countryTotal, lm)),
-          ],
-        ),
-        if (_untilTop100 != null && _untilTop100! > 0) ...[
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Text(lm.translate('until_top').replaceAll('{n}', '100').replaceAll('{s}', formatSurvival(_untilTop100!)),
-                  style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              minHeight: 4,
-              value: (_time / (_time + _untilTop100!)).clamp(0.0, 1.0),
-              backgroundColor: AppColors.surface2,
-              valueColor: AlwaysStoppedAnimation(accent),
+  /// 게스트 안내는 한 줄 — 이번 판이 몇 위였는지만 알려 주고 로그인으로 보낸다
+  Widget _guestRank(LanguageManager lm, Color accent) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onNavigateToLogin,
+      child: Row(
+        children: [
+          Expanded(
+            child: OneLineText(
+              _worldRank == null
+                  ? lm.translate('guest_no_ranking_note')
+                  : lm.translate('guest_lost_rank').replaceAll('{rank}', formatCount(_worldRank!)),
+              style: AppTextStyles.text(13, weight: FontWeight.w700),
             ),
           ),
+          const SizedBox(width: 8),
+          Text(lm.translate('login'), style: AppTextStyles.text(13, color: accent, weight: FontWeight.w800)),
+          Icon(Icons.chevron_right_rounded, color: accent, size: 18),
         ],
-      ],
-    );
-  }
-
-  Widget _rankCell(String label, int? rank, int? total, LanguageManager lm) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w700)),
-        const SizedBox(height: 2),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(rank == null ? '—' : '#${formatCount(rank)}', style: AppTextStyles.display(24)),
-            if (total != null) ...[
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  lm.translate('of_records').replaceAll('{n}', formatCount(total)),
-                  style: AppTextStyles.text(11, color: AppColors.textDim),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _guestRank(LanguageManager lm, Color accent) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          _worldRank == null
-              ? lm.translate('guest_no_ranking_note')
-              : lm.translate('guest_lost_rank').replaceAll('{rank}', formatCount(_worldRank!)),
-          style: AppTextStyles.text(14, weight: FontWeight.w700, height: 1.4),
-        ),
-        const SizedBox(height: 4),
-        Text(lm.translate('guest_login_to_engrave'), style: AppTextStyles.text(12, color: AppColors.textDim, height: 1.4)),
-        const SizedBox(height: 12),
-        NeonButton(
-          text: lm.translate('login'),
-          icon: Icons.login_rounded,
-          color: accent,
-          isCompact: true,
-          onPressed: widget.onNavigateToLogin,
-        ),
-      ],
+      ),
     );
   }
 }

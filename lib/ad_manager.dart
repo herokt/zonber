@@ -169,11 +169,11 @@ class AdManager {
       size: AdSize.banner,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          print('Banner Ad loaded.');
+          debugPrint('Banner Ad loaded.');
           onLoaded();
         },
         onAdFailedToLoad: (ad, err) {
-          print('Banner Ad failed to load: $err');
+          debugPrint('Banner Ad failed to load: $err');
           ad.dispose();
           onFailed?.call();
         },
@@ -193,26 +193,26 @@ class AdManager {
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
-          print('Interstitial Ad loaded.');
+          debugPrint('Interstitial Ad loaded.');
           _isInterstitialLoading = false;
           _interstitialAd = ad;
           _isInterstitialAdLoaded = true;
           _interstitialAd!.fullScreenContentCallback =
               FullScreenContentCallback(
                 onAdDismissedFullScreenContent: (ad) {
-                  print('Interstitial Ad dismissed.');
+                  debugPrint('Interstitial Ad dismissed.');
                   ad.dispose();
                   _loadInterstitial(); // Preload next one
                 },
                 onAdFailedToShowFullScreenContent: (ad, err) {
-                  print('Interstitial Ad failed to show: $err');
+                  debugPrint('Interstitial Ad failed to show: $err');
                   ad.dispose();
                   _loadInterstitial();
                 },
               );
         },
         onAdFailedToLoad: (err) {
-          print('Interstitial Ad failed to load: $err');
+          debugPrint('Interstitial Ad failed to load: $err');
           _isInterstitialLoading = false;
           _isInterstitialAdLoaded = false;
         },
@@ -226,7 +226,7 @@ class AdManager {
     if (!_isMobile || _adsDisabled) return false;
 
     _gameOverCounter++;
-    print("Game Over Count: $_gameOverCounter / $_interstitialFrequency");
+    debugPrint("Game Over Count: $_gameOverCounter / $_interstitialFrequency");
 
     if (_gameOverCounter >= _interstitialFrequency) {
       if (_isInterstitialAdLoaded && _interstitialAd != null) {
@@ -237,7 +237,7 @@ class AdManager {
         _gameOverCounter = 0; // Reset counter
         return true;
       } else {
-        print("Interstitial Ad not ready yet or failed to load.");
+        debugPrint("Interstitial Ad not ready yet or failed to load.");
         // 로드 실패(오프라인 등) 후에는 재시도가 없었다 — 여기서 다시 요청한다
         _loadInterstitial();
       }
@@ -260,25 +260,25 @@ class AdManager {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          print('Rewarded Ad loaded.');
+          debugPrint('Rewarded Ad loaded.');
           _isRewardedLoading = false;
           _rewardedAd = ad;
           _isRewardedAdLoaded = true;
           _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
-              print('Rewarded Ad dismissed.');
+              debugPrint('Rewarded Ad dismissed.');
               ad.dispose();
               _loadRewardedAd(); // Preload next one
             },
             onAdFailedToShowFullScreenContent: (ad, err) {
-              print('Rewarded Ad failed to show: $err');
+              debugPrint('Rewarded Ad failed to show: $err');
               ad.dispose();
               _loadRewardedAd();
             },
           );
         },
         onAdFailedToLoad: (err) {
-          print('Rewarded Ad failed to load: $err');
+          debugPrint('Rewarded Ad failed to load: $err');
           _isRewardedLoading = false;
           _isRewardedAdLoaded = false;
         },
@@ -291,7 +291,7 @@ class AdManager {
   bool showRewardedAd(VoidCallback onReward) {
     if (!_isMobile) {
       // For testing on web/desktop, just grant reward immediately
-      print("Dev/Web: Granting reward immediately.");
+      debugPrint("Dev/Web: Granting reward immediately.");
       onReward();
       return true;
     }
@@ -302,13 +302,13 @@ class AdManager {
       _isRewardedAdLoaded = false;
       ad.show(
         onUserEarnedReward: (ad, reward) {
-          print('User earned reward: ${reward.amount} ${reward.type}');
+          debugPrint('User earned reward: ${reward.amount} ${reward.type}');
           onReward();
         },
       );
       return true;
     } else {
-      print("Rewarded Ad not ready yet.");
+      debugPrint("Rewarded Ad not ready yet.");
       // Try to load again for next time
       _loadRewardedAd();
       return false;

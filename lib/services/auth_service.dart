@@ -1,8 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
 import '../world_config.dart';
 
@@ -16,16 +16,16 @@ class AuthService {
   // Current user
   User? get currentUser => _auth.currentUser;
 
-  /// 게스트(익명) 로그인. 세션이 기기에 저장되므로 앱을 껐다 켜도
-  /// 로그인 화면을 다시 보지 않고, 통계/업적을 uid 기준으로 이어갈 수 있다.
-  Future<UserCredential?> signInAnonymously() async {
-    try {
-      if (_auth.currentUser != null) return null; // 이미 세션 있음
-      return await _auth.signInAnonymously();
-    } catch (e) {
-      print("Error signing in anonymously: $e");
-      return null;
-    }
+  /// 테스트용 — Firebase 없이 회원/게스트를 정한다
+  @visibleForTesting
+  static bool? debugIsGuest;
+
+  /// 게스트 = 로그인하지 않은 상태. 게임 맛보기만 하고 기기·서버 어디에도 아무것도 남기지 않는다.
+  /// (예전 버전이 만든 익명 세션도 게스트로 본다 — 시작할 때 로그아웃시킨다)
+  static bool get isGuest {
+    if (debugIsGuest != null) return debugIsGuest!;
+    final user = FirebaseAuth.instance.currentUser;
+    return user == null || user.isAnonymous;
   }
 
   // Sign in with Google
@@ -47,7 +47,7 @@ class AuthService {
       );
       return await _auth.signInWithCredential(credential);
     } catch (e) {
-      print("Error signing in with Google: $e");
+      debugPrint("Error signing in with Google: $e");
       return null;
     }
   }
@@ -85,11 +85,11 @@ class AuthService {
       } else {
         // Fallback for Android or other platforms if needed, though usually Apple Sign In on Android uses a web flow
         // For now, restricting to iOS
-        print("Apple Sign In is only supported on iOS in this implementation");
+        debugPrint("Apple Sign In is only supported on iOS in this implementation");
         return null;
       }
     } catch (e) {
-      print("Error signing in with Apple: $e");
+      debugPrint("Error signing in with Apple: $e");
       return null;
     }
   }
@@ -120,31 +120,45 @@ class AuthService {
             await d.reference.delete();
           }
         } catch (e) {
-          print('⚠️ Error deleting ranking records (${w.rankingMapId}): $e');
+          debugPrint('⚠️ Error deleting ranking records (${w.rankingMapId}): $e');
         }
       }
 
-      // Delete user data from Firestore
+      // Delete user data from Firestore (비공개 문서 먼저 — 하위 문서는 부모와 같이 지워지지 않는다)
+      try {
+        final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        await userRef.collection('private').doc('account').delete();
+        // 플레이 기록(runs) — 400개씩 나눠 지운다
+        while (true) {
+          final runs = await userRef.collection('runs').limit(400).get();
+          if (runs.docs.isEmpty) break;
+          final batch = FirebaseFirestore.instance.batch();
+          for (final d in runs.docs) {
+            batch.delete(d.reference);
+          }
+          await batch.commit();
+        }
+      } catch (_) {}
       try {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .delete();
-        print('✅ User data deleted from Firestore');
+        debugPrint('✅ User data deleted from Firestore');
       } catch (e) {
-        print('⚠️ Error deleting Firestore data: $e');
+        debugPrint('⚠️ Error deleting Firestore data: $e');
       }
 
       // Delete Firebase Auth account
       await user.delete();
-      print('✅ Firebase Auth account deleted');
+      debugPrint('✅ Firebase Auth account deleted');
 
       // Sign out from providers
       await _googleSignIn?.signOut();
 
       return true;
     } catch (e) {
-      print('❌ Error deleting account: $e');
+      debugPrint('❌ Error deleting account: $e');
       return false;
     }
   }

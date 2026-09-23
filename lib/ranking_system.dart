@@ -1,4 +1,6 @@
 import 'gear.dart';
+import 'season.dart';
+import 'badges.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,7 +16,7 @@ class RankingSystem {
       try {
         _db = FirebaseFirestore.instance;
       } catch (e) {
-        print("Firestore init failed (or not available): $e");
+        debugPrint("Firestore init failed (or not available): $e");
       }
     }
   }
@@ -29,7 +31,13 @@ class RankingSystem {
   ///  500 이면 옛 기록을 옮겨 온 갤럭시(약 600건)에서 상위 기록이 빠질 수 있었다)
   static const int _scanLimit = 3000;
 
+  /// 기간 시작 — 현재 시즌 시작보다 앞이면 시즌 시작(season.dart)
   DateTime _getPeriodStart(RankingPeriod period) {
+    final start = _periodStart(period);
+    return start.isBefore(Season.currentStart) ? Season.currentStart : start;
+  }
+
+  DateTime _periodStart(RankingPeriod period) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
 
@@ -43,44 +51,6 @@ class RankingSystem {
         // "All Time"은 실제로는 올해 1월 1일부터
         return DateTime(now.year, 1, 1);
     }
-  }
-
-  /// Get period label for display
-  static String getPeriodLabel(RankingPeriod period) {
-    final now = DateTime.now();
-    switch (period) {
-      case RankingPeriod.weekly:
-        return "Week ${_getWeekNumber(now)}";
-      case RankingPeriod.monthly:
-        return _getMonthName(now.month);
-      case RankingPeriod.allTime:
-        return "${now.year}"; // Display Current Year
-    }
-  }
-
-  static int _getWeekNumber(DateTime date) {
-    final firstDayOfYear = DateTime(date.year, 1, 1);
-    final days = date.difference(firstDayOfYear).inDays;
-    return ((days + firstDayOfYear.weekday) / 7).ceil();
-  }
-
-  static String _getMonthName(int month) {
-    const months = [
-      '',
-      'JAN',
-      'FEB',
-      'MAR',
-      'APR',
-      'MAY',
-      'JUN',
-      'JUL',
-      'AUG',
-      'SEP',
-      'OCT',
-      'NOV',
-      'DEC',
-    ];
-    return months[month];
   }
 
   // 1. Save Score (Write) — flag stored for national query; nickname fetched live from users
@@ -103,12 +73,13 @@ class RankingSystem {
             'flag': flag,
             'survivalTime': time,
             'characterId': characterId,
+            'season': Season.current,
             'timestamp': FieldValue.serverTimestamp(),
           });
 
       return docRef.id;
     } catch (e) {
-      print("ERROR: Save failed - $e");
+      debugPrint("ERROR: Save failed - $e");
       return '';
     }
   }
@@ -124,7 +95,7 @@ class RankingSystem {
           .doc(recordId)
           .delete();
     } catch (e) {
-      print("ERROR: Delete record failed - $e");
+      debugPrint("ERROR: Delete record failed - $e");
     }
   }
 
@@ -143,7 +114,7 @@ class RankingSystem {
 
   /// Batch-fetch nickname/flag from users collection and inject into records.
   /// Falls back to existing nickname/flag fields for legacy records without userId.
-  /// [worldId] 를 주면 그 존의 명패(users.plates.{worldId})를 plateScope·plateRank 로 붙인다.
+  /// [worldId] 를 주면 그 존에 장착한 장비(users.equipped)를 붙인다.
   Future<void> _enrichWithUserData(List<Map<String, dynamic>> records, {String? worldId}) async {
     if (_db == null) return;
 
@@ -188,32 +159,13 @@ class RankingSystem {
                 equipped[Gear.slotKey(worldId, slot)] as String,
           ];
         }
-        final plates = user['plates'];
-        if (worldId != null && plates is Map && plates[worldId] is Map) {
-          final p = plates[worldId] as Map;
-          r['plateScope'] = p['scope'] ?? 'world';
-          r['plateRank'] = p['rank'];
+        // 대표 뱃지(가장 높은 등급) — 랭킹 이름 옆 아이콘
+        final achievements = user['achievements'];
+        if (achievements is List) {
+          final best = Badges.best(achievements.whereType<String>());
+          if (best != null) r['badge'] = best.key;
         }
       }
-    }
-  }
-
-  // 1.5 Get Global Play Counts
-  Future<Map<String, int>> getGlobalPlayCounts() async {
-    if (_db == null) return {};
-    try {
-      QuerySnapshot snapshot = await _db!.collection('maps').get();
-      Map<String, int> counts = {};
-      for (var doc in snapshot.docs) {
-        Map<String, dynamic>? data = doc.data() as Map<String, dynamic>?;
-        if (data != null && data.containsKey('playCount')) {
-          counts[doc.id] = data['playCount'] as int;
-        }
-      }
-      return counts;
-    } catch (e) {
-      print("Error fetching play counts: $e");
-      return {};
     }
   }
 
@@ -253,7 +205,7 @@ class RankingSystem {
       await _enrichWithUserData(top30, worldId: mapId);
       return top30;
     } catch (e) {
-      print("Load failed: $e");
+      debugPrint("Load failed: $e");
       return [];
     }
   }
@@ -269,7 +221,7 @@ class RankingSystem {
       final all = await col.count().get();
       return (rank: (better.count ?? 0) + 1, total: all.count ?? 0);
     } catch (e) {
-      print("Rank count failed: $e");
+      debugPrint("Rank count failed: $e");
       return null;
     }
   }
@@ -292,12 +244,15 @@ class RankingSystem {
         ..sort((a, b) => b.compareTo(a));
       return times.take(limit).toList();
     } catch (e) {
-      print("Top times failed: $e");
+      debugPrint("Top times failed: $e");
       return [];
     }
   }
 
   // 3. Fetch National Top 30 — query by flag field (works for all records including legacy)
+  /// 국가 랭킹 — 기간 안의 기록을 한 사람 한 번(가장 좋은 기록)으로 모은 뒤, 유저의 **현재 국가**(users.flag)로 거른다.
+  /// 기록 문서의 flag 는 기록 당시 국가라서, 국가를 바꾼 유저가 빠지던 문제를 막는다(2026-09-22).
+  /// 결과 화면의 국가 순위 계산([limit] 500)도 같은 목록(사람 단위)을 쓴다.
   Future<List<Map<String, dynamic>>> getNationalRankings(
     String mapId,
     String flag, {
@@ -307,37 +262,21 @@ class RankingSystem {
     if (_db == null) return [];
     try {
       final periodStart = _getPeriodStart(period);
-
-      // Query by flag field — stored in every record (new + legacy)
       final snap = await _db!
           .collection('maps')
           .doc(mapId)
           .collection('records')
-          .where('flag', isEqualTo: flag)
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart))
           .limit(_scanLimit)
           .get();
-
-      final List<Map<String, dynamic>> records = [];
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final ts = data['timestamp'] as Timestamp?;
-        if (ts == null || ts.toDate().isBefore(periodStart)) continue;
-        data['id'] = doc.id;
-        records.add(data);
-      }
-
-      records.sort((a, b) {
-        double timeA = (a['survivalTime'] as num).toDouble();
-        double timeB = (b['survivalTime'] as num).toDouble();
-        return timeB.compareTo(timeA);
-      });
-
-      // 랭킹 목록(30)은 한 사람 한 번만. 결과 화면의 순위 계산(500건)은 기록 단위 그대로, 조인도 불필요
-      final top = (limit <= 30 ? _uniquePlayers(records) : records).take(limit).toList();
-      if (limit <= 30) await _enrichWithUserData(top, worldId: mapId);
-      return top;
+      final records = [
+        for (final doc in snap.docs) {...doc.data(), 'id': doc.id},
+      ]..sort((a, b) => ((b['survivalTime'] as num).toDouble()).compareTo((a['survivalTime'] as num).toDouble()));
+      final players = _uniquePlayers(records);
+      await _enrichWithUserData(players, worldId: mapId); // flag = 유저의 현재 국가
+      return players.where((r) => r['flag'] == flag).take(limit).toList();
     } catch (e) {
-      print("National load failed: $e");
+      debugPrint("National load failed: $e");
       return [];
     }
   }
@@ -382,34 +321,9 @@ class RankingSystem {
       await _enrichWithUserData([myData], worldId: mapId);
       return myData;
     } catch (e) {
-      print("My rank load failed: $e");
+      debugPrint("My rank load failed: $e");
       return null;
     }
   }
 
-  // 5. Get User Titles (Check Top 30 in all periods)
-  Future<List<String>> getUserTitles(String mapId, String nickname) async {
-    if (_db == null) return [];
-    List<String> titles = [];
-
-    // Check Weekly
-    var weeklyTop = await getTopRecords(mapId, period: RankingPeriod.weekly);
-    if (weeklyTop.any((r) => r['nickname'] == nickname)) {
-      titles.add('Weekly Ranker');
-    }
-
-    // Check Monthly
-    var monthlyTop = await getTopRecords(mapId, period: RankingPeriod.monthly);
-    if (monthlyTop.any((r) => r['nickname'] == nickname)) {
-      titles.add('Monthly Ranker');
-    }
-
-    // Check Yearly (All Time in this context)
-    var yearlyTop = await getTopRecords(mapId, period: RankingPeriod.allTime);
-    if (yearlyTop.any((r) => r['nickname'] == nickname)) {
-      titles.add('Legendary Survivor');
-    }
-
-    return titles;
-  }
 }

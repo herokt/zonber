@@ -78,6 +78,7 @@ Offset footAnchor(double r, double sx) => Offset(sx * r * 0.42, r * 1.0);
 /// 모자·털모자·헬멧은 머리 위 한 가닥을 덮는다
 bool gearHidesTuft(String id) => id.startsWith('cap_') || id.startsWith('beanie_') || id.startsWith('helmet_');
 
+/// 손 — 몸통 앞에 그리고 **외곽선도 통째로** 긋는다(몸·손·발 모두 같은 굵기의 테두리를 가진다)
 void paintBareHand(Canvas cv, double r, Offset hc, Color body) {
   cv.drawCircle(hc, r * 0.22, Paint()..color = body);
   cv.drawCircle(hc, r * 0.22, _line(r, 0.07));
@@ -114,6 +115,7 @@ void _featherWing(Canvas cv, double r, String id, double t) {
   final (Color hi, Color lo, Color vein) = switch (id) {
     'wings_gold' => (const Color(0xFFFFF3C4), const Color(0xFFE8A91E), const Color(0xFFB7791F)),
     'wings_star' => (const Color(0xFFEAF5FF), const Color(0xFF7FB2F5), const Color(0xFF4F7FD0)),
+    'wings_comet' => (const Color(0xFFFFE9C7), const Color(0xFFFF8A3D), const Color(0xFFC2410C)),
     _ => (Colors.white, const Color(0xFFC9D6EA), const Color(0xFF9FB0CC)),
   };
   const angles = [0.38, 0.02, -0.36, -0.72];
@@ -143,6 +145,14 @@ void _featherWing(Canvas cv, double r, String id, double t) {
   }
   if (id == 'wings_gold') {
     _sparkle(cv, Offset(r * 0.75, -r * 0.42), r * 0.1 * (0.75 + 0.25 * sin(t * 5)), Colors.white);
+  }
+  if (id == 'wings_comet') {
+    // 꼬리 불티 — 날개 끝에서 뒤로 흩어진다
+    for (int i = 0; i < 3; i++) {
+      final f = (t * 1.4 + i * 0.33) % 1.0;
+      cv.drawCircle(Offset(r * (0.7 + f * 0.7), -r * (0.1 + i * 0.22)), r * 0.07 * (1 - f),
+          Paint()..color = const Color(0xFFFFC46B).withValues(alpha: 0.9 * (1 - f)));
+    }
   }
 }
 
@@ -215,6 +225,7 @@ void _rocket(Canvas cv, double r, String id, Offset fc, double sx, double t, boo
   final (Color main, Color trim, List<Color> fire) = switch (id) {
     'rocket_plasma' => (const Color(0xFF6D5BD0), const Color(0xFF22D3EE), const [Color(0xFFE0FFFF), Color(0xFF38BDF8), Color(0x00A855F7)]),
     'rocket_chrome' => (const Color(0xFFD5DCE6), const Color(0xFFFF8A3D), const [Color(0xFFFFF7D6), Color(0xFFFFA53D), Color(0x00FF3D3D)]),
+    'rocket_void' => (const Color(0xFF241B3D), const Color(0xFFB388FF), const [Color(0xFFF3E8FF), Color(0xFF9B6BFF), Color(0x004C1D95)]),
     _ => (const Color(0xFFE5484D), const Color(0xFFFFD23F), const [Color(0xFFFFF3A0), Color(0xFFFF8A3D), Color(0x00E5334D)]),
   };
   final w = r * 0.6, h = r * 0.42;
@@ -262,6 +273,8 @@ void _sneaker(Canvas cv, double r, String id, Offset fc, double sx, double t) {
     'sneakers_neon' => (const Color(0xFFB6F23A), const Color(0xFF111827), const Color(0xFF334155), false),
     'sneakers_hightop' => (const Color(0xFFE5484D), Colors.white, const Color(0xFFF3F4F6), true),
     'sneakers_gold' => (const Color(0xFFFFD66B), const Color(0xFFB8860B), const Color(0xFFFFF4CC), false),
+    'sneakers_sky' => (const Color(0xFF7FC4F0), Colors.white, const Color(0xFFEFF6FF), false),
+    'sneakers_violet' => (const Color(0xFF6D5BD0), const Color(0xFFFFD23F), const Color(0xFF241B3D), true),
     _ => (Colors.white, const Color(0xFFE5484D), const Color(0xFFE2E8F0), false),
   };
   final w = r * 0.64, h = r * 0.4;
@@ -304,6 +317,8 @@ void _boot(Canvas cv, double r, String id, Offset fc, double sx) {
     'boots_orange' => (const Color(0xFFFF7A1A), const Color(0xFF111827)),
     'boots_mint' => (const Color(0xFF3FE0B5), const Color(0xFF0F5A4A)),
     'boots_white' => (const Color(0xFFF8FAFC), const Color(0xFF2F6FE4)),
+    'boots_violet' => (const Color(0xFF6D5BD0), const Color(0xFFFFD23F)),
+    'boots_carbon' => (const Color(0xFF111827), const Color(0xFFB6F23A)),
     _ => (const Color(0xFF1F2937), Colors.white),
   };
   final w = r * 0.64, h = r * 0.36;
@@ -367,7 +382,12 @@ void _wristband(Canvas cv, double r, String id, Offset hc, double sx) {
     }
     cv.restore();
   } else {
-    final (Color main, Color stripe) = id == 'wrist_red' ? (const Color(0xFFE5484D), Colors.white) : (Colors.white, const Color(0xFFE5484D));
+    final (Color main, Color stripe) = switch (id) {
+      'wrist_red' => (const Color(0xFFE5484D), Colors.white),
+      'wrist_black' => (const Color(0xFF1F2937), const Color(0xFFB6F23A)),
+      'wrist_gold' => (const Color(0xFFFFD66B), const Color(0xFFB8860B)),
+      _ => (Colors.white, const Color(0xFFE5484D)),
+    };
     cv.drawRRect(rr, _grad(rect, _sh(main, 0.05), _sh(main, -0.12)));
     cv.drawLine(Offset(rect.center.dx, rect.top + r * 0.04), Offset(rect.center.dx, rect.bottom - r * 0.04), _thin(stripe, max(0.7, r * 0.05)));
   }
@@ -377,9 +397,12 @@ void _wristband(Canvas cv, double r, String id, Offset hc, double sx) {
 /// 우주 장갑(흰 퉁퉁한 장갑 + 소매) · 네온 건틀릿
 void _mitt(Canvas cv, double r, String id, Offset hc, double sx) {
   final neon = id.startsWith('gauntlet_');
-  final main = neon ? const Color(0xFF1E293B) : Colors.white;
-  final cuffC = neon ? const Color(0xFF334155) : const Color(0xFFFF8A3D);
-  final glow = const Color(0xFF5EEAD4);
+  final (Color main, Color cuffC, Color glow) = switch (id) {
+    'gauntlet_ion' => (const Color(0xFF2E1F6B), const Color(0xFF6D5BD0), const Color(0xFFB388FF)),
+    'gauntlet_neon' => (const Color(0xFF1E293B), const Color(0xFF334155), const Color(0xFF5EEAD4)),
+    'mitts_astro' => (const Color(0xFFDDE7F5), const Color(0xFF2F8CF2), const Color(0xFF5EEAD4)),
+    _ => (Colors.white, const Color(0xFFFF8A3D), const Color(0xFF5EEAD4)),
+  };
   final rad = r * 0.26;
   final c = hc + Offset(sx * r * 0.03, 0);
   // 소매
@@ -413,6 +436,8 @@ void _keeperGlove(Canvas cv, double r, String id, Offset hc, double sx) {
   final (Color main, Color trim, Color strap) = switch (id) {
     'gloves_pro' => (const Color(0xFF1F2937), const Color(0xFFB6F23A), const Color(0xFF111827)),
     'gloves_fire' => (const Color(0xFFFF7A1A), const Color(0xFFFFD23F), const Color(0xFFB91C1C)),
+    'gloves_ice' => (const Color(0xFFBFE6FF), const Color(0xFF2F8CF2), const Color(0xFF1E3A8A)),
+    'gloves_violet' => (const Color(0xFF6D5BD0), const Color(0xFFFFD23F), const Color(0xFF2E1F6B)),
     'gloves_gold' => (const Color(0xFFFFD66B), const Color(0xFFFFF6CC), const Color(0xFFB8860B)),
     _ => (Colors.white, const Color(0xFF22C55E), const Color(0xFF16A34A)),
   };
@@ -454,11 +479,11 @@ void paintGearHead(Canvas cv, double r, String id, double t) {
   } else if (id.startsWith('cap_')) {
     _cap(cv, r, id);
   } else if (id.startsWith('beanie_')) {
-    _beanie(cv, r);
-  } else if (id == 'goggles_space') {
-    _goggles(cv, r);
-  } else if (id == 'helmet_bubble') {
-    _helmet(cv, r, t);
+    _beanie(cv, r, id);
+  } else if (id.startsWith('goggles_')) {
+    _goggles(cv, r, id);
+  } else if (id.startsWith('helmet_')) {
+    _helmet(cv, r, t, id);
   } else {
     _antenna(cv, r, t);
   }
@@ -472,6 +497,16 @@ Path _foreheadStrip(double r, double y0, double bw) => Path()
   ..quadraticBezierTo(0, y0 + r * 0.18 + bw, -r * 1.2, y0 + bw)
   ..close();
 
+/// 이마 띠가 지운 몸통 외곽선을 **그 띠가 지나간 높이에서만** 다시 긋는다.
+/// 통째로 다시 그리면 머리 장비는 맨 나중에 그려지므로 손·발 위에 몸통 외곽선이 얹힌다(2026-09-23 수정).
+void _restoreBodyEdge(Canvas cv, double r, double y0, double bw) {
+  cv.save();
+  // 띠가 가운데에서 r*0.09 만큼 처지고, 외곽선 굵기 절반만큼 더 여유를 둔다
+  cv.clipRect(Rect.fromLTRB(-r * 1.4, y0 - r * 0.1, r * 1.4, y0 + bw + r * 0.2));
+  cv.drawPath(mochiPath(r), _line(r, 0.08));
+  cv.restore();
+}
+
 void _stripEdges(Canvas cv, double r, double y0, double bw) {
   for (final y in [y0, y0 + bw]) {
     cv.drawPath(Path()
@@ -484,6 +519,7 @@ void _band(Canvas cv, double r, String id, double t) {
   final (Color main, Color mark) = switch (id) {
     'band_blue' => (const Color(0xFF2F8CF2), Colors.white),
     'band_stripe' => (const Color(0xFF1E3A8A), const Color(0xFFE5484D)),
+    'band_mint' => (const Color(0xFF2ECFA6), const Color(0xFF0F5A4A)),
     'band_flame' => (const Color(0xFFFF7A1A), const Color(0xFFFFD23F)),
     _ => (const Color(0xFFE5484D), Colors.white),
   };
@@ -523,7 +559,7 @@ void _band(Canvas cv, double r, String id, double t) {
   }
   _stripEdges(cv, r, y0, bw);
   cv.restore();
-  cv.drawPath(mochiPath(r), _line(r, 0.08));
+  _restoreBodyEdge(cv, r, y0, bw);
   final kn = RRect.fromRectAndRadius(Rect.fromCenter(center: knot, width: r * 0.18, height: r * 0.2), Radius.circular(r * 0.06));
   _rrect(cv, kn, main, r, k: 0.055);
 }
@@ -532,6 +568,7 @@ void _cap(Canvas cv, double r, String id) {
   final (Color main, Color logo) = switch (id) {
     'cap_red' => (const Color(0xFFE5484D), Colors.white),
     'cap_black' => (const Color(0xFF1F2937), const Color(0xFFFFD66B)),
+    'cap_mint' => (const Color(0xFF2ECFA6), const Color(0xFF0F5A4A)),
     _ => (const Color(0xFF2F6FE4), Colors.white),
   };
   final by = -r * 0.5;
@@ -563,8 +600,8 @@ void _cap(Canvas cv, double r, String id) {
   _shape(cv, brim, _grad(brim.getBounds(), _sh(main, -0.08), _sh(main, -0.2)), r, 0.07);
 }
 
-void _beanie(Canvas cv, double r) {
-  const a = Color(0xFFE5484D);
+void _beanie(Canvas cv, double r, String id) {
+  final a = id == 'beanie_pom' ? const Color(0xFF6D5BD0) : const Color(0xFFE5484D);
   final cuffTop = -r * 0.68, cuffBot = -r * 0.44;
   final dome = Path()
     ..moveTo(-r * 0.92, cuffTop + r * 0.04)
@@ -617,8 +654,12 @@ void _antenna(Canvas cv, double r, double t) {
   }
 }
 
-void _goggles(Canvas cv, double r) {
-  const strap = Color(0xFF334155);
+void _goggles(Canvas cv, double r, String id) {
+  // 밤 고글은 어두운 띠에 호박색 렌즈
+  final (Color strap, Color lensHi, Color lensLo) = switch (id) {
+    'goggles_night' => (const Color(0xFF111827), const Color(0xFFFFE08A), const Color(0xFFB45309)),
+    _ => (const Color(0xFF334155), const Color(0xFFA5F3FC), const Color(0xFF0E7490)),
+  };
   final y0 = -r * 0.7, bw = r * 0.16;
   cv.save();
   cv.clipPath(mochiPath(r));
@@ -626,7 +667,7 @@ void _goggles(Canvas cv, double r) {
   cv.drawPath(s, _grad(s.getBounds(), _sh(strap, 0.08), _sh(strap, -0.08)));
   _stripEdges(cv, r, y0, bw);
   cv.restore();
-  cv.drawPath(mochiPath(r), _line(r, 0.08));
+  _restoreBodyEdge(cv, r, y0, bw);
   final cy = y0 + r * 0.14 + bw / 2;
   final bridge = RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(0, cy), width: r * 0.24, height: r * 0.08), Radius.circular(r * 0.04));
   cv.drawRRect(bridge, Paint()..color = const Color(0xFF94A3B8));
@@ -637,12 +678,13 @@ void _goggles(Canvas cv, double r) {
     cv.drawOval(rim, _grad(rim, const Color(0xFFF1F5F9), const Color(0xFF8A97AB)));
     cv.drawOval(rim, _line(r, 0.06));
     final lens = Rect.fromCircle(center: c, radius: r * 0.14);
-    cv.drawOval(lens, _grad(lens, const Color(0xFFA5F3FC), const Color(0xFF0E7490)));
+    cv.drawOval(lens, _grad(lens, lensHi, lensLo));
     cv.drawArc(Rect.fromCircle(center: c, radius: r * 0.09), pi * 1.05, pi * 0.45, false, _thin(Colors.white.withValues(alpha: 0.9), max(0.7, r * 0.04)));
   }
 }
 
-void _helmet(Canvas cv, double r, double t) {
+void _helmet(Canvas cv, double r, double t, String id) {
+  final visor = id == 'helmet_visor'; // 금빛 바이저가 얼굴 위를 가린다
   final c = Offset(0, -r * 0.08);
   final rad = r * 1.3;
   // 목깃
@@ -656,6 +698,17 @@ void _helmet(Canvas cv, double r, double t) {
   cv.drawCircle(c, rad + r * 0.035, _thin(_ink.withValues(alpha: 0.75), max(0.8, r * 0.04)));
   cv.drawArc(Rect.fromCircle(center: c, radius: rad * 0.84), pi * 1.08, pi * 0.32, false, _thin(Colors.white.withValues(alpha: 0.85), max(1.0, r * 0.09)));
   cv.drawCircle(c + Offset(rad * 0.28, -rad * 0.72), r * 0.05, Paint()..color = Colors.white.withValues(alpha: 0.85));
+  if (visor) {
+    // 바이저 — 돔 위쪽 절반을 금빛으로 덮는다
+    cv.save();
+    cv.clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: rad)));
+    final band = Rect.fromLTRB(c.dx - rad, c.dy - rad * 0.72, c.dx + rad, c.dy - rad * 0.02);
+    cv.drawRect(band, _grad(band, const Color(0xCCFFE9A3), const Color(0xB3E0A21B)));
+    cv.drawLine(Offset(band.left, band.bottom), Offset(band.right, band.bottom), _thin(const Color(0xFF9A6A00), max(0.9, r * 0.055)));
+    cv.drawArc(Rect.fromCircle(center: c, radius: rad * 0.7), pi * 1.1, pi * 0.3, false,
+        _thin(Colors.white.withValues(alpha: 0.75), max(0.8, r * 0.06)));
+    cv.restore();
+  }
 }
 
 // ── 상점 카드용 — 아이템만 크게 ───────────────────────────────

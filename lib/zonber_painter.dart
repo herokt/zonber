@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import 'game_art.dart';
 import 'gear.dart';
 import 'gear_painter.dart';
 
@@ -13,7 +12,6 @@ import 'gear_painter.dart';
 // 커비와 겹치지 않게: 세로 타원 눈·볼터치·완전한 원형 몸은 쓰지 않는다(2026-09-22 시안 A 확정).
 // 존 장비(gear.dart)는 gear_painter.dart 가 부위별로 겹쳐 그린다: 등 → 몸·얼굴 → 발 → 손 → 머리.
 // 게임(Player)·아바타(CharacterAvatar)·상점 미리보기가 모두 이 함수를 쓴다.
-// 그림(assets/images/game — 몸통·표정·장비)이 있으면 그림으로, 없으면 아래 코드 그림으로 그린다.
 // ─────────────────────────────────────────────────────────────
 
 /// 표정 3종 — 기본 · 아야(맞음/실점) · 신남(아슬아슬 회피/세이브)
@@ -31,14 +29,14 @@ class ZonberLook {
   final double squash;
   /// 눈동자가 쏠리는 방향(-1~1)
   final Offset look;
-  /// 캐릭터 id — 몸통 그림(body_{id}.png)을 고른다. null 이면 코드 그림
-  final String? body;
   /// 몸통 스킨(cosmetics.dart skin_*). null·skin_none 이면 캐릭터 색
   final String? skin;
+  /// 캐릭터 id(character_data.dart) — 평상시 표정이 캐릭터마다 다르다
+  final String? charId;
   const ZonberLook({
     required this.color,
-    this.body,
     this.skin,
+    this.charId,
     this.face = ZonberFace.normal,
     this.gear = const [],
     this.t = 0,
@@ -72,18 +70,6 @@ Color _shade(Color c, double amount) {
 
 /// [center] 에 반지름 [r] 의 존버를 그린다. 장비·손발이 몸 밖으로 r 의 약 0.6배 삐져나온다.
 void paintZonber(Canvas canvas, Offset center, double r, ZonberLook k) {
-  String? gearOf(String prefix) {
-    for (final g in k.gear) {
-      if (g.startsWith(prefix)) return g;
-    }
-    return null;
-  }
-
-  if (k.body != null && GameArt.img('body_${k.body}') != null) {
-    _paintZonberArt(canvas, center, r, k, gearOf);
-    return;
-  }
-
   // 부위별 장착 장비(gear_painter.dart 가 그린다)
   String? back, head, hands, feet;
   for (final id in k.gear) {
@@ -167,94 +153,22 @@ void paintZonber(Canvas canvas, Offset center, double r, ZonberLook k) {
   canvas.restore();
 }
 
-/// 그림 버전 — 몸통 그림(손발이 붙은 동그란 몸) 위에 표정·장비 그림을 겹친다.
-/// 기준: 머리(동그란 부분) 가운데가 [center], 머리 반지름 ≈ r.
-void _paintZonberArt(Canvas canvas, Offset center, double r, ZonberLook k, String? Function(String) gearOf) {
-  final bodyName = 'body_${k.body}';
-  final w = r * 2.6; // 몸통 그림 폭(머리 폭 ≈ 0.8w ≈ 2r)
-  final h = w * GameArt.aspect(bodyName);
-  final step = k.moving ? sin(k.t * 16) : 0.0;
-  final bob = k.moving ? -step.abs() * r * 0.06 : sin(k.t * 3) * r * 0.03;
-
-  final wings = gearOf('wings_');
-  final rocket = gearOf('rocket_');
-  final sneakers = gearOf('sneakers_');
-  final boots = gearOf('boots_');
-  final gloves = gearOf('gloves_');
-  final band = gearOf('band_');
-  final cap = gearOf('cap_');
-
-  canvas.save();
-  canvas.translate(center.dx, center.dy + bob);
-  if (k.squash > 0) {
-    canvas.translate(0, h * 0.5);
-    canvas.scale(1 + 0.18 * k.squash, 1 - 0.24 * k.squash);
-    canvas.translate(0, -h * 0.5);
-  }
-  final bodyC = Offset(0, h * 0.14); // 몸통 그림 가운데(머리 가운데보다 아래)
-
-  // 등 — 날개(펄럭)·로켓
-  if (wings != null) {
-    final flap = sin(k.t * 9) * 0.22;
-    for (final sx in [-1.0, 1.0]) {
-      GameArt.draw(canvas, 'gear_$wings', Offset(sx * w * 0.44, -h * 0.02), w * 0.5,
-          rotation: sx * (-0.15 + flap), flipX: sx < 0);
-    }
-  }
-  if (rocket != null) {
-    GameArt.draw(canvas, 'gear_$rocket', Offset(w * 0.36, h * 0.2), w * 0.42, rotation: 0.35);
-  }
-
-  // 몸통
-  GameArt.draw(canvas, bodyName, bodyC, w);
-
-  // 발 — 운동화(한 짝 그림을 좌우로) · 축구화(한 쌍 그림)
-  final footY = h * 0.52;
-  if (sneakers != null) {
-    for (final sx in [-1.0, 1.0]) {
-      GameArt.draw(canvas, 'gear_$sneakers', Offset(sx * w * 0.2, footY + sx * step * r * 0.06), w * 0.34, flipX: sx < 0);
-    }
-  } else if (boots != null) {
-    GameArt.draw(canvas, 'gear_$boots', Offset(0, footY), w * 0.5);
-  }
-
-  // 얼굴 — 머리 가운데
-  final face = switch (k.face) {
-    ZonberFace.hurt => 'face_hurt',
-    ZonberFace.happy => 'face_happy',
-    ZonberFace.normal => 'face_normal',
-  };
-  final lx = k.look.dx.clamp(-1.0, 1.0) * r * 0.06;
-  final ly = k.look.dy.clamp(-1.0, 1.0) * r * 0.05;
-  GameArt.draw(canvas, face, Offset(lx, r * 0.12 + ly), r * 1.3);
-
-  // 손 — 장갑(한 짝 그림을 좌우로)
-  if (gloves != null) {
-    for (final sx in [-1.0, 1.0]) {
-      GameArt.draw(canvas, 'gear_$gloves', Offset(sx * w * 0.41, h * 0.3 - (k.moving ? step * sx : 0) * r * 0.05), w * 0.28,
-          flipX: sx > 0);
-    }
-  }
-
-  // 머리 — 머리띠·모자
-  if (band != null) GameArt.draw(canvas, 'gear_$band', Offset(0, -r * 0.62), w * 0.86);
-  if (cap != null) GameArt.draw(canvas, 'gear_$cap', Offset(r * 0.05, -r * 0.72), w * 0.84);
-
-  canvas.restore();
-}
-
 /// 어두운 스킨 — 얼굴을 밝은 색으로 그린다
-const Set<String?> _darkSkins = {'skin_galaxy', 'skin_lava'};
+const Set<String?> _darkSkins = {'skin_lava', 'skin_neon'};
 
 /// 몸통 스킨의 대표 색 — 손·발·머리 한 가닥에 쓴다
 Color skinPartColor(String? skin, Color base, double t) => switch (skin) {
       'skin_silver' => const Color(0xFFC3CCD8),
       'skin_gold' => const Color(0xFFF2C14E),
       'skin_rainbow' => HSVColor.fromAHSV(1, (t * 40) % 360, 0.55, 1).toColor(),
-      'skin_galaxy' => const Color(0xFF4B3A8C),
+      'skin_galaxy' => const Color(0xFF8B78E0),
       'skin_candy' => const Color(0xFFFF9EC7),
       'skin_ice' => const Color(0xFFA5DDF5),
       'skin_lava' => const Color(0xFF4A3036),
+      'skin_cloud' => const Color(0xFF9FD8F5),
+      'skin_sunset' => const Color(0xFFFF9A6B),
+      'skin_ocean' => const Color(0xFF3FA8D8),
+      'skin_neon' => const Color(0xFF3B2C63),
       _ => base,
     };
 
@@ -299,15 +213,15 @@ void _paintSkin(Canvas c, double r, Path mochi, String? skin, Color base, double
                 const [0, 0.2, 0.4, 0.6, 0.8, 1]));
       _volume(c, r, mochi);
     case 'skin_galaxy':
-      // 은하 — 짙은 보라 바탕 · 분홍 성운 · 반짝이는 별
+      // 은하 — 연보라 바탕 · 분홍 성운 · 반짝이는 별(2026-09-22 너무 어두워 연하게)
       c.drawPath(mochi, Paint()
         ..shader = ui.Gradient.radial(Offset(-r * 0.3, -r * 0.3), r * 1.5,
-            const [Color(0xFF6D4DD6), Color(0xFF2A1F63), Color(0xFF0F0B2E)], const [0, 0.55, 1]));
+            const [Color(0xFFC3B5FF), Color(0xFF8B78E0), Color(0xFF5A48B0)], const [0, 0.55, 1]));
       c.save();
       c.clipPath(mochi);
       c.drawCircle(Offset(r * 0.35, r * 0.35), r * 0.5,
           Paint()
-            ..color = const Color(0x66FF6AD5)
+            ..color = const Color(0x80FF8FE0)
             ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.3));
       final rnd = Random(7);
       for (int i = 0; i < 14; i++) {
@@ -331,6 +245,78 @@ void _paintSkin(Canvas c, double r, Path mochi, String? skin, Color base, double
       }
       c.restore();
       _volume(c, r, mochi);
+    case 'skin_cloud':
+      // 구름 — 맑은 하늘 바탕에 흰 뭉게구름이 느리게 흐른다
+      c.drawPath(mochi, Paint()..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r), const [Color(0xFFBFE6FF), Color(0xFF7FC4F0)]));
+      c.save();
+      c.clipPath(mochi);
+      final puff = Paint()..color = Colors.white.withValues(alpha: 0.92);
+      const puffs = [(-0.3, 0.18, 0.34), (0.42, -0.42, 0.22), (0.15, 0.62, 0.26)];
+      for (final (px, py, ps) in puffs) {
+        final o = Offset(r * px, r * py + sin(t * 0.9 + px * 4) * r * 0.03);
+        final s = r * ps;
+        c.drawCircle(o, s, puff);
+        c.drawCircle(o + Offset(s * 0.85, s * 0.25), s * 0.68, puff);
+        c.drawCircle(o + Offset(-s * 0.85, s * 0.3), s * 0.6, puff);
+      }
+      c.restore();
+      _volume(c, r, mochi);
+    case 'skin_sunset':
+      // 노을 — 보라에서 금빛으로 번지는 하늘 · 지는 해 · 구름 띠
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r),
+            const [Color(0xFF4B3A8C), Color(0xFFFF7A6B), Color(0xFFFFC46B), Color(0xFFFFE9A8)], const [0, 0.42, 0.72, 1]));
+      c.save();
+      c.clipPath(mochi);
+      c.drawCircle(Offset(r * 0.52, -r * 0.5), r * 0.22, Paint()..color = const Color(0xFFFFF3C4).withValues(alpha: 0.9));
+      for (int i = 0; i < 3; i++) {
+        final band = RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(-r * 0.3 + i * r * 0.3, r * (0.5 + i * 0.2)), width: r * (1.1 - 0.24 * i), height: r * 0.1),
+            Radius.circular(r * 0.05));
+        c.drawRRect(band, Paint()..color = const Color(0xFF6B2E63).withValues(alpha: 0.3));
+      }
+      c.restore();
+      _volume(c, r, mochi);
+    case 'skin_ocean':
+      // 바다 — 물결이 천천히 지나간다
+      c.drawPath(mochi, Paint()..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r), const [Color(0xFF7FE3F0), Color(0xFF1E7FB8)]));
+      c.save();
+      c.clipPath(mochi);
+      final wave = Paint()
+        ..color = Colors.white.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = max(1.0, r * 0.07);
+      for (int i = 0; i < 4; i++) {
+        final y = -r * 0.62 + i * r * 0.44;
+        final path = Path()..moveTo(-r * 1.1, y);
+        for (double x = -r * 1.1; x <= r * 1.1; x += r * 0.12) {
+          path.lineTo(x, y + sin(x / r * 3 + t * 1.6 + i) * r * 0.07);
+        }
+        c.drawPath(path, wave);
+      }
+      c.restore();
+      _volume(c, r, mochi);
+    case 'skin_neon':
+      // 네온 — 어두운 바탕에 격자가 시안↔핑크로 물든다
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.radial(Offset(-r * 0.3, -r * 0.35), r * 1.6, const [Color(0xFF2B2150), Color(0xFF140E28)]));
+      c.save();
+      c.clipPath(mochi);
+      final neon = 0.5 + 0.5 * sin(t * 2.2);
+      final grid = Paint()
+        ..color = Color.lerp(const Color(0xFF22D3EE), const Color(0xFFFF4D9D), neon)!.withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(0.7, r * 0.035);
+      for (int i = -2; i <= 2; i++) {
+        if (i != 0) c.drawLine(Offset(i * r * 0.44, -r * 1.1), Offset(i * r * 0.62, r * 1.1), grid);
+        c.drawLine(Offset(-r * 1.1, i * r * 0.42), Offset(r * 1.1, i * r * 0.42), grid);
+      }
+      c.drawCircle(Offset(r * 0.5, -r * 0.5), r * 0.12, Paint()
+        ..color = const Color(0xFFFFF3A0).withValues(alpha: 0.35 + 0.4 * neon)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.1));
+      c.restore();
     case 'skin_ice':
       // 얼음 — 투명한 하늘색 · 각진 반사면 · 금
       c.drawPath(mochi, Paint()
@@ -410,63 +396,355 @@ void _paintSkin(Canvas c, double r, Path mochi, String? skin, Color base, double
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 표정 — 캐릭터마다 셋(평소 · 아야 · 신남)이 다 다르다.
+// 색만 다르면 스킨과 구분이 안 되므로, 표정이 곧 캐릭터의 성격이다.
+//   민트 무심 · 잽 팔팔 · 루나 졸림 · 블레이즈 뾰로통 · 써니 해맑음 · 레이스 고혹 · 체리 사랑스러움 · 코코 아기
+// ─────────────────────────────────────────────────────────────
+
 void _paintFace(Canvas canvas, double r, ZonberLook k, Color inkColor) {
-  final ink = Paint()..color = inkColor;
   final lx = k.look.dx.clamp(-1.0, 1.0) * r * 0.05;
   final ly = k.look.dy.clamp(-1.0, 1.0) * r * 0.04;
+  final f = _FacePen(canvas, r, inkColor);
   switch (k.face) {
     case ZonberFace.normal:
-      // 반쯤 감은 눈(눈꺼풀 선 + 아래 반달) — 무심하게 버티는 표정 · 작은 입
-      final lid = Paint()
-        ..color = inkColor
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = max(1.2, r * 0.075);
-      for (final sx in [-1.0, 1.0]) {
-        final e = Offset(sx * r * 0.31 + lx, -r * 0.14 + ly);
-        canvas.drawArc(Rect.fromCenter(center: e, width: r * 0.31, height: r * 0.28), 0, pi, true, ink);
-        canvas.drawLine(e + Offset(-r * 0.19, 0), e + Offset(r * 0.19, 0), lid);
-      }
-      canvas.drawArc(Rect.fromCenter(center: Offset(0, r * 0.14), width: r * 0.24, height: r * 0.14), 0.2, pi - 0.4, false,
-          Paint()
-            ..color = inkColor
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = max(1.0, r * 0.06));
-      break;
+      _normalFace(f, k.charId, lx, ly);
     case ZonberFace.hurt:
-      // >< 눈 · 오므린 입
-      final p = Paint()
-        ..color = inkColor
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = max(1.2, r * 0.08);
-      for (final sx in [-1.0, 1.0]) {
-        final e = Offset(sx * r * 0.25, -r * 0.1);
-        canvas.drawLine(e + Offset(-sx * r * 0.1, -r * 0.1), e + Offset(sx * r * 0.08, 0), p);
-        canvas.drawLine(e + Offset(sx * r * 0.08, 0), e + Offset(-sx * r * 0.1, r * 0.1), p);
-      }
-      canvas.drawOval(Rect.fromCenter(center: Offset(0, r * 0.26), width: r * 0.16, height: r * 0.2), ink);
-      break;
+      _hurtFace(f, k.charId);
     case ZonberFace.happy:
-      // ^^ 눈 · 크게 벌린 입
-      final p = Paint()
-        ..color = inkColor
+      _happyFace(f, k.charId);
+  }
+}
+
+/// 얼굴 부품 — 눈·눈썹·입을 같은 규칙으로 그린다(r = 몸 반지름)
+class _FacePen {
+  final Canvas c;
+  final double r;
+  final Color ink;
+  _FacePen(this.c, this.r, this.ink);
+
+  Paint get fill => Paint()..color = ink;
+
+  Paint stroke([double w = 0.075]) => Paint()
+    ..color = ink
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..strokeWidth = max(1.0, r * w);
+
+  /// 반쯤 감은 눈(아래 반달 + 눈꺼풀 선)
+  void sleepyEyes(double lx, double ly) {
+    for (final sx in [-1.0, 1.0]) {
+      final e = Offset(sx * r * 0.31 + lx, -r * 0.14 + ly);
+      c.drawArc(Rect.fromCenter(center: e, width: r * 0.31, height: r * 0.28), 0, pi, true, fill);
+      c.drawLine(e + Offset(-r * 0.19, 0), e + Offset(r * 0.19, 0), stroke());
+    }
+  }
+
+  /// 동그란 눈 + 반짝임. [lashes] 면 바깥쪽에 속눈썹이 붙는다
+  void roundEyes({double size = 0.3, double dy = -0.14, double lx = 0, double ly = 0, bool lashes = false}) {
+    for (final sx in [-1.0, 1.0]) {
+      final e = Offset(sx * r * 0.31 + lx, r * dy + ly);
+      c.drawOval(Rect.fromCenter(center: e, width: r * size, height: r * (size + 0.04)), fill);
+      c.drawOval(Rect.fromCenter(center: e + Offset(-r * 0.05, -r * 0.05), width: r * 0.09, height: r * 0.09),
+          Paint()..color = Colors.white.withValues(alpha: 0.9));
+      c.drawOval(Rect.fromCenter(center: e + Offset(r * 0.04, r * 0.06), width: r * 0.05, height: r * 0.05),
+          Paint()..color = Colors.white.withValues(alpha: 0.55));
+      if (lashes) {
+        for (int i = 0; i < 2; i++) {
+          final a = e + Offset(sx * r * (size * 0.42 + 0.01), -r * (size * 0.28 - i * 0.09));
+          c.drawLine(a, a + Offset(sx * r * 0.11, -r * (0.08 - i * 0.04)), stroke(0.05));
+        }
+      }
+    }
+  }
+
+  /// ^ ^ 웃는 눈
+  void archEyes({double dy = -0.08, double lx = 0}) {
+    for (final sx in [-1.0, 1.0]) {
+      c.drawArc(Rect.fromCenter(center: Offset(sx * r * 0.29 + lx, r * dy), width: r * 0.28, height: r * 0.24), pi + 0.25,
+          pi - 0.5, false, stroke(0.08));
+    }
+  }
+
+  /// 가늘게 뜬 실눈
+  void slitEyes({double dy = -0.12, double lx = 0, double ly = 0, double w = 0.15}) {
+    for (final sx in [-1.0, 1.0]) {
+      final e = Offset(sx * r * 0.3 + lx, r * dy + ly);
+      c.drawLine(e + Offset(-r * w, 0), e + Offset(r * w, 0), stroke(0.085));
+    }
+  }
+
+  /// >< 질끈 감은 눈
+  void squeezedEyes({double dy = -0.1}) {
+    for (final sx in [-1.0, 1.0]) {
+      final e = Offset(sx * r * 0.27, r * dy);
+      c.drawLine(e + Offset(-sx * r * 0.1, -r * 0.1), e + Offset(sx * r * 0.08, 0), stroke(0.08));
+      c.drawLine(e + Offset(sx * r * 0.08, 0), e + Offset(-sx * r * 0.1, r * 0.1), stroke(0.08));
+    }
+  }
+
+  /// 아래로 처진 눈(슬픔)
+  void sadEyes() {
+    for (final sx in [-1.0, 1.0]) {
+      c.drawArc(Rect.fromCenter(center: Offset(sx * r * 0.29, -r * 0.02), width: r * 0.28, height: r * 0.24), 0.25, pi - 0.5,
+          false, stroke(0.08));
+    }
+  }
+
+  /// 눈썹 — [tilt] 가 양수면 **안쪽이 내려온다(화남)**, 음수면 안쪽이 올라간다(당황·걱정)
+  void brows(double tilt) {
+    for (final sx in [-1.0, 1.0]) {
+      final b = Offset(sx * r * 0.32, -r * 0.42);
+      c.drawLine(b + Offset(-sx * r * 0.13, r * tilt), b + Offset(sx * r * 0.11, -r * tilt), stroke(0.065));
+    }
+  }
+
+  void smile({double w = 0.24, double h = 0.14, double dy = 0.14}) {
+    c.drawArc(Rect.fromCenter(center: Offset(0, r * dy), width: r * w, height: r * h), 0.2, pi - 0.4, false, stroke(0.06));
+  }
+
+  /// 아래로 휜 입(시무룩)
+  void frown({double w = 0.24, double h = 0.14, double dy = 0.26}) {
+    c.drawArc(Rect.fromCenter(center: Offset(0, r * dy), width: r * w, height: r * h), pi + 0.2, pi - 0.4, false, stroke(0.06));
+  }
+
+  void flatMouth({double w = 0.2, double dy = 0.18}) {
+    c.drawLine(Offset(-r * w / 2, r * dy), Offset(r * w / 2, r * dy), stroke(0.06));
+  }
+
+  void openMouth({double w = 0.16, double h = 0.18, double dy = 0.2}) {
+    c.drawOval(Rect.fromCenter(center: Offset(0, r * dy), width: r * w, height: r * h), fill);
+  }
+
+  /// ω 입
+  void catMouth({double dy = 0.14}) {
+    final p = Path()
+      ..moveTo(-r * 0.14, r * dy)
+      ..quadraticBezierTo(-r * 0.07, r * (dy + 0.12), 0, r * (dy + 0.01))
+      ..quadraticBezierTo(r * 0.07, r * (dy + 0.12), r * 0.14, r * dy);
+    c.drawPath(p, stroke(0.06));
+  }
+
+  /// 크게 벌린 웃는 입(혀까지)
+  void grin() {
+    final mouth = Path()
+      ..moveTo(-r * 0.18, r * 0.12)
+      ..quadraticBezierTo(0, r * 0.46, r * 0.18, r * 0.12)
+      ..close();
+    c.drawPath(mouth, Paint()..color = const Color(0xFF7A1F2B));
+    c.drawOval(Rect.fromCenter(center: Offset(0, r * 0.28), width: r * 0.16, height: r * 0.08),
+        Paint()..color = const Color(0xFFFF6B81));
+  }
+
+  /// 볼에 흐르는 땀 한 방울
+  void sweat() {
+    final p = Offset(r * 0.52, -r * 0.3);
+    c.drawCircle(p, r * 0.07, Paint()..color = const Color(0xFF7DD3FC));
+    c.drawCircle(p + Offset(-r * 0.02, -r * 0.02), r * 0.025, Paint()..color = Colors.white.withValues(alpha: 0.8));
+  }
+
+  /// 눈 밑 작은 점(졸림)
+  void underDots() {
+    for (final sx in [-1.0, 1.0]) {
+      c.drawCircle(Offset(sx * r * 0.3, r * 0.02), max(0.8, r * 0.028), Paint()..color = ink.withValues(alpha: 0.45));
+    }
+  }
+
+  /// 발그레한 볼 — 부드러운 분홍 위에 볼 선 두 줄(몸 색이 분홍·빨강이어도 보이게)
+  void blush({double dy = 0.06, double w = 0.26, double alpha = 0.5}) {
+    for (final sx in [-1.0, 1.0]) {
+      final ctr = Offset(sx * r * 0.52, r * dy);
+      c.drawOval(
+          Rect.fromCenter(center: ctr, width: r * w, height: r * w * 0.62),
+          Paint()
+            ..color = const Color(0xFFFF5C8A).withValues(alpha: alpha * 0.9)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.05));
+      final line = Paint()
+        ..color = ink.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = max(1.2, r * 0.08);
-      for (final sx in [-1.0, 1.0]) {
-        canvas.drawArc(Rect.fromCenter(center: Offset(sx * r * 0.25, -r * 0.06), width: r * 0.26, height: r * 0.24), pi + 0.25,
-            pi - 0.5, false, p);
+        ..strokeWidth = max(0.8, r * 0.032);
+      for (int i = 0; i < 2; i++) {
+        final x = ctr.dx + (i == 0 ? -r * 0.05 : r * 0.05);
+        c.drawLine(Offset(x - r * 0.025, ctr.dy - r * 0.05), Offset(x + r * 0.025, ctr.dy + r * 0.05), line);
       }
-      final mouth = Path()
-        ..moveTo(-r * 0.18, r * 0.12)
-        ..quadraticBezierTo(0, r * 0.46, r * 0.18, r * 0.12)
+    }
+  }
+
+  /// 속눈썹이 긴 눈 — 또렷한 눈매에 바깥쪽 속눈썹 두 가닥
+  void lashEyes({double dy = -0.12, double lx = 0, double ly = 0}) {
+    for (final sx in [-1.0, 1.0]) {
+      final e = Offset(sx * r * 0.3 + lx, r * dy + ly);
+      c.drawArc(Rect.fromCenter(center: e, width: r * 0.32, height: r * 0.28), pi + 0.12, pi - 0.24, false, stroke(0.085));
+      c.drawCircle(e + Offset(0, r * 0.03), r * 0.06, fill);
+      for (int i = 0; i < 2; i++) {
+        final a = Offset(sx * r * (0.42 + i * 0.03), r * (dy - 0.05 + i * 0.06));
+        c.drawLine(a, a + Offset(sx * r * 0.1, -r * 0.08), stroke(0.05));
+      }
+    }
+  }
+
+  /// 한쪽 윙크 — 왼눈은 감고 오른눈은 초롱초롱
+  void winkEyes({double lx = 0}) {
+    c.drawArc(Rect.fromCenter(center: Offset(-r * 0.29 + lx, -r * 0.1), width: r * 0.28, height: r * 0.24), pi + 0.25,
+        pi - 0.5, false, stroke(0.08));
+    final e = Offset(r * 0.31 + lx, -r * 0.13);
+    c.drawOval(Rect.fromCenter(center: e, width: r * 0.3, height: r * 0.34), fill);
+    c.drawOval(Rect.fromCenter(center: e + Offset(-r * 0.05, -r * 0.05), width: r * 0.1, height: r * 0.1),
+        Paint()..color = Colors.white.withValues(alpha: 0.9));
+  }
+
+  /// 하트 눈
+  void heartEyes({double size = 0.17}) {
+    for (final sx in [-1.0, 1.0]) {
+      final e = Offset(sx * r * 0.31, -r * 0.13);
+      final hr = r * size;
+      final p = Path()
+        ..moveTo(e.dx, e.dy + hr * 0.9)
+        ..cubicTo(e.dx - hr * 1.3, e.dy - hr * 0.1, e.dx - hr * 0.6, e.dy - hr * 1.1, e.dx, e.dy - hr * 0.35)
+        ..cubicTo(e.dx + hr * 0.6, e.dy - hr * 1.1, e.dx + hr * 1.3, e.dy - hr * 0.1, e.dx, e.dy + hr * 0.9)
         ..close();
-      canvas.drawPath(mouth, Paint()..color = const Color(0xFF7A1F2B));
-      canvas.drawOval(Rect.fromCenter(center: Offset(0, r * 0.28), width: r * 0.16, height: r * 0.08),
-          Paint()..color = const Color(0xFFFF6B81));
-      break;
+      c.drawPath(p, Paint()..color = const Color(0xFFFF4D79));
+      c.drawCircle(e + Offset(-hr * 0.35, -hr * 0.32), hr * 0.2, Paint()..color = Colors.white.withValues(alpha: 0.85));
+    }
+  }
+
+  /// 도톰한 입술 미소
+  void lipSmile({double w = 0.26, double dy = 0.15}) {
+    final rect = Rect.fromCenter(center: Offset(0, r * dy), width: r * w, height: r * w * 0.7);
+    c.drawPath(Path()..addArc(rect, 0.1, pi - 0.2)..close(), Paint()..color = const Color(0xFFFF6B81).withValues(alpha: 0.8));
+    c.drawArc(rect, 0.1, pi - 0.2, false, stroke(0.06));
+  }
+
+  /// 삐죽 내민 입(뾰로통)
+  void pout({double dy = 0.2, double w = 0.1}) {
+    final p = Path()
+      ..moveTo(-r * w, r * dy)
+      ..quadraticBezierTo(0, r * (dy - 0.13), r * w, r * dy);
+    c.drawPath(p, stroke(0.07));
+  }
+
+  /// 눈물 한 방울
+  void tear({double sx = 1}) {
+    final p = Offset(sx * r * 0.42, r * 0.14);
+    final path = Path()
+      ..moveTo(p.dx, p.dy - r * 0.16)
+      ..quadraticBezierTo(p.dx + r * 0.11, p.dy + r * 0.04, p.dx, p.dy + r * 0.13)
+      ..quadraticBezierTo(p.dx - r * 0.11, p.dy + r * 0.04, p.dx, p.dy - r * 0.16)
+      ..close();
+    c.drawPath(path, Paint()..color = const Color(0xFF5FC8F5));
+    c.drawPath(path, Paint()
+      ..color = const Color(0xFF1B6C94).withValues(alpha: 0.65)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(0.8, r * 0.03));
+    c.drawCircle(p + Offset(-r * 0.03, r * 0.02), r * 0.032, Paint()..color = Colors.white.withValues(alpha: 0.9));
+  }
+}
+
+/// 평소 얼굴
+void _normalFace(_FacePen f, String? id, double lx, double ly) {
+  switch (id) {
+    case 'electric_blue': // 잽 — 깨어 있는 눈 · 장난스러운 ω 입
+      f.brows(-0.05);
+      f.roundEyes(lx: lx, ly: ly);
+      f.catMouth();
+    case 'plasma_purple': // 루나 — 졸린 실눈 · 눈 밑 점 · 작은 미소
+      f.slitEyes(lx: lx, ly: ly);
+      f.underDots();
+      f.smile(w: 0.18, h: 0.1);
+    case 'cyber_red': // 블레이즈 — 발그레한 볼 · 동그란 눈 · 뾰로통한 입
+      f.blush();
+      f.roundEyes(size: 0.3, dy: -0.12, lx: lx, ly: ly);
+      f.pout();
+    case 'solar_gold': // 써니 — ^^ 눈 · 활짝 웃는 입
+      f.archEyes(lx: lx);
+      f.smile(w: 0.3, h: 0.26, dy: 0.12);
+    case 'void_dark': // 레이스 — 긴 속눈썹 · 도톰한 입술
+      f.lashEyes(lx: lx, ly: ly);
+      f.lipSmile(w: 0.22);
+    case 'blossom_pink': // 체리 — 속눈썹 달린 큰 눈 · 볼터치 · 입술 미소
+      f.blush(alpha: 0.6);
+      f.roundEyes(size: 0.32, dy: -0.13, lx: lx, ly: ly, lashes: true);
+      f.lipSmile();
+    case 'frost_cyan': // 코코 — 아주 큰 눈 · 볼터치 · ω 입
+      f.blush(dy: 0.1, w: 0.24);
+      f.roundEyes(size: 0.38, dy: -0.1, lx: lx, ly: ly);
+      f.catMouth(dy: 0.2);
+    default: // 민트 — 반쯤 감은 눈 · 작은 미소
+      f.sleepyEyes(lx, ly);
+      f.smile();
+  }
+}
+
+/// 아야 — 맞았을 때. 캐릭터마다 아파하는 모양이 다르다
+void _hurtFace(_FacePen f, String? id) {
+  switch (id) {
+    case 'electric_blue': // 잽 — 놀라서 눈이 커지고 땀
+      f.brows(-0.08);
+      f.roundEyes(size: 0.34, dy: -0.12);
+      f.openMouth(w: 0.2, h: 0.22, dy: 0.24);
+      f.sweat();
+    case 'plasma_purple': // 루나 — 잠에서 깬 듯 반쯤 뜬 눈 · 시무룩
+      f.slitEyes(dy: -0.08, w: 0.17);
+      f.frown(w: 0.2, h: 0.12);
+      f.sweat();
+    case 'cyber_red': // 블레이즈 — 볼을 부풀리고 삐진다
+      f.blush(alpha: 0.65);
+      f.squeezedEyes();
+      f.pout(dy: 0.24, w: 0.12);
+    case 'solar_gold': // 써니 — 울상
+      f.sadEyes();
+      f.frown();
+    case 'void_dark': // 레이스 — 눈을 내리깔고 입술을 깨문다
+      f.lashEyes(dy: -0.06);
+      f.frown(w: 0.2, h: 0.12);
+    case 'blossom_pink': // 체리 — 눈물이 그렁그렁
+      f.blush(alpha: 0.65);
+      f.sadEyes();
+      f.tear();
+      f.frown(w: 0.2, h: 0.12);
+    case 'frost_cyan': // 코코 — 앙 하고 크게 운다
+      f.blush(dy: 0.1, w: 0.24, alpha: 0.65);
+      f.squeezedEyes();
+      f.openMouth(w: 0.22, h: 0.24, dy: 0.24);
+      f.tear();
+    default: // 민트 — >< 눈 · 오므린 입
+      f.squeezedEyes();
+      f.openMouth(dy: 0.26, h: 0.2);
+  }
+}
+
+/// 신남 — 아슬아슬 회피·세이브. 캐릭터마다 좋아하는 모양이 다르다
+void _happyFace(_FacePen f, String? id) {
+  switch (id) {
+    case 'electric_blue': // 잽 — 반짝이는 눈 · 활짝
+      f.roundEyes(size: 0.32, dy: -0.12);
+      f.grin();
+    case 'plasma_purple': // 루나 — 살짝 뜬 눈 · ω 입
+      f.slitEyes(dy: -0.14, w: 0.13);
+      f.catMouth(dy: 0.16);
+    case 'cyber_red': // 블레이즈 — 볼터치 그대로 배시시
+      f.blush(alpha: 0.6);
+      f.archEyes(dy: -0.1);
+      f.smile(w: 0.3, h: 0.22, dy: 0.16);
+    case 'solar_gold': // 써니 — ^^ 눈 · 크게 웃는 입
+      f.archEyes();
+      f.grin();
+    case 'void_dark': // 레이스 — 윙크 한 번 · 입술 미소
+      f.winkEyes();
+      f.lipSmile(w: 0.24, dy: 0.17);
+    case 'blossom_pink': // 체리 — 하트 눈 · 볼터치
+      f.blush(alpha: 0.7);
+      f.heartEyes();
+      f.lipSmile(w: 0.28, dy: 0.17);
+    case 'frost_cyan': // 코코 — ^^ 눈 · ω 입
+      f.blush(dy: 0.1, w: 0.24, alpha: 0.6);
+      f.archEyes(dy: -0.06);
+      f.catMouth(dy: 0.18);
+    default: // 민트 — ^^ 눈 · 크게 벌린 입
+      f.archEyes(dy: -0.06);
+      f.grin();
   }
 }
 
@@ -484,6 +762,10 @@ class ZonberPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ZonberPainter old) =>
-      old.look.color != look.color || old.look.face != look.face || old.look.t != look.t || old.look.gear != look.gear ||
-      old.look.body != look.body;
+      old.look.color != look.color ||
+      old.look.face != look.face ||
+      old.look.charId != look.charId ||
+      old.look.skin != look.skin ||
+      old.look.t != look.t ||
+      old.look.gear != look.gear;
 }

@@ -94,25 +94,118 @@ flat even lighting, low contrast, clean minimalist mobile game style
 
 ---
 
-## 홈 카드 히어로 3장 — `{id}_hero.png`
+## 홈 카드 히어로 3장 — `{id}_hero.png` (v2, 2026-09-23)
 
-홈 화면 존 카드 윗부분(342×176, @2x **684×360**). 배경과 같은 세계관의 "대표 장면"이다.
-배경과 달리 **주인공이 있어도 된다** — 캐릭터 하나와 그 존의 공.
+홈 화면 존 카드의 윗부분. **한 장을 기기 비율에 따라 길게·짧게 잘라 쓴다**(`BoxFit.cover`).
+코드가 이 이미지 위에 얹는 것: 왼쪽 위 `ZONE n` 칩뿐이다. 존 이름·설명·내 최고 기록은 이미지 **아래**에 따로 쓴다.
 
-| 파일 | 장면 | 구도 |
+### 0. 이 그림이 말해야 하는 것
+
+**ZONE = 내가 버티는 구역이다.** 존버(ZONBER)는 "이 구역에서 버티는 사람"이고, 게임은 한 구역 안에서
+사방에서 오는 것을 피하거나 막으며 시간을 버티는 게임이다. 그래서 세 장 모두 같은 문장을 그림으로 말한다.
+
+| 반드시 담을 것 | 그림에서 |
+|---|---|
+| **경계가 보이는 구역** | 바닥에 그 존의 경계(궤도 링 · 코트 라인 · 페널티 박스)가 또렷이 보인다 |
+| **구역 한가운데의 나** | 캐릭터(민트 — 둥근 몸에 작은 손발) 하나가 구역 중앙 부근을 지키고 있다 |
+| **바깥에서 들어오는 위협** | 그 존의 공/탄이 **화면 밖에서 구역 안으로** 날아온다. 궤적선 1~2개로 방향을 읽히게 |
+| **버티는 중** | 폭발·승리 장면이 아니다. 맞기 직전의 긴장, 몸을 비튼 회피 자세 |
+
+세 장은 같은 화풍·같은 캐릭터 크기·같은 조명이어야 한다. 카드를 좌우로 넘길 때 한 세계로 보여야 한다.
+
+### 1. 기기 비율 대응 — 잘려도 되는 곳, 절대 안 되는 곳
+
+카드 높이는 168dp로 고정이고 **폭은 기기마다 다르다**. 좁은 폰에서는 약 2:1, 큰 화면·펼친 폴드에서는 5:1 가까이
+납작해진다. `cover`라서 **가로를 채우고 위아래가 잘린다.**
+
+| 구분 | 값 | 규칙 |
 |---|---|---|
-| `cyber_hero.png` | 성운 앞 플랫폼 위 캐릭터, 사방에서 빛나는 탄이 원을 그리며 다가옴 | 캐릭터 약간 오른쪽, 왼쪽 아래는 비움(카드 제목이 올라갈 수 있음) |
-| `dodgeball_hero.png` | 체육관 마루, 빨간 고무공이 화면 밖에서 날아오고 캐릭터가 몸을 피함 | 공의 궤적(모션 라인 1~2개) |
-| `keeper_hero.png` | 잔디 위 원형 골대 앞, 캐릭터가 공을 막는 순간 | 골대는 오른쪽, 공은 왼쪽 위에서 |
+| 납품 규격 | **1536×768 PNG (2:1)**, @2x | 가장 좁은 카드 비율과 같게 잡아 좌우는 거의 잘리지 않는다 |
+| 필수 안전대 | 세로 **가운데 40%** (y 230~538) | 5:1로 잘려도 남는 곳. **캐릭터·공·경계선은 전부 여기 안에** |
+| 넉넉 영역 | 세로 가운데 70% (y 115~653) | 2.5:1~3:1에서 보인다. 분위기 요소(성운·관중석·잔디결)용 |
+| 잘려 나가는 곳 | 위아래 각 15% | 하늘·천장·먼 배경만. 여기 있는 것은 없어도 그림이 성립해야 한다 |
+| 칩 자리 | 왼쪽 위 **280×120** | `ZONE n` 칩이 덮는다. 밝은 디테일·글자 금지, 배경만 |
+| 좌우 끝 | 양쪽 각 5% | 아주 넓은 화면에서만 보인다. 배경이 끝까지 이어지게(테두리·액자 금지) |
 
-- 글자·로고 없음(카드 제목은 코드가 쓴다). 아래 25%는 너무 복잡하지 않게.
-- 세 장의 화풍·조명·캐릭터 크기를 통일한다. 캐릭터는 기본 캐릭터(Neon Green)로.
+**한 장으로 세 비율을 다 만족시키는 법**: 구도를 **가로로 길게, 세로로 얕게** 잡는다. 캐릭터는 중앙 높이에 두고,
+위협은 좌우에서 수평에 가깝게 들어오게 한다. 위에서 아래로 떨어지는 구도는 잘리면 뜻이 사라진다.
+
+### 2. 공통 화풍
+
+- 평평한 2D 벡터 일러스트. 두꺼운 균일 외곽선(어두운 남색 `#1F2A44`), 완만한 그라데이션, 질감·노이즈 없음
+- 3/4 부감(살짝 위에서 내려다봄) — 게임 무대의 완전 탑다운과 달리 카드에서는 공간감을 준다
+- 조명은 고르게. 강한 그림자·빛 번짐 금지. 채도는 중간, 배경은 캐릭터보다 어둡거나 옅게
+- 캐릭터: 민트색(`#3FBF97`) 둥근 몸, 작은 손발, 반쯤 감은 눈 — **화면 높이의 약 35%**
+- 글자·로고·UI·워터마크 없음
+
+### 3. 존별 프롬프트 (그대로 붙여 쓰기)
+
+**ZONE 1 · Galaxy / 갤럭시 — `cyber_hero.png`**
+> 우주에 떠 있는 원형 플랫폼이 내 구역이다. 사방의 어둠에서 네온 탄이 링을 그리며 좁혀 온다.
+
+```
+Wide 2:1 banner illustration for a mobile game card, flat 2D vector art with bold dark navy
+outlines (#1F2A44). A round mint-green blob character (#3FBF97) with tiny hands and feet and
+sleepy half-closed eyes stands at the center of a glowing circular platform floating in deep
+navy space (#141A33). Two thin concentric orbit rings mark the edge of the platform — this is
+his zone. Small cyan neon bullets (#0A9DBD) streak in from the left and right edges of the frame
+toward him, each with one short motion trail. Faint teal and violet nebula wisps and sparse tiny
+stars fill the background. Horizontal composition, character and all bullets kept inside the
+middle 40% band of the image height, background extends to all four edges, even flat lighting,
+calm and tense, clean minimal mobile game style, no text, no logo, no frame, no vignette
+```
+
+**ZONE 2 · Dodgeball / 피구 — `dodgeball_hero.png`**
+> 코트 라인이 내 구역이다. 상대 코트에서 큰 공이 나를 조준해 날아온다.
+
+```
+Wide 2:1 banner illustration for a mobile game card, flat 2D vector art with bold dark navy
+outlines (#1F2A44). A round mint-green blob character (#3FBF97) with tiny hands and feet leans
+aside to dodge, standing inside a school gym court: light wooden floor (#E9CFA6) with crisp white
+court lines and a center line marking his half — this is his zone. One large yellow dodgeball
+(#FFC928) with a red seam band flies in from the upper left with a short motion trail, a second
+orange ball (#FF7A1A) enters from the right edge. Bright indoor gym, faint bleachers far in the
+background. Horizontal composition, character and both balls kept inside the middle 40% band of
+the image height, background extends to all four edges, even flat lighting, clean minimal mobile
+game style, no text, no logo, no frame, no vignette
+```
+
+**ZONE 3 · Goalkeeper / 골키퍼 — `keeper_hero.png`**
+> 페널티 박스가 내 구역이다. 슛이 골문으로 오고, 나는 그 앞을 막는다.
+
+```
+Wide 2:1 banner illustration for a mobile game card, flat 2D vector art with bold dark navy
+outlines (#1F2A44). A round mint-green blob character (#3FBF97) with tiny hands and feet stretches
+sideways to make a save in front of a goal on fresh green grass (#A8DC8F) with soft mowing stripes.
+White penalty box lines curve around him — this is his zone. A white soccer ball (#F4F6F8) rockets
+in from the left with a curved motion trail, a yellow ball (#FFD23F) comes from the upper right.
+Horizontal composition, goal mouth behind the character, character and both balls kept inside the
+middle 40% band of the image height, background extends to all four edges, even flat lighting,
+clean minimal mobile game style, no text, no logo, no frame, no vignette
+```
+
+**공통 네거티브 프롬프트**
+
+```
+text, letters, numbers, logo, watermark, UI, buttons, frame, border, vignette, dark corners,
+photorealistic, 3D render, heavy shadows, noise, grain, busy background, crowd of characters,
+explosion, fire, blood, top-down bird's eye view, vertical composition, cropped character
+```
+
+### 4. 납품·확인
+
+- [ ] `cyber_hero.png` · `dodgeball_hero.png` · `keeper_hero.png` — 1536×768 PNG, 각 500KB 이하
+- [ ] 세 장을 나란히 놓고 화풍·캐릭터 크기·조명이 같은지
+- [ ] **비율 테스트**: 같은 그림을 2:1 / 3:1 / 5:1 로 가운데 잘라 봐서 셋 다 캐릭터·공·경계선이 다 보이는지
+- [ ] 왼쪽 위 280×120 에 `ZONE n` 칩을 얹어도 묻히지 않는지
+- [ ] 폰 크기(카드 폭 340dp)로 줄였을 때 공이 무엇인지 바로 읽히는지
+- [ ] `assets/images/worlds/` 에 같은 파일명으로 덮어쓰면 코드 수정 없이 반영된다
 
 ---
 
 ## 납품 체크리스트
 
-- [ ] 파일명·규격 일치 (배경 960×1536, 히어로 684×360, PNG)
+- [ ] 파일명·규격 일치 (배경 960×1536, 히어로 1536×768, PNG)
 - [ ] 휴대폰 실제 크기로 줄여 봤을 때 공(@2x 기준 지름 18~36px: Galaxy 탄 18, 피구 공 30~36, 골키퍼 공 30)이 바로 보이는지
 - [ ] 가장자리 120px 안에 어두운 얼룩이 없는지
 - [ ] 파일당 500KB 이하 (pngquant 등으로 압축)

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import 'avatar.dart';
 import 'character_data.dart';
 import 'design_system.dart';
 import 'language_manager.dart';
+import 'playtest_log.dart';
 import 'progress_store.dart';
 import 'user_profile.dart';
 import 'world_config.dart';
@@ -116,6 +119,21 @@ class _StatisticsPageState extends State<StatisticsPage> {
                       ),
                     ],
                     const SizedBox(height: 18),
+                    // 밸런스 확인용 — 이 기기의 최근 판 기록을 CSV 로 복사
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          final csv = await PlaytestLog.exportCsv();
+                          final n = await PlaytestLog.count();
+                          await Clipboard.setData(ClipboardData(text: csv));
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(lm.translate('playlog_copied').replaceAll('{n}', '$n'))));
+                        },
+                        icon: Icon(Icons.content_copy_rounded, size: 16, color: AppColors.textDim),
+                        label: Text(lm.translate('playlog_copy'), style: AppTextStyles.text(12, color: AppColors.textDim, weight: FontWeight.w700)),
+                      ),
+                    ),
                     Text(lm.translate('stats_device_note'),
                         textAlign: TextAlign.center,
                         style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w500)),
@@ -240,7 +258,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       decoration: last ? null : BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.line))),
       child: Row(
         children: [
-          CharacterAvatar(characterId: c.id, size: 36),
+          AvatarView.character(c.id, size: 36),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

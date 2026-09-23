@@ -12,14 +12,11 @@ class LanguageManager extends ChangeNotifier {
   String get currentLanguage => _currentLanguage;
 
   /// 지원 언어(표시 이름). 중국어·일본어는 번역을 채우는 중이라 [showDraftLanguages] 가 true 일 때만 설정에 보인다.
-  static const Map<String, String> languageNames = {'en': 'EN', 'ko': 'KO', 'zh': '中文', 'ja': '日本語'};
-  static const List<String> releasedLanguages = ['en', 'ko'];
-  static const List<String> draftLanguages = ['zh', 'ja'];
+  static const Map<String, String> languageNames = {'en': 'English', 'ko': '한국어', 'zh': '中文', 'ja': '日本語'};
+  static const List<String> releasedLanguages = ['en', 'ko', 'zh', 'ja']; // 2026-09-22 중국어·일본어 공개(원어민 검수 전)
+  static const List<String> draftLanguages = [];
   static const bool showDraftLanguages = false;
   static List<String> get visibleLanguages => [...releasedLanguages, if (showDraftLanguages) ...draftLanguages];
-
-  /// 강조 표기 `[존]` 을 떼어 낸 문구 — 공유 문구 등 강조를 그릴 수 없는 곳에 쓴다
-  static String stripEmphasis(String s) => s.replaceAll('[', '').replaceAll(']', '');
 
   /// `[존]에서 [버]텨라` → (글자, 강조 여부) 조각들
   static List<(String, bool)> parseEmphasis(String s) {
@@ -42,32 +39,32 @@ class LanguageManager extends ChangeNotifier {
   }
 
   Future<void> init() async {
-    print('LanguageManager: init() called');
+    debugPrint('LanguageManager: init() called');
     final prefs = await SharedPreferences.getInstance();
     _currentLanguage = prefs.getString('language') ?? 'ko';
-    print('LanguageManager: Loaded language $_currentLanguage');
+    debugPrint('LanguageManager: Loaded language $_currentLanguage');
     notifyListeners();
   }
 
   Future<void> changeLanguage(String languageCode) async {
-    print('LanguageManager: changeLanguage($languageCode) called. Current: $_currentLanguage');
+    debugPrint('LanguageManager: changeLanguage($languageCode) called. Current: $_currentLanguage');
     if (_currentLanguage == languageCode) return;
 
     if (appTranslations.containsKey(languageCode)) {
       // Optimistic update
       _currentLanguage = languageCode;
       notifyListeners();
-      print('LanguageManager: Language changed to $languageCode (Optimistic)');
+      debugPrint('LanguageManager: Language changed to $languageCode (Optimistic)');
 
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('language', languageCode);
-        print('LanguageManager: Persisted language to prefs');
+        debugPrint('LanguageManager: Persisted language to prefs');
       } catch (e) {
-        print('LanguageManager: Failed to save language: $e');
+        debugPrint('LanguageManager: Failed to save language: $e');
       }
     } else {
-      print('LanguageManager: Invalid language code $languageCode');
+      debugPrint('LanguageManager: Invalid language code $languageCode');
     }
   }
 
@@ -114,6 +111,4 @@ class LanguageManager extends ChangeNotifier {
     return out.toString();
   }
 
-  /// 앱 밖(공유·클립보드)으로 나가는 문자열에서 줄바꿈 제어 문자를 뺀다
-  static String stripJoiners(String s) => s.replaceAll(_wordJoiner, '');
 }
