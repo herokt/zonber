@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import 'game_art.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 꾸미기 — 몸통 스킨(skin) · 이동 잔상(trail) · 캐릭터 오라(aura). 코인으로 사고 종류마다 하나씩 착용한다.
@@ -32,9 +31,13 @@ class Cosmetics {
   static const List<Cosmetic> all = [
     // 몸통 스킨
     Cosmetic('skin_none', CosmeticKind.skin, 0),
+    Cosmetic('skin_cloud', CosmeticKind.skin, 350),
     Cosmetic('skin_silver', CosmeticKind.skin, 400),
     Cosmetic('skin_candy', CosmeticKind.skin, 450),
+    Cosmetic('skin_sunset', CosmeticKind.skin, 450),
     Cosmetic('skin_ice', CosmeticKind.skin, 500),
+    Cosmetic('skin_ocean', CosmeticKind.skin, 550),
+    Cosmetic('skin_neon', CosmeticKind.skin, 600),
     Cosmetic('skin_gold', CosmeticKind.skin, 650),
     Cosmetic('skin_lava', CosmeticKind.skin, 700),
     Cosmetic('skin_galaxy', CosmeticKind.skin, 750),
@@ -43,16 +46,24 @@ class Cosmetics {
     Cosmetic('trail_basic', CosmeticKind.trail, 0),
     Cosmetic('trail_sparkle', CosmeticKind.trail, 200),
     Cosmetic('trail_bubble', CosmeticKind.trail, 250),
+    Cosmetic('trail_note', CosmeticKind.trail, 250),
     Cosmetic('trail_heart', CosmeticKind.trail, 300),
+    Cosmetic('trail_petal', CosmeticKind.trail, 300),
+    Cosmetic('trail_snow', CosmeticKind.trail, 350),
     Cosmetic('trail_flame', CosmeticKind.trail, 350),
+    Cosmetic('trail_bolt', CosmeticKind.trail, 450),
     Cosmetic('trail_rainbow', CosmeticKind.trail, 500),
     // 오라
     Cosmetic('aura_none', CosmeticKind.aura, 0),
     Cosmetic('aura_ring', CosmeticKind.aura, 200),
+    Cosmetic('aura_petal', CosmeticKind.aura, 300),
     Cosmetic('aura_orbit', CosmeticKind.aura, 350),
     Cosmetic('aura_electric', CosmeticKind.aura, 450),
     Cosmetic('aura_halo', CosmeticKind.aura, 500),
+    Cosmetic('aura_butterfly', CosmeticKind.aura, 550),
+    Cosmetic('aura_flame', CosmeticKind.aura, 600),
     Cosmetic('aura_crown', CosmeticKind.aura, 700),
+    Cosmetic('aura_star', CosmeticKind.aura, 800),
   ];
 
   static List<Cosmetic> ofKind(CosmeticKind k) => all.where((c) => c.kind == k).toList();
@@ -79,15 +90,6 @@ class Cosmetics {
 void paintTrailParticle(Canvas canvas, String trailId, double p, double seed, Color base, {double scale = 1}) {
   final fade = (1 - p).clamp(0.0, 1.0);
   switch (trailId) {
-    case 'trail_sparkle' when GameArt.img('fx_sparkle') != null:
-      GameArt.draw(canvas, 'fx_sparkle', Offset.zero, (14 + 6 * seed) * (0.5 + 0.5 * fade) * scale, opacity: fade);
-      break;
-    case 'trail_heart' when GameArt.img('fx_heart') != null:
-      canvas.save();
-      canvas.translate(0, -6 * p * scale);
-      GameArt.draw(canvas, 'fx_heart', Offset.zero, (9 + 3 * seed) * (0.6 + 0.4 * fade) * scale, opacity: fade);
-      canvas.restore();
-      break;
     case 'trail_sparkle':
       // 별가루 — 네 갈래 반짝임, 금·흰색이 섞인다
       final c = seed < 0.5 ? const Color(0xFFFFE27A) : Colors.white;
@@ -120,6 +122,72 @@ void paintTrailParticle(Canvas canvas, String trailId, double p, double seed, Co
       canvas.drawCircle(Offset.zero, r, Paint()
         ..color = col.withValues(alpha: 0.9 * fade)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.2 * scale));
+      break;
+    case 'trail_note':
+      // 음표 — 분홍·보라 음표가 흔들리며 떠오른다
+      final col = Color.lerp(const Color(0xFFFF8AD0), const Color(0xFF9B7BFF), seed)!;
+      canvas.save();
+      canvas.translate(sin(p * 6 + seed * 6) * 3 * scale, -8 * p * scale);
+      canvas.scale((0.5 + 0.5 * fade) * scale);
+      final paint = Paint()..color = col.withValues(alpha: fade);
+      canvas.drawOval(Rect.fromCenter(center: const Offset(-1.4, 3.4), width: 5, height: 3.8), paint);
+      canvas.drawRect(const Rect.fromLTWH(0.5, -5, 1.4, 8.4), paint);
+      canvas.drawPath(
+          Path()
+            ..moveTo(1.9, -5)
+            ..quadraticBezierTo(5.4, -3.6, 4.2, -0.6)
+            ..quadraticBezierTo(4.6, -3.4, 1.9, -3.2)
+            ..close(),
+          paint);
+      canvas.restore();
+      break;
+    case 'trail_petal':
+      // 꽃잎 — 연분홍 잎이 빙글 돌며 떨어진다
+      final col = Color.lerp(const Color(0xFFFFC2DC), const Color(0xFFFF7FB0), seed)!;
+      canvas.save();
+      canvas.translate(sin(p * 4 + seed * 6) * 4 * scale, 5 * p * scale);
+      canvas.rotate(p * 4 + seed * 6);
+      final w = (5.5 + 1.5 * seed) * scale, h = w * 0.55 * (0.45 + 0.55 * cos(p * 5).abs());
+      canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: w, height: max(0.8, h)),
+          Paint()..color = col.withValues(alpha: 0.95 * fade));
+      canvas.restore();
+      break;
+    case 'trail_snow':
+      // 눈송이 — 여섯 갈래 결정이 천천히 돈다
+      canvas.save();
+      canvas.translate(sin(p * 3 + seed * 6) * 3 * scale, 4 * p * scale);
+      canvas.rotate(p * 2 + seed * 6);
+      final rr = (3.6 + 1.6 * seed) * (0.5 + 0.5 * fade) * scale;
+      final arm = Paint()
+        ..color = const Color(0xFFE8F7FF).withValues(alpha: fade)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = max(0.7, 1.1 * scale);
+      for (int i = 0; i < 3; i++) {
+        final a = i * pi / 3;
+        final d = Offset(cos(a) * rr, sin(a) * rr);
+        canvas.drawLine(-d, d, arm);
+      }
+      canvas.drawCircle(Offset.zero, rr * 0.22, Paint()..color = Colors.white.withValues(alpha: fade));
+      canvas.restore();
+      break;
+    case 'trail_bolt':
+      // 번개 — 노란 지그재그가 짧게 번쩍인다
+      final zig = Path()
+        ..moveTo(1.4 * scale, -6 * scale)
+        ..lineTo(-1.8 * scale, 0.4 * scale)
+        ..lineTo(0.6 * scale, 0.4 * scale)
+        ..lineTo(-1.6 * scale, 6 * scale)
+        ..lineTo(2.4 * scale, -0.8 * scale)
+        ..lineTo(0.2 * scale, -0.8 * scale)
+        ..close();
+      canvas.save();
+      canvas.scale(0.5 + 0.5 * fade);
+      canvas.drawPath(zig, Paint()
+        ..color = const Color(0xFF7DD3FC).withValues(alpha: 0.7 * fade)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2 * scale));
+      canvas.drawPath(zig, Paint()..color = const Color(0xFFFFF3A0).withValues(alpha: fade));
+      canvas.restore();
       break;
     case 'trail_rainbow':
       // 무지개 — 입자마다 색상이 돌아간다
@@ -159,7 +227,6 @@ void _heart(Canvas canvas, double r, Paint paint) {
 /// 캐릭터 둘레의 오라를 [center] 기준으로 그린다. [r] 캐릭터 반지름, [t] 경과 시간(초).
 /// [front] false = 캐릭터 뒤(먼저 그림), true = 앞(나중에 그림). 왕관·고리처럼 위에 얹히는 건 앞에.
 void paintAura(Canvas canvas, String auraId, Offset center, double r, double t, Color base, {required bool front}) {
-  if (_paintAuraArt(canvas, auraId, center, r, t, front)) return;
   switch (auraId) {
     case 'aura_ring':
       if (front) return;
@@ -182,12 +249,12 @@ void paintAura(Canvas canvas, String auraId, Offset center, double r, double t, 
         final a = t * 3 + i * pi;
         final isFront = sin(a) > 0;
         if (isFront != front) continue;
-        final p = center + Offset(cos(a) * (r + 7), sin(a) * (r + 7) * 0.45);
-        canvas.drawCircle(p, 3.4, Paint()..color = (i == 0 ? const Color(0xFF7DD3FC) : const Color(0xFFFDE68A)));
-        canvas.drawCircle(p + const Offset(-1, -1), 1.1, Paint()..color = Colors.white.withValues(alpha: 0.9));
+        final p = center + Offset(cos(a) * (r + 14), sin(a) * (r + 14) * 0.5);
+        canvas.drawCircle(p, 4.4, Paint()..color = (i == 0 ? const Color(0xFF7DD3FC) : const Color(0xFFFDE68A)));
+        canvas.drawCircle(p + const Offset(-1.3, -1.3), 1.4, Paint()..color = Colors.white.withValues(alpha: 0.9));
       }
       if (!front) {
-        canvas.drawOval(Rect.fromCenter(center: center, width: (r + 7) * 2, height: (r + 7) * 0.9), Paint()
+        canvas.drawOval(Rect.fromCenter(center: center, width: (r + 14) * 2, height: (r + 14) * 1.0), Paint()
           ..color = Colors.white.withValues(alpha: 0.18)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1);
@@ -201,7 +268,7 @@ void paintAura(Canvas canvas, String auraId, Offset center, double r, double t, 
       const n = 18;
       for (int i = 0; i <= n; i++) {
         final a = i / n * 2 * pi;
-        final rr = r + 5 + (rng.nextDouble() - 0.5) * 6;
+        final rr = r + 9 + (rng.nextDouble() - 0.5) * 9;
         final pt = center + Offset(cos(a) * rr, sin(a) * rr);
         i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
       }
@@ -218,17 +285,17 @@ void paintAura(Canvas canvas, String auraId, Offset center, double r, double t, 
     case 'aura_halo':
       if (!front) {
         // 은은한 금빛 후광
-        canvas.drawCircle(center, r + 6, Paint()
-          ..shader = ui.Gradient.radial(center, r + 8, [const Color(0x55FFE08A), const Color(0x00FFE08A)]));
+        canvas.drawCircle(center, r + 12, Paint()
+          ..shader = ui.Gradient.radial(center, r + 14, [const Color(0x55FFE08A), const Color(0x00FFE08A)]));
         return;
       }
       // 천사 고리 — 머리 위에 떠서 살짝 오르내린다
-      final y = center.dy - r * 0.95 + sin(t * 2.5) * 1.5;
-      final rect = Rect.fromCenter(center: Offset(center.dx, y), width: r * 1.3, height: r * 0.42);
+      final y = center.dy - r * 1.35 + sin(t * 2.5) * r * 0.12;
+      final rect = Rect.fromCenter(center: Offset(center.dx, y), width: r * 1.5, height: r * 0.48);
       canvas.drawOval(rect, Paint()
         ..color = const Color(0xFFFFD66B)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.6);
+        ..strokeWidth = 3.0);
       canvas.drawOval(rect, Paint()
         ..color = Colors.white.withValues(alpha: 0.6)
         ..style = PaintingStyle.stroke
@@ -266,50 +333,85 @@ void paintAura(Canvas canvas, String auraId, Offset center, double r, double t, 
         ..strokeWidth = 1);
       canvas.drawCircle(Offset(bx + w * 0.5, by - h * 0.35), 1.8, Paint()..color = const Color(0xFFE5484D));
       break;
+    case 'aura_petal':
+      // 꽃잎 — 연분홍 잎 여섯이 넓게 돌며 흩날린다(뒤쪽 반은 캐릭터 뒤)
+      for (int i = 0; i < 6; i++) {
+        final a = t * 1.1 + i * pi / 3;
+        if ((sin(a) > 0) != front) continue;
+        final rr = r + 20 + sin(t * 2 + i) * 3;
+        final p = center + Offset(cos(a) * rr, sin(a) * rr * 0.45 - r * 0.1);
+        canvas.save();
+        canvas.translate(p.dx, p.dy);
+        canvas.rotate(a * 1.6);
+        canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: 8.5, height: 4.6),
+            Paint()..color = Color.lerp(const Color(0xFFFFC2DC), const Color(0xFFFF7FB0), (i % 3) / 2)!);
+        canvas.drawOval(Rect.fromCenter(center: const Offset(-1.6, -0.6), width: 3.2, height: 1.6),
+            Paint()..color = Colors.white.withValues(alpha: 0.55));
+        canvas.restore();
+      }
+      break;
+    case 'aura_butterfly':
+      // 나비 — 두 마리가 넓은 타원을 날아 돈다. 날개는 퍼덕인다
+      for (int i = 0; i < 2; i++) {
+        final a = t * 1.4 + i * pi;
+        if ((sin(a) > 0) != front) continue;
+        final rr = r + 22;
+        final p = center + Offset(cos(a) * rr, sin(a) * rr * 0.5 - r * 0.45 + sin(t * 5 + i) * 3);
+        final flap = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * 14 + i * 2));
+        final body = i == 0 ? const Color(0xFF8AB4FF) : const Color(0xFFFFA8D8);
+        canvas.save();
+        canvas.translate(p.dx, p.dy);
+        canvas.rotate(sin(a) * 0.25);
+        for (final sx in [-1.0, 1.0]) {
+          canvas.drawOval(Rect.fromCenter(center: Offset(sx * 3.4 * flap, -1.6), width: 6.4 * flap, height: 5.4),
+              Paint()..color = body);
+          canvas.drawOval(Rect.fromCenter(center: Offset(sx * 2.8 * flap, 2.0), width: 5.0 * flap, height: 4.0),
+              Paint()..color = body.withValues(alpha: 0.8));
+        }
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: 1.6, height: 7), const Radius.circular(0.8)),
+            Paint()..color = const Color(0xFF3A2E5A));
+        canvas.restore();
+      }
+      break;
+    case 'aura_flame':
+      if (front) return;
+      // 불꽃 — 몸 바깥 둘레를 따라 불길이 넓게 솟는다(양 끝이 어깨 위까지 올라온다)
+      for (int i = 0; i < 9; i++) {
+        final a = pi * (0.05 + i * 0.1125);
+        final h = r * (0.7 + 0.5 * (0.5 + 0.5 * sin(t * 9 + i * 1.7)));
+        final base = center + Offset(cos(a) * r * 1.22, r * 0.2 + sin(a) * r * 0.75);
+        final w = r * 0.28;
+        final p = Path()
+          ..moveTo(base.dx - w, base.dy)
+          ..quadraticBezierTo(base.dx - w * 1.2, base.dy - h * 0.6, base.dx, base.dy - h)
+          ..quadraticBezierTo(base.dx + w * 1.2, base.dy - h * 0.6, base.dx + w, base.dy)
+          ..close();
+        canvas.drawPath(p, Paint()
+          ..shader = ui.Gradient.linear(Offset(0, base.dy), Offset(0, base.dy - h),
+              const [Color(0xFFFF5A2E), Color(0xFFFFB13D), Color(0x00FFF3A0)], const [0, 0.55, 1]));
+      }
+      break;
+    case 'aura_star':
+      // 별무리 — 금빛 별 넷이 넓은 궤도를 돌며 깜빡인다
+      for (int i = 0; i < 4; i++) {
+        final a = t * 1.8 + i * pi / 2;
+        if ((sin(a) > 0) != front) continue;
+        final rr = r + 18 + sin(t * 3 + i) * 4;
+        canvas.save();
+        canvas.translate(center.dx + cos(a) * rr, center.dy + sin(a) * rr * 0.55);
+        canvas.rotate(t * 1.2 + i);
+        final s = 4.2 + 1.6 * sin(t * 6 + i * 1.5);
+        _star4(canvas, s + 1.6, Paint()
+          ..color = const Color(0xFFFFE27A).withValues(alpha: 0.45)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5));
+        _star4(canvas, s, Paint()..color = const Color(0xFFFFF3C4));
+        canvas.restore();
+      }
+      break;
     default:
       return; // aura_none
   }
-}
-
-/// 오라 그림(assets/images/game/fx_*) — 있으면 그림으로 그리고 true
-bool _paintAuraArt(Canvas canvas, String auraId, Offset c, double r, double t, bool front) {
-  switch (auraId) {
-    case 'aura_ring':
-      if (GameArt.img('fx_neon_ring') == null) return false;
-      if (!front) {
-        final pulse = 1 + 0.06 * sin(t * 4);
-        GameArt.draw(canvas, 'fx_neon_ring', c + Offset(0, r * 0.9), r * 2.6 * pulse); // 발밑 고리
-      }
-      return true;
-    case 'aura_orbit':
-      if (GameArt.img('fx_planet') == null) return false;
-      for (int i = 0; i < 2; i++) {
-        final a = t * 2.5 + i * pi;
-        if ((sin(a) > 0) != front) continue;
-        GameArt.draw(canvas, 'fx_planet', c + Offset(cos(a) * r * 1.5, sin(a) * r * 0.55), r * 0.8);
-      }
-      return true;
-    case 'aura_electric':
-      if (GameArt.img('fx_bolt') == null) return false;
-      if (front) {
-        final k = (t * 6).floor();
-        for (int i = 0; i < 3; i++) {
-          final a = i * 2 * pi / 3 + k * 0.9;
-          GameArt.draw(canvas, 'fx_bolt', c + Offset(cos(a), sin(a)) * r * 1.35, r * 0.55, rotation: a + pi / 2,
-              opacity: 0.6 + 0.4 * ((k + i) % 2));
-        }
-      }
-      return true;
-    case 'aura_halo':
-      if (GameArt.img('fx_halo') == null) return false;
-      if (front) GameArt.draw(canvas, 'fx_halo', c + Offset(0, -r * 1.25 + sin(t * 2.5) * r * 0.06), r * 1.4);
-      return true;
-    case 'aura_crown':
-      if (GameArt.img('fx_crown') == null) return false;
-      if (front) GameArt.draw(canvas, 'fx_crown', c + Offset(0, -r * 1.2), r * 1.2);
-      return true;
-  }
-  return false;
 }
 
 // ── 상점 미리보기 ─────────────────────────────────────────────
@@ -328,6 +430,8 @@ class CosmeticPreview extends StatefulWidget {
 
 class _CosmeticPreviewState extends State<CosmeticPreview> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat();
+  // 그림 시간은 되감지 않고 계속 흐른다 — 컨트롤러는 다시 그리는 신호로만 쓴다(무지개 등이 6초마다 뚝 끊기지 않게)
+  final Stopwatch _clock = Stopwatch()..start();
 
   @override
   void dispose() {
@@ -344,7 +448,7 @@ class _CosmeticPreviewState extends State<CosmeticPreview> with SingleTickerProv
       child: AnimatedBuilder(
         animation: _c,
         builder: (context, child) {
-          final t = _c.value * 6;
+          final t = _clock.elapsedMicroseconds / 1e6;
           return Stack(
             alignment: Alignment.center,
             children: [
@@ -399,4 +503,92 @@ class _PreviewPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PreviewPainter old) => true;
+}
+
+/// 여러 꾸미기를 한 캐릭터에 **함께** 입혀 보는 무대 — 내 가방 미리보기.
+/// 잔상은 뒤로 흐르고, 오라는 캐릭터 뒤·앞에 겹쳐 그린다(스킨은 캐릭터 그림 자체라 여기서 다루지 않는다).
+/// [charRadius] 는 그릴 캐릭터의 몸 반지름(px) — 게임 기준 반지름 18에 맞춰 효과 크기를 정한다.
+class CosmeticStage extends StatefulWidget {
+  final List<Cosmetic> items;
+  final Color base;
+  final double charRadius;
+  final Widget child;
+  const CosmeticStage({super.key, required this.items, required this.base, required this.charRadius, required this.child});
+
+  @override
+  State<CosmeticStage> createState() => _CosmeticStageState();
+}
+
+class _CosmeticStageState extends State<CosmeticStage> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat();
+  // 시간은 되감지 않는다 — 무지개·불꽃이 6초마다 끊기지 않게
+  final Stopwatch _clock = Stopwatch()..start();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) {
+          final t = _clock.elapsedMicroseconds / 1e6;
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(child: CustomPaint(painter: _StagePainter(widget.items, widget.base, t, widget.charRadius, front: false))),
+              child!,
+              Positioned.fill(child: CustomPaint(painter: _StagePainter(widget.items, widget.base, t, widget.charRadius, front: true))),
+            ],
+          );
+        },
+        child: widget.child,
+      );
+}
+
+class _StagePainter extends CustomPainter {
+  final List<Cosmetic> items;
+  final Color base;
+  final double t;
+
+  /// 캐릭터 몸 반지름(px)
+  final double r;
+  final bool front;
+  _StagePainter(this.items, this.base, this.t, this.r, {required this.front});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    for (final item in items) {
+      switch (item.kind) {
+        case CosmeticKind.skin:
+          break; // 캐릭터 그림이 직접 그린다
+        case CosmeticKind.aura:
+          canvas.save();
+          canvas.translate(center.dx, center.dy);
+          canvas.scale(r / 18); // paintAura 는 반지름 18 기준
+          paintAura(canvas, item.id, Offset.zero, 18, t, base, front: front);
+          canvas.restore();
+        case CosmeticKind.trail:
+          if (front) break;
+          // 잔상 — 캐릭터 뒤(왼쪽)로 입자가 흘러간다
+          const n = 9;
+          for (int i = 0; i < n; i++) {
+            final p = ((t * 1.4 + i / n) % 1.0);
+            final seed = ((i * 37) % 100) / 100.0;
+            final x = center.dx - r * 0.8 - p * r * 2.2;
+            final y = center.dy + sin(i * 1.7 + t * 3) * r * 0.32;
+            canvas.save();
+            canvas.translate(x, y);
+            paintTrailParticle(canvas, item.id, p, seed, base, scale: r / 15);
+            canvas.restore();
+          }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StagePainter old) => true;
 }

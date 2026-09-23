@@ -17,7 +17,6 @@ class AnalyticsService {
   String? _lastScreen;
 
   bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-  bool get isEnabled => _analytics != null;
 
   Future<void> initialize() async {
     if (!_isMobile) return;
@@ -85,8 +84,7 @@ class AnalyticsService {
   }
 
   /// 최초 실행에서 자동 게스트 세션이 만들어진 시점 (설치 → 첫 진입 퍼널의 시작).
-  Future<void> logGuestStart({required bool anonymousAuthOk}) =>
-      _log('guest_start', {'anonymous_auth': anonymousAuthOk ? 1 : 0});
+  Future<void> logGuestStart() => _log('guest_start');
 
   /// 로그인 화면에서 게스트로 계속하기를 눌러 로그인을 건너뛴 시점.
   Future<void> logLoginSkipped() => _log('login_skipped');
@@ -164,19 +162,6 @@ class AnalyticsService {
   /// 게스트가 점수 제출을 눌렀다가 로그인 안내를 받은 시점 — 게스트→계정 전환 퍼널의 입구.
   Future<void> logGuestRankingBlocked({required double survivalTime}) =>
       _log('guest_ranking_blocked', {'survival_time': _round3(survivalTime)});
-
-  Future<void> logRankingView(String mapId) =>
-      _log('ranking_view', {'map_id': mapId});
-
-  Future<void> logAchievementUnlock(String key) async {
-    final a = _analytics;
-    if (a == null) return;
-    try {
-      await a.logUnlockAchievement(id: key);
-    } catch (e) {
-      debugPrint('Analytics achievement failed: $e');
-    }
-  }
 
   static double _round3(double v) => (v * 1000).round() / 1000;
 }

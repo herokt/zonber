@@ -12,6 +12,9 @@ import 'language_manager.dart';
 import 'achievement_manager.dart';
 import 'progress_store.dart';
 import 'coin_store.dart';
+import 'daily_rewards.dart';
+import 'badges.dart';
+import 'services/auth_service.dart';
 
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
@@ -55,6 +58,20 @@ class UserProfileManager {
   }
 
   // Helper method to detect login provider
+  /// 이메일은 공개 유저 문서(users/{uid} — 랭킹에서 누구나 읽음)가 아니라
+  /// 본인·관리자만 읽는 users/{uid}/private/account 에 둔다(firestore.rules)
+  static Future<void> savePrivateAccount(User user) async {
+    if (user.isAnonymous) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('private').doc('account').set({
+        'email': user.email ?? '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('private account save failed: $e');
+    }
+  }
+
   static String _getLoginProvider(User? user) {
     if (user == null) return 'None';
 
@@ -84,60 +101,40 @@ class UserProfileManager {
   }
 
   static Future<bool> hasProfile() async {
-    print('=== CHECKING PROFILE ===');
+    debugPrint('=== CHECKING PROFILE ===');
     final prefs = await SharedPreferences.getInstance();
     final localSetupDone = prefs.getBool(_keyInitialSetupDone) ?? false;
-    print('Local setup done: $localSetupDone');
+    debugPrint('Local setup done: $localSetupDone');
 
     if (localSetupDone) {
-      final guestFlagSet = prefs.getBool(_keyIsGuest) ?? false;
-      final authUser = FirebaseAuth.instance.currentUser;
-      final isAnonymous = authUser == null || authUser.isAnonymous;
-
-      if (guestFlagSet && isAnonymous) {
-        // 게스트는 랭킹 등록 자체가 불가능하므로 국가를 강제하지 않는다.
-        // (첫 플레이 전 폼 입력은 하이퍼캐주얼에서 이탈로 직결됨 —
-        //  실제 계정으로 전환하는 시점에 받는다)
-        return true;
-      }
-
-      if (guestFlagSet && !isAnonymous) {
-        // 게스트 → 정식 계정 전환. 닉네임·국가를 새로 받아야 하므로
-        // 최초 설정 화면으로 되돌린다.
-        print('Guest upgraded to a real account — requiring profile setup');
-        await prefs.setBool(_keyIsGuest, false);
-        await prefs.setBool(_keyInitialSetupDone, false);
-        return false;
-      }
-
       final nickname = prefs.getString(_keyNickname) ?? '';
       final flag = prefs.getString(_keyFlag) ?? '';
       final countryName = prefs.getString(_keyCountryName) ?? '';
       if (isCompleteProfile(nickname, flag, countryName)) {
-        print('Profile found locally');
+        debugPrint('Profile found locally');
         return true;
       }
       // 닉네임·국가 중 하나라도 비었으면 로컬로는 가입 미완료 — 원격을 확인하고, 거기도 없으면 설정 화면
-      print('Local profile incomplete — checking remote');
+      debugPrint('Local profile incomplete — checking remote');
     }
 
     // Check remote if not found locally
     final user = FirebaseAuth.instance.currentUser;
-    print('Firebase user: ${user?.uid ?? "not logged in"}');
+    debugPrint('Firebase user: ${user?.uid ?? "not logged in"}');
 
     if (user != null) {
       try {
-        print('Fetching profile from Firestore...');
+        debugPrint('Fetching profile from Firestore...');
         final doc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
 
-        print('Firestore document exists: ${doc.exists}');
+        debugPrint('Firestore document exists: ${doc.exists}');
 
         if (doc.exists) {
           final data = doc.data()!;
-          print('Profile data from Firestore: $data');
+          debugPrint('Profile data from Firestore: $data');
 
           await prefs.setString(_keyNickname, data['nickname'] ?? 'Unknown');
           await prefs.setString(_keyFlag, data['flag'] ?? '');
@@ -180,7 +177,7 @@ class UserProfileManager {
 
           // 닉네임·국가를 다 고른 계정만 가입 완료. 하나라도 비었으면 설정 화면으로
           if (!isCompleteProfile(data['nickname'] as String?, data['flag'] as String?, data['countryName'] as String?)) {
-            print('Firestore profile incomplete — requiring profile setup');
+            debugPrint('Firestore profile incomplete — requiring profile setup');
             await prefs.setBool(_keyInitialSetupDone, false);
             return false;
           }
@@ -197,38 +194,43 @@ class UserProfileManager {
           {
             await ProgressStore.mergeFromRemote(data);
             await CoinStore.mergeFromRemote(data);
+            await DailyRewards.mergeFromRemote(data);
+            await BadgeStatsStore.mergeFromRemote(data);
           }
 
           // Update platform and login info on sync
+          savePrivateAccount(user);
           try {
             await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
               'platform': _getCurrentPlatform(),
               'loginProvider': _getLoginProvider(user),
-              'email': user.email ?? '',
               'lastUpdated': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
           } catch (e) {
-            print("Error updating platform info: $e");
+            debugPrint("Error updating platform info: $e");
           }
 
-          print('Profile synced from Firestore to local');
+          debugPrint('Profile synced from Firestore to local');
           return true;
         } else {
-          print('No profile found in Firestore');
+          debugPrint('No profile found in Firestore');
         }
       } catch (e) {
-        print("ERROR fetching profile from Firestore: $e");
+        debugPrint("ERROR fetching profile from Firestore: $e");
       }
     }
 
-    print('No profile found');
+    debugPrint('No profile found');
     return false;
   }
 
-  // Force sync from remote to local
+  /// 원격(users/{uid}) → 이 기기. 로그인 직후·앱 시작·앱 복귀에 부른다.
+  /// **프로필만이 아니라 코인·보유 아이템·기록·미션까지 함께 가져온다** —
+  /// 안 그러면 갓 로그인한 기기의 빈 값(코인 0)이 나중에 원격을 덮어쓴다.
+  /// 백오피스에서 고친 값도 이 경로로 게임에 들어온다.
   static Future<void> syncProfile() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null || AuthService.isGuest) return;
 
     try {
       final doc = await FirebaseFirestore.instance
@@ -275,9 +277,17 @@ class UserProfileManager {
         }
 
         await prefs.setBool(_keyInitialSetupDone, true);
+
+        // 코인·보유 아이템·착용·기록·미션·뱃지 — 원격이 최신이다
+        final remoteAchievements = List<String>.from(data['achievements'] ?? []);
+        if (remoteAchievements.isNotEmpty) await AchievementManager.syncFromFirestore(remoteAchievements);
+        await ProgressStore.mergeFromRemote(data);
+        await CoinStore.mergeFromRemote(data);
+        await DailyRewards.mergeFromRemote(data);
+        await BadgeStatsStore.mergeFromRemote(data);
       }
     } catch (e) {
-      print("Error syncing profile: $e");
+      debugPrint("Error syncing profile: $e");
     }
   }
 
@@ -299,31 +309,7 @@ class UserProfileManager {
     await prefs.remove(_keyIsGuest);
     await prefs.remove(_keyFirstEdit);
     await AchievementManager.clearLocal();
-  }
-
-  // Guest Mode Methods
-  static Future<bool> isGuestMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyIsGuest) ?? false;
-  }
-
-  static Future<void> enableGuestMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyIsGuest, true);
-    // 게스트는 국가 선택 없이 바로 플레이할 수 있게 한다.
-    // 국가는 로그인 후 점수를 등록하는 시점에 InitialSetupPage에서 받는다.
-    await prefs.setBool(_keyInitialSetupDone, true);
-    await prefs.setString(_keyNickname, 'Guest');
-    await prefs.setString(_keyCharacterId, 'neon_green');
-    await prefs.setBool(
-      _keyFirstEdit,
-      true,
-    ); // Guest can edit profile once logged in
-  }
-
-  static Future<void> disableGuestMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyIsGuest, false);
+    await BadgeStatsStore.clearLocal();
   }
 
   // First Edit (Free edit for first-time users)
@@ -338,13 +324,13 @@ class UserProfileManager {
 
     // Sync to Firebase
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
+    if (user != null && !user.isAnonymous) { // 게스트 통계는 기기에만
       try {
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'firstEditUsed': true,
         }, SetOptions(merge: true));
       } catch (e) {
-        print("Error syncing firstEdit to Firebase: $e");
+        debugPrint("Error syncing firstEdit to Firebase: $e");
       }
     }
   }
@@ -359,64 +345,17 @@ class UserProfileManager {
     };
   }
 
-  static Future<Map<String, int>> getMapPlayCounts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_keyMapPlayCounts);
-    if (jsonString != null) {
-      try {
-        final decoded = jsonDecode(jsonString);
-        return Map<String, int>.from(decoded);
-      } catch (e) {
-        print("Error decoding play counts: $e");
-      }
-    }
-    return {};
-  }
-
-  static Future<void> incrementMapPlayCount(String mapId) async {
-    final prefs = await SharedPreferences.getInstance();
-    Map<String, int> counts = await getMapPlayCounts();
-    counts[mapId] = (counts[mapId] ?? 0) + 1;
-
-    // Save Local
-    await prefs.setString(_keyMapPlayCounts, jsonEncode(counts));
-
-    // Attempt Sync Remote
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        // Use atomic increment for the specific map field
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({
-              'mapPlayCounts.$mapId': FieldValue.increment(1),
-              'totalGamesPlayed': FieldValue.increment(1),
-              'platform': _getCurrentPlatform(),
-              'loginProvider': _getLoginProvider(user),
-              'email': user.email ?? '',
-              'lastUpdated': FieldValue.serverTimestamp(),
-            });
-      } catch (e) {
-        print("Error syncing play count: $e");
-      }
-    }
-
-    // Update local total games played too
-    int total = prefs.getInt(_keyTotalGamesPlayed) ?? 0;
-    await prefs.setInt(_keyTotalGamesPlayed, total + 1);
-  }
-
   static Future<void> saveProfile(
     String nickname,
     String flag,
     String countryName, {
     String? characterId,
   }) async {
-    print('=== SAVING PROFILE ===');
-    print('Nickname: $nickname');
-    print('Flag: $flag');
-    print('Country: $countryName');
+    if (AuthService.isGuest) return; // 게스트는 프로필을 남기지 않는다
+    debugPrint('=== SAVING PROFILE ===');
+    debugPrint('Nickname: $nickname');
+    debugPrint('Flag: $flag');
+    debugPrint('Country: $countryName');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyNickname, nickname);
@@ -426,15 +365,16 @@ class UserProfileManager {
       await prefs.setString(_keyCharacterId, characterId);
     }
     await prefs.setBool(_keyInitialSetupDone, true);
-    print('Profile saved to local storage');
+    debugPrint('Profile saved to local storage');
 
     // Sync to Firestore
     final user = FirebaseAuth.instance.currentUser;
-    print('Firebase user for sync: ${user?.uid ?? "not logged in"}');
+    debugPrint('Firebase user for sync: ${user?.uid ?? "not logged in"}');
 
     if (user != null) {
       try {
-        print('Syncing to Firestore...');
+        debugPrint('Syncing to Firestore...');
+        savePrivateAccount(user);
         final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
         final existingDoc = await docRef.get();
         final Map<String, dynamic> profileData = {
@@ -447,22 +387,21 @@ class UserProfileManager {
           'countryTickets': prefs.getInt(_keyCountryTicket) ?? 0,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
-          'email': user.email ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
         };
         if (!existingDoc.exists || (existingDoc.data() as Map?)?.containsKey('createdAt') != true) {
           profileData['createdAt'] = FieldValue.serverTimestamp();
         }
         await docRef.set(profileData, SetOptions(merge: true));
-        print('Profile synced to Firestore successfully');
+        debugPrint('Profile synced to Firestore successfully');
       } catch (e) {
-        print("ERROR saving to Firestore: $e");
+        debugPrint("ERROR saving to Firestore: $e");
       }
     } else {
-      print('WARNING: Not logged in, skipping Firestore sync');
+      debugPrint('WARNING: Not logged in, skipping Firestore sync');
     }
 
-    print('=== SAVE PROFILE END ===');
+    debugPrint('=== SAVE PROFILE END ===');
   }
 
   // markInitialSetupDone is now implicit in saveProfile but kept for compatibility
@@ -519,18 +458,6 @@ class UserProfileManager {
     return false;
   }
 
-  static Future<bool> useCountryTicket() async {
-    final prefs = await SharedPreferences.getInstance();
-    int current = prefs.getInt(_keyCountryTicket) ?? 0;
-    if (current > 0) {
-      int newVal = current - 1;
-      await prefs.setInt(_keyCountryTicket, newVal);
-      _syncTickets(country: newVal);
-      return true;
-    }
-    return false;
-  }
-
   static Future<void> _syncTickets({int? nickname, int? country}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -545,7 +472,7 @@ class UserProfileManager {
               .set(updates, SetOptions(merge: true));
         }
       } catch (e) {
-        print("Error syncing tickets: $e");
+        debugPrint("Error syncing tickets: $e");
       }
     }
   }
@@ -556,80 +483,24 @@ class UserProfileManager {
   }
 
   static Future<void> setAdsRemoved(bool value) async {
-    print('📍 UserProfile: setAdsRemoved called with value=$value');
+    debugPrint('📍 UserProfile: setAdsRemoved called with value=$value');
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyAdsRemoved, value);
-    print('📍 UserProfile: Local storage updated, adsRemoved=$value');
+    debugPrint('📍 UserProfile: Local storage updated, adsRemoved=$value');
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        print('📍 UserProfile: Syncing to Firebase for user ${user.uid}');
+        debugPrint('📍 UserProfile: Syncing to Firebase for user ${user.uid}');
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'adsRemoved': value,
         }, SetOptions(merge: true));
-        print('📍 UserProfile: Firebase sync SUCCESS, adsRemoved=$value');
+        debugPrint('📍 UserProfile: Firebase sync SUCCESS, adsRemoved=$value');
       } catch (e) {
-        print("❌ UserProfile: Error syncing adsRemoved to Firebase: $e");
+        debugPrint("❌ UserProfile: Error syncing adsRemoved to Firebase: $e");
       }
     } else {
-      print('⚠️ UserProfile: No Firebase user, skipping remote sync');
-    }
-  }
-
-  // Manual reset tracking (for testing purposes)
-  static Future<void> markPurchaseAsManuallyReset(String productId) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> resetList =
-        prefs.getStringList(_keyManuallyResetPurchases) ?? [];
-    if (!resetList.contains(productId)) {
-      resetList.add(productId);
-      await prefs.setStringList(_keyManuallyResetPurchases, resetList);
-      print('📍 Marked $productId as manually reset');
-    }
-
-    // Sync to Firebase
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'manuallyResetPurchases': resetList,
-        }, SetOptions(merge: true));
-        print('📍 Synced manual reset flags to Firebase');
-      } catch (e) {
-        print("❌ Error syncing manual reset to Firebase: $e");
-      }
-    }
-  }
-
-  static Future<bool> isPurchaseManuallyReset(String productId) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> resetList =
-        prefs.getStringList(_keyManuallyResetPurchases) ?? [];
-    return resetList.contains(productId);
-  }
-
-  static Future<void> clearManualResetFlag(String productId) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> resetList =
-        prefs.getStringList(_keyManuallyResetPurchases) ?? [];
-    if (resetList.contains(productId)) {
-      resetList.remove(productId);
-      await prefs.setStringList(_keyManuallyResetPurchases, resetList);
-      print('📍 Cleared manual reset flag for $productId');
-    }
-
-    // Sync to Firebase
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'manuallyResetPurchases': resetList,
-        }, SetOptions(merge: true));
-        print('📍 Synced manual reset flags to Firebase');
-      } catch (e) {
-        print("❌ Error syncing manual reset to Firebase: $e");
-      }
+      debugPrint('⚠️ UserProfile: No Firebase user, skipping remote sync');
     }
   }
 
@@ -646,7 +517,7 @@ class UserProfileManager {
       try {
         mapCounts = Map<String, int>.from(jsonDecode(mapCountsJson));
       } catch (e) {
-        print("Error parsing map counts: $e");
+        debugPrint("Error parsing map counts: $e");
       }
     }
 
@@ -656,7 +527,7 @@ class UserProfileManager {
       try {
         characterCounts = Map<String, int>.from(jsonDecode(charCountsJson));
       } catch (e) {
-        print("Error parsing character counts: $e");
+        debugPrint("Error parsing character counts: $e");
       }
     }
 
@@ -686,6 +557,7 @@ class UserProfileManager {
     required double playTime,
     required String mapId,
   }) async {
+    if (AuthService.isGuest) return; // 게스트 판은 통계·플레이 수에 넣지 않는다
     final prefs = await SharedPreferences.getInstance();
 
     double currentTotalTime = prefs.getDouble(_keyTotalPlayTime) ?? 0.0;
@@ -727,7 +599,6 @@ class UserProfileManager {
           'characterPlayCounts': characterCounts,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
-          'email': user.email ?? '',
           'lastUpdated': FieldValue.serverTimestamp(),
         };
         final docSnap = await docRef.get();
@@ -736,7 +607,7 @@ class UserProfileManager {
         }
         await docRef.set(statsData, SetOptions(merge: true));
       } catch (e) {
-        print("Error syncing stats: $e");
+        debugPrint("Error syncing stats: $e");
       }
     }
 
@@ -747,7 +618,7 @@ class UserProfileManager {
           .doc(mapId)
           .set({'playCount': FieldValue.increment(1)}, SetOptions(merge: true));
     } catch (e) {
-      print("Error syncing map play count: $e");
+      debugPrint("Error syncing map play count: $e");
     }
   }
 }
@@ -839,7 +710,7 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                             context,
                           ).translate('setup_nickname_hint'),
                           hintStyle: TextStyle(
-                            color: AppColors.textDim.withOpacity(0.5),
+                            color: AppColors.textDim.withValues(alpha: 0.5),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderSide: BorderSide(color: AppColors.textDim),
@@ -951,7 +822,7 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                 LanguageManager.of(context).translate('setup_warning'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: AppColors.textDim.withOpacity(0.6),
+                  color: AppColors.textDim.withValues(alpha: 0.6),
                   fontSize: 12,
                 ),
               ),

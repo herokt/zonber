@@ -40,7 +40,7 @@ function extractKeys(content, lang) {
   }
 
   const section = content.slice(braceStart, pos + 1);
-  const keyPattern = /^\s*'([^']+)':\s*['"`]/gm;
+  const keyPattern = /'([^']+)':\s*['"`]/g; // 한 줄에 키가 여러 개여도 모두
   const keys = new Set();
   let match;
   while ((match = keyPattern.exec(section)) !== null) {

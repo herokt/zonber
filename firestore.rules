@@ -1,33 +1,110 @@
 rules_version = '2';
+// ─────────────────────────────────────────────────────────────
+// ZONBER Firestore 규칙 (2026-09-22 강화)
+//  - 관리자: 백오피스 Google 로그인 + 이메일 허용 목록(lib/backoffice/admin_gate.dart 의 kAdminEmails 와 같게)
+//  - 게임 앱: 로그인한 회원만 본인 문서를 쓴다. 게스트는 로그인 없이 게임 맛보기만 하므로 아무것도 쓰지 않는다
+//    (예전 버전의 익명 로그인 세션도 쓰기 불가 — 2026-09-22 게스트 데이터 제거).
+//  - 옛 버전 앱이 막히지 않게 필드 목록(hasOnly)은 강제하지 않고, 조작하면 곤란한 값만 검사한다.
+//  - 코인·기록 값 자체는 앱이 계산하므로 여기서는 범위만 막는다(완전한 검증은 서버 함수가 필요).
+// ─────────────────────────────────────────────────────────────
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 맵 기록 - 로그인한 사용자만 쓰기 가능
-    // 맵(스테이지) 정보 - 누구나 읽기 가능
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['herokt851103@gmail.com'];
+    }
+
+    // 게스트(익명)가 아닌 회원
+    function isMember() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // 정수 필드가 있으면 [lo, hi] 범위
+    function intIn(d, key, lo, hi) {
+      return !(key in d) || (d[key] is int && d[key] >= lo && d[key] <= hi);
+    }
+
+    // 유저 문서 값 검사 — 조작하면 곤란한 필드만
+    function validUser(d) {
+      return intIn(d, 'coins', 0, 10000000)
+        && intIn(d, 'nicknameTickets', 0, 999)
+        && intIn(d, 'countryTickets', 0, 999)
+        && (!('nickname' in d) || (d.nickname is string && d.nickname.size() <= 40));
+    }
+
+    // 스테이지(맵) 정보 — 누구나 읽고, 회원 앱은 플레이 수 +1 만
     match /maps/{mapId} {
       allow read: if true;
-      allow write: if request.auth != null; // 백오피스/게임서버 기록용
+      allow create: if isAdmin()
+        || (isMember() && request.resource.data.keys().hasOnly(['playCount']) && request.resource.data.playCount == 1);
+      allow update: if isAdmin()
+        || (isMember()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount'])
+            && request.resource.data.playCount == resource.data.get('playCount', 0) + 1);
+      allow delete: if isAdmin();
 
+      // 랭킹 기록 — 회원 본인 기록만, 서버 시각, 생존 시간 0~3600초
       match /records/{recordId} {
         allow read: if true;
-        allow create: if request.auth != null;
-        // 광고 부활로 판이 이어질 때 직전에 제출된 기록을 지운다 — 본인 기록만
-        allow delete: if request.auth != null &&
-                         resource.data.userId == request.auth.uid;
+        allow create: if isAdmin()
+          || (isMember()
+              && request.resource.data.userId == request.auth.uid
+              && request.resource.data.survivalTime is number
+              && request.resource.data.survivalTime >= 0
+              && request.resource.data.survivalTime <= 3600
+              && request.resource.data.timestamp == request.time);
+        allow update: if isAdmin();
+        // 광고 부활로 판이 이어질 때 직전에 낸 본인 기록을 지운다 · 탈퇴 시 본인 기록 삭제
+        allow delete: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
       }
     }
 
-    // 사용자 프로필 - 로그인한 사용자(관리자 포함) 수정 가능
+    // 유저 프로필 — 랭킹 표시용으로 로그인한 누구나 읽는다(이메일은 여기 두지 않는다 → private)
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null; // 백오피스 수정을 위해 본인 확인 제거
+      allow read: if signedIn();
+      allow create, update: if isAdmin() || (isOwner(userId) && isMember() && validUser(request.resource.data));
+      allow delete: if isAdmin() || isOwner(userId);
+
+      // 비공개 — 이메일 등. 본인·관리자만
+      match /private/{docId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow write: if isAdmin() || (isOwner(userId) && isMember());
+      }
+
+      // 판마다 남기는 플레이 기록(lib/run_history.dart) — 회원 본인이 추가만(게스트는 남기지 않는다), 읽기는 본인·관리자
+      match /runs/{runId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create: if isOwner(userId) && isMember()
+          && request.resource.data.timestamp == request.time
+          && request.resource.data.time is number
+          && request.resource.data.time >= 0
+          && request.resource.data.time <= 3600;
+        allow update: if false;
+        allow delete: if isAdmin() || isOwner(userId);
+      }
+    }
+
+    // 백오피스 — 모든 유저의 플레이 기록을 한 번에(collection group 'runs')
+    match /{path=**}/runs/{runId} {
+      allow read: if isAdmin();
     }
 
     // 커스텀 맵
     match /custom_maps/{mapId} {
       allow read: if true;
-      allow create, update: if request.auth != null;
-      allow delete: if request.auth != null &&
-                       resource.data.authorUid == request.auth.uid;
+      allow create: if isMember();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && resource.data.get('authorUid', '') == request.auth.uid);
     }
   }
 }

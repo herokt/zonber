@@ -22,9 +22,6 @@ enum WorldMode { dodge, keeper }
 /// wave = 좌우로 꼬불꼬불(사인파), knuckle = 무회전 — 옆으로 흔들리는 방향이 불규칙하게 바뀐다.
 enum ProjectileMotion { straight, curve, homing, bounce, wave, knuckle }
 
-/// 장애물에 닿았을 때.
-enum WallBehavior { vanish, reflect }
-
 /// 스포너 전략. `ring` = 중심(플레이어 또는 골대) 기준 원주, `thrower` = 위쪽 한 곳에서 턴마다 조준 투구(피구).
 enum SpawnStrategy { ring, thrower, shooter }
 
@@ -49,17 +46,12 @@ class ProjectileDef {
   final double waveHz;
   /// 뒤에 꼬리(잔상)를 그린다 — 총알슛
   final bool trail;
-  final WallBehavior onWall;
-  /// reflect일 때 최대 반사 횟수. 초과하면 소멸.
-  final int maxBounces;
   final Color color;
   final Color coreColor;
   /// 피구공 무늬(빨간 띠)를 그린다(큰 공 전용) — paintDodgeBallBand
   final bool seams;
   /// 축구공 무늬(오각형)를 그린다(큰 공 전용) — paintSoccerPatches
   final bool soccer;
-  /// 그림 이름(assets/images/game/{art}.png). 있으면 코드 그림 대신 이 그림을 돌리며 그린다
-  final String? art;
 
   const ProjectileDef({
     required this.id,
@@ -74,13 +66,10 @@ class ProjectileDef {
     this.waveAmp = 0,
     this.waveHz = 0,
     this.trail = false,
-    this.onWall = WallBehavior.reflect,
-    this.maxBounces = 99,
     required this.color,
     this.coreColor = Colors.white,
     this.seams = false,
     this.soccer = false,
-    this.art,
   });
 }
 
@@ -172,9 +161,9 @@ class WorldData {
       rankingMapId: 'cyber',
       projectiles: [
         ProjectileDef(
-          id: 'bullet', nameKey: 'proj_cyber_bullet', art: 'ammo_galaxy',
+          id: 'bullet', nameKey: 'proj_cyber_bullet',
           speedMult: 1.0, radius: 3.5, visualSize: 9,
-          onWall: WallBehavior.reflect, color: Color(0xFFD32F2F),
+          color: Color(0xFFD32F2F),
         ),
       ],
       spawner: SpawnStrategy.ring,
@@ -194,16 +183,16 @@ class WorldData {
       rankingMapId: 'dodgeball',
       projectiles: [
         ProjectileDef(
-          id: 'ball', nameKey: 'proj_dodgeball_ball', art: 'ammo_dodgeball',
+          id: 'ball', nameKey: 'proj_dodgeball_ball',
           speedMult: 1.0, radius: 8, visualSize: 22,
           // 노란 피구공 + 빨간 띠 (놀이터 피구공, 피구왕 통키 참고)
-          onWall: WallBehavior.vanish, color: Color(0xFFFFC928), seams: true,
+          color: Color(0xFFFFC928), seams: true,
         ),
         ProjectileDef(
-          id: 'fast', nameKey: 'proj_dodgeball_fast', art: 'ammo_dodgeball_fast',
+          id: 'fast', nameKey: 'proj_dodgeball_fast',
           speedMult: 1.35, radius: 7, visualSize: 18,
           // 빠른 공 — 주황 + 띠 (노란 기본 공과 한눈에 구분). 외야 패스 뒤 속공도 이 공
-          onWall: WallBehavior.vanish, color: Color(0xFFFF7A1A), seams: true,
+          color: Color(0xFFFF7A1A), seams: true,
         ),
       ],
       // 턴 간격·속도·패턴은 _DodgeballThrower 가 시간으로 정한다(spawnInterval/bulletSpeed 미사용)
@@ -229,42 +218,42 @@ class WorldData {
       projectiles: [
         // 직선 슛 — 흰 축구공
         ProjectileDef(
-          id: 'shot', nameKey: 'proj_keeper_shot', art: 'ammo_soccer_white',
+          id: 'shot', nameKey: 'proj_keeper_shot',
           speedMult: 1.0, radius: 7, visualSize: 19,
-          onWall: WallBehavior.vanish, color: Color(0xFFF4F6F8), soccer: true,
+          color: Color(0xFFF4F6F8), soccer: true,
         ),
         // 강슛 — 노란 축구공, 빠르다
         ProjectileDef(
-          id: 'power', nameKey: 'proj_keeper_power', art: 'ammo_soccer_power',
+          id: 'power', nameKey: 'proj_keeper_power',
           speedMult: 1.35, radius: 7, visualSize: 19,
-          onWall: WallBehavior.vanish, color: Color(0xFFFFD23F), soccer: true,
+          color: Color(0xFFFFD23F), soccer: true,
         ),
         // 바나나킥 — 하늘색 축구공, 휘어 들어온다(슈터가 휘는 만큼 반대로 겨눠 찬다)
         ProjectileDef(
-          id: 'curve', nameKey: 'proj_keeper_curve', art: 'ammo_soccer_curl',
+          id: 'curve', nameKey: 'proj_keeper_curve',
           speedMult: 1.0, radius: 7, visualSize: 19,
           motion: ProjectileMotion.curve, lateralAccel: 110,
-          onWall: WallBehavior.vanish, color: Color(0xFFBDE3FF), soccer: true,
+          color: Color(0xFFBDE3FF), soccer: true,
         ),
         // 꼬불꼬불 슛 — 분홍 축구공, 좌우로 흔들리며 온다
         ProjectileDef(
-          id: 'wave', nameKey: 'proj_keeper_wave', art: 'ammo_soccer_wave',
+          id: 'wave', nameKey: 'proj_keeper_wave',
           speedMult: 0.9, radius: 7, visualSize: 19,
           motion: ProjectileMotion.wave, waveAmp: 34, waveHz: 1.6,
-          onWall: WallBehavior.vanish, color: Color(0xFFFFB8D9), soccer: true,
+          color: Color(0xFFFFB8D9), soccer: true,
         ),
         // 총알슛 — 주황 축구공 + 꼬리, 아주 빠르다
         ProjectileDef(
-          id: 'bullet', nameKey: 'proj_keeper_bullet', art: 'ammo_soccer_rocket',
+          id: 'bullet', nameKey: 'proj_keeper_bullet',
           speedMult: 1.6, radius: 7, visualSize: 18,
-          onWall: WallBehavior.vanish, color: Color(0xFFFF8A3D), soccer: true, trail: true,
+          color: Color(0xFFFF8A3D), soccer: true, trail: true,
         ),
         // 무회전 — 보라 축구공, 돌지 않고 어디로 휠지 모르게 흔들린다
         ProjectileDef(
-          id: 'knuckle', nameKey: 'proj_keeper_knuckle', art: 'ammo_soccer_knuckle',
+          id: 'knuckle', nameKey: 'proj_keeper_knuckle',
           speedMult: 1.0, radius: 7, visualSize: 19,
           motion: ProjectileMotion.knuckle, waveAmp: 150,
-          onWall: WallBehavior.vanish, color: Color(0xFFD9CCFF), soccer: true,
+          color: Color(0xFFD9CCFF), soccer: true,
         ),
       ],
       // 페널티킥형 — 골문·슈터·턴·속도는 KeeperGoal / _KeeperShooter 가 정한다(goalRadius·spawnRadius 미사용)

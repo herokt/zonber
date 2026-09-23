@@ -5,66 +5,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'badges.dart';
+import 'services/auth_service.dart';
+
 // ─────────────────────────────────────────────────────────────
-// 월드별 진행 데이터 — 최고 기록 · 순위 캐시 · 명패
+// 월드별 진행 데이터 — 최고 기록 · 순위 캐시 (옛 명패는 뱃지로 옮겨졌다 — badges.dart)
 //
 // SharedPreferences(로컬) + Firestore users/{uid}(원격) 이중 저장.
 // 게스트도 로컬은 쌓인다(월드 해금에 필요). 원격은 로그인 유저만.
 // ─────────────────────────────────────────────────────────────
 
-/// Hall of Fame 명패 — 한 번 도달한 최고 순위. 밀려나도 사라지지 않는다.
-class PlateData {
-  final String worldId;
-  final int rank;
-  final int total;
-  final double survivalTime;
-  final DateTime date;
-  /// 'world' = 세계 TOP 100, 'country' = 국가 TOP 10
-  final String scope;
-
-  const PlateData({
-    required this.worldId,
-    required this.rank,
-    required this.total,
-    required this.survivalTime,
-    required this.date,
-    required this.scope,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'worldId': worldId,
-        'rank': rank,
-        'total': total,
-        'survivalTime': survivalTime,
-        'date': date.toIso8601String(),
-        'scope': scope,
-      };
-
-  static PlateData? fromJson(Map<String, dynamic> j) {
-    try {
-      return PlateData(
-        worldId: j['worldId'] as String,
-        rank: (j['rank'] as num).toInt(),
-        total: (j['total'] as num?)?.toInt() ?? 0,
-        survivalTime: (j['survivalTime'] as num).toDouble(),
-        date: DateTime.tryParse(j['date'] as String? ?? '') ?? DateTime.now(),
-        scope: j['scope'] as String? ?? 'world',
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String get dateLabel =>
-      '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
-
-  /// 세계 명패가 국가 명패보다 우선, 같은 범위면 순위가 낮을수록 좋다.
-  bool isBetterThan(PlateData other) {
-    if (scope != other.scope) return scope == 'world';
-    return rank < other.rank;
-  }
-}
-
+/// 존별 마지막으로 확인한 순위(순위 캐시)
 class RankCacheEntry {
   final int rank;
   final int total;
@@ -75,7 +26,7 @@ class RankCacheEntry {
 class ProgressStore {
   static const _keyBestTimes = 'world_best_times';
   static const _keyRankCache = 'world_rank_cache';
-  static const _keyPlates = 'world_plates';
+  static const _keyPlates = 'world_plates'; // 옛 명패 — 뱃지로 옮길 때만 읽는다
 
   static Future<Map<String, dynamic>> _readJson(String key) async {
     final prefs = await SharedPreferences.getInstance();
@@ -89,6 +40,7 @@ class ProgressStore {
   }
 
   static Future<void> _writeJson(String key, Map<String, dynamic> value) async {
+    if (AuthService.isGuest) return; // 게스트 기록은 남기지 않는다
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(key, jsonEncode(value));
   }
@@ -156,31 +108,7 @@ class ProgressStore {
     await _writeJson(_keyRankCache, j);
   }
 
-  // ── 명패 ────────────────────────────────────────────────────
-
-  static Future<Map<String, PlateData>> getPlates() async {
-    final j = await _readJson(_keyPlates);
-    final out = <String, PlateData>{};
-    j.forEach((k, v) {
-      final p = PlateData.fromJson(Map<String, dynamic>.from(v));
-      if (p != null) out[k] = p;
-    });
-    return out;
-  }
-
-  /// 더 좋은 명패일 때만 저장하고 true 를 돌려준다(= 의식 화면 진입 조건).
-  static Future<bool> savePlate(PlateData plate) async {
-    final plates = await getPlates();
-    final existing = plates[plate.worldId];
-    if (existing != null && !plate.isBetterThan(existing)) return false;
-    plates[plate.worldId] = plate;
-    final j = plates.map((k, v) => MapEntry(k, v.toJson()));
-    await _writeJson(_keyPlates, j);
-    _syncRemote({'plates': j});
-    return true;
-  }
-
-  /// 로그인 시 원격 데이터를 로컬과 합친다(최고 기록·명패는 더 좋은 쪽 유지).
+  /// 로그인 시 원격 데이터를 로컬과 합친다(최고 기록은 더 좋은 쪽 유지).
   static Future<void> mergeFromRemote(Map<String, dynamic> userDoc) async {
     try {
       final remoteBest = userDoc['bestTimes'];
@@ -192,17 +120,9 @@ class ProgressStore {
         });
         await _writeJson(_keyBestTimes, best);
       }
-      final remotePlates = userDoc['plates'];
-      if (remotePlates is Map) {
-        final plates = await getPlates();
-        remotePlates.forEach((k, v) {
-          final p = PlateData.fromJson(Map<String, dynamic>.from(v));
-          if (p == null) return;
-          final e = plates[k];
-          if (e == null || p.isBetterThan(e)) plates[k] = p;
-        });
-        await _writeJson(_keyPlates, plates.map((k, v) => MapEntry(k, v.toJson())));
-      }
+      // 옛 명패 → 랭킹 뱃지(명패는 2026-09-22 제거)
+      await Badges.migratePlates(userDoc['plates']);
+      await Badges.migratePlates(await _readJson(_keyPlates));
     } catch (e) {
       debugPrint('ProgressStore merge failed: $e');
     }

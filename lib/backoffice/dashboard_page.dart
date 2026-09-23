@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 
+import 'bo_charts.dart';
+import 'bo_common.dart';
+
+// ─────────────────────────────────────────────────────────────
+// 대시보드 — KPI 줄 → 차트 2열(일별 플레이 · 스테이지 비교 · 신규 가입 · 캐릭터 사용) → 최근 플레이 표.
+// 데이터: users 전체(BoData 캐시) + runs(collection group, 최근 7일, 회원 판만 기록됨) + 최신 30판 + maps.playCount.
+// runs 쿼리는 collection group 'runs' 의 timestamp 단일 필드 색인이 필요하다(firestore.indexes.json).
+// ─────────────────────────────────────────────────────────────
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -9,773 +15,446 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
-  int _totalUsers = 0;
-  int _totalGames = 0;
-  int _zone1Plays = 0;
-  int _zone2Plays = 0;
-  int _zone3Plays = 0;
-  int _customMapCount = 0;
-  int _todayActiveUsers = 0;
-  int _androidUsers = 0;
-  int _iosUsers = 0;
-  int _guestUsers = 0;
-  List<DocumentSnapshot> _recentUsers = [];
-  bool _loading = true;
+class _DashboardPageState extends State<DashboardPage> with BoReloadable {
+  /// 7일 runs 를 이만큼까지 읽는다(넘으면 표본 제한 표시)
+  static const int _runsCap = 5000;
+  static const double _chartH = 230;
+
+  bool _usersLoading = true;
+  Object? _usersError;
+  List<BoUser> _users = [];
+
+  bool _runsLoading = true;
+  Object? _runsError;
+  List<RunRow> _runs7d = [];
+
+  bool _feedLoading = true;
+  Object? _feedError;
+  List<RunRow> _feed = [];
+
+  Map<String, int> _mapPlayCounts = {};
 
   @override
-  void initState() {
-    super.initState();
-    _loadStats();
+  Future<void> reload() async {
+    await Future.wait([_loadUsers(), _loadRuns(), _loadFeed(), _loadMaps()]);
+    BoData.markLoaded();
   }
 
+  Future<void> _loadUsers() async {
+    setState(() {
+      _usersLoading = true;
+      _usersError = null;
+    });
+    try {
+      final u = await BoData.users();
+      if (mounted) setState(() => _users = u);
+    } catch (e) {
+      debugPrint('Dashboard users: $e');
+      if (mounted) setState(() => _usersError = e);
+    } finally {
+      if (mounted) setState(() => _usersLoading = false);
+    }
+  }
+
+  Future<void> _loadRuns() async {
+    setState(() {
+      _runsLoading = true;
+      _runsError = null;
+    });
+    try {
+      final rows = await BoData.src.runsSince(DateTime.now().subtract(const Duration(days: 7)), _runsCap);
+      if (mounted) setState(() => _runs7d = rows);
+    } catch (e) {
+      debugPrint('Dashboard runs: $e');
+      if (mounted) setState(() => _runsError = e);
+    } finally {
+      if (mounted) setState(() => _runsLoading = false);
+    }
+  }
+
+  Future<void> _loadFeed() async {
+    setState(() {
+      _feedLoading = true;
+      _feedError = null;
+    });
+    try {
+      final rows = await BoData.src.latestRuns(30);
+      await BoData.lookup(rows.map((r) => r.uid));
+      if (mounted) setState(() => _feed = rows);
+    } catch (e) {
+      debugPrint('Dashboard feed: $e');
+      if (mounted) setState(() => _feedError = e);
+    } finally {
+      if (mounted) setState(() => _feedLoading = false);
+    }
+  }
+
+  Future<void> _loadMaps() async {
+    try {
+      final m = await BoData.src.mapPlayCounts();
+      if (mounted) setState(() => _mapPlayCounts = m);
+    } catch (e) {
+      debugPrint('Dashboard maps: $e');
+    }
+  }
+
+  // ── 관리 도구 ──
   Future<void> _migrateDefaultCountry() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
-        title: const Text("국가 기본값 설정", style: TextStyle(color: Colors.white)),
-        content: const Text(
-          "국가(flag)가 없는 유저를 대한민국(🇰🇷)으로 설정합니다.\n계속하시겠습니까?",
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소", style: TextStyle(color: Colors.white54))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DE9B6), foregroundColor: Colors.black),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("실행"),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    try {
-      final snapshot = await FirebaseFirestore.instance.collection('users').get();
-      int updated = 0;
-      WriteBatch batch = FirebaseFirestore.instance.batch();
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final flag = (data['flag'] as String? ?? '').trim();
-        if (flag.isEmpty) {
-          batch.update(doc.reference, {'flag': '🇰🇷', 'countryName': 'South Korea'});
-          updated++;
-          if (updated % 500 == 0) {
-            await batch.commit();
-            batch = FirebaseFirestore.instance.batch();
-          }
-        }
-      }
-      if (updated % 500 != 0 && updated > 0) await batch.commit();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("완료: $updated명 업데이트됨"), backgroundColor: const Color(0xFF1DE9B6)),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("오류: $e"), backgroundColor: Colors.redAccent),
-        );
-      }
+    if (!await confirmCode(context, '국가 기본값 설정', '국가(flag)가 없는 유저를 대한민국(🇰🇷)으로 설정합니다.\n계속하시겠습니까?',
+        ok: '실행', okColor: Bo.accent)) {
+      return;
     }
-  }
-
-  static const _allStageIds = [
-    'zone_1_classic',
-    'zone_2_obstacles',
-    'zone_5_maze',
-  ];
-
-  Future<void> _migrateRecordFlags() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
-        title: const Text("레코드 국가 마이그레이션", style: TextStyle(color: Colors.white)),
-        content: const Text(
-          "flag가 없는 레코드를 유저 정보 기준으로 업데이트합니다.\n계속하시겠습니까?",
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("취소", style: TextStyle(color: Colors.white54))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00B0FF), foregroundColor: Colors.black),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("실행"),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
     try {
-      // Build lookup maps from users collection
-      final usersSnap = await FirebaseFirestore.instance.collection('users').get();
-      final Map<String, String> uidToFlag = {};     // uid → flag
-      final Map<String, String> nicknameToFlag = {}; // nickname → flag
-      for (final doc in usersSnap.docs) {
-        final data = doc.data();
-        final flag = (data['flag'] as String? ?? '').trim();
-        if (flag.isEmpty) continue;
-        uidToFlag[doc.id] = flag;
-        final nickname = (data['nickname'] as String? ?? '').trim();
-        if (nickname.isNotEmpty) nicknameToFlag[nickname] = flag;
-      }
-
-      int updated = 0;
-      WriteBatch batch = FirebaseFirestore.instance.batch();
-
-      for (final stageId in _allStageIds) {
-        final recordsSnap = await FirebaseFirestore.instance
-            .collection('maps')
-            .doc(stageId)
-            .collection('records')
-            .get();
-
-        for (final doc in recordsSnap.docs) {
-          final data = doc.data();
-          final flag = (data['flag'] as String? ?? '').trim();
-          if (flag.isNotEmpty) continue; // already has flag
-
-          final uid = (data['userId'] as String? ?? '').trim();
-          final nickname = (data['nickname'] as String? ?? '').trim();
-
-          String? resolvedFlag;
-          if (uid.isNotEmpty && uidToFlag.containsKey(uid)) {
-            resolvedFlag = uidToFlag[uid];
-          } else if (nickname.isNotEmpty && nicknameToFlag.containsKey(nickname)) {
-            resolvedFlag = nicknameToFlag[nickname];
-          }
-
-          if (resolvedFlag != null) {
-            batch.update(doc.reference, {'flag': resolvedFlag});
-            updated++;
-            if (updated % 500 == 0) {
-              await batch.commit();
-              batch = FirebaseFirestore.instance.batch();
-            }
-          }
-        }
-      }
-
-      if (updated % 500 != 0 && updated > 0) await batch.commit();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("완료: $updated개 레코드 업데이트됨"), backgroundColor: const Color(0xFF00B0FF)),
-        );
-      }
+      final updated = await BoData.src.fillDefaultCountry();
+      if (mounted) toast(context, '완료: $updated명 업데이트됨');
+      BoData.refreshAll();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("오류: $e"), backgroundColor: Colors.redAccent),
-        );
-      }
-    }
-  }
-
-  Future<void> _loadStats() async {
-    setState(() => _loading = true);
-    try {
-      final now = DateTime.now();
-      final todayStart = DateTime(now.year, now.month, now.day);
-
-      final results = await Future.wait([
-        // 0. Total Users
-        FirebaseFirestore.instance.collection('users').count().get(),
-        // 1. Maps (for total play count)
-        FirebaseFirestore.instance.collection('maps').get(),
-        // 2. Custom maps count
-        FirebaseFirestore.instance.collection('custom_maps').count().get(),
-        // 3. Today active users
-        FirebaseFirestore.instance
-            .collection('users')
-            .where('lastUpdated', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
-            .count()
-            .get(),
-        // 4. Android users
-        FirebaseFirestore.instance
-            .collection('users')
-            .where('platform', isEqualTo: 'Android')
-            .count()
-            .get(),
-        // 5. iOS users
-        FirebaseFirestore.instance
-            .collection('users')
-            .where('platform', isEqualTo: 'iOS')
-            .count()
-            .get(),
-        // 6. Guest users
-        FirebaseFirestore.instance
-            .collection('users')
-            .where('loginProvider', isEqualTo: 'Guest')
-            .count()
-            .get(),
-        // 7. Recent users (by registration date)
-        FirebaseFirestore.instance
-            .collection('users')
-            .orderBy('createdAt', descending: true)
-            .limit(10)
-            .get(),
-      ]);
-
-      final totalUsers = (results[0] as AggregateQuerySnapshot).count ?? 0;
-
-      int totalGames = 0;
-      int zone1Plays = 0, zone2Plays = 0, zone3Plays = 0;
-      for (var doc in (results[1] as QuerySnapshot).docs) {
-        final count = (doc.data() as Map<String, dynamic>)['playCount'] as int? ?? 0;
-        totalGames += count;
-        if (doc.id == 'zone_1_classic') zone1Plays = count;
-        else if (doc.id == 'zone_2_obstacles') zone2Plays = count;
-        else if (doc.id == 'zone_5_maze') zone3Plays = count;
-      }
-
-      final customMapCount = (results[2] as AggregateQuerySnapshot).count ?? 0;
-      final todayActiveUsers = (results[3] as AggregateQuerySnapshot).count ?? 0;
-      final androidUsers = (results[4] as AggregateQuerySnapshot).count ?? 0;
-      final iosUsers = (results[5] as AggregateQuerySnapshot).count ?? 0;
-      final guestUsers = (results[6] as AggregateQuerySnapshot).count ?? 0;
-      final recentDocs = (results[7] as QuerySnapshot).docs;
-
-      if (mounted) {
-        setState(() {
-          _totalUsers = totalUsers;
-          _totalGames = totalGames;
-          _zone1Plays = zone1Plays;
-          _zone2Plays = zone2Plays;
-          _zone3Plays = zone3Plays;
-          _customMapCount = customMapCount;
-          _todayActiveUsers = todayActiveUsers;
-          _androidUsers = androidUsers;
-          _iosUsers = iosUsers;
-          _guestUsers = guestUsers;
-          _recentUsers = recentDocs;
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      print("Error loading dashboard stats: $e");
-      if (mounted) setState(() => _loading = false);
+      if (mounted) toast(context, '오류: $e', error: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    return BoPage(
+      topBar: BoTopBar(
+        title: '대시보드',
+        breadcrumb: const ['개요'],
+        subtitle: BoData.loadedAt == null ? null : '유저 데이터 ${fmtDateTime(BoData.loadedAt)} 기준',
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: '관리 도구',
+            position: PopupMenuPosition.under,
+            onSelected: (_) => _migrateDefaultCountry(),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'country', height: 36, child: Text('국가 없는 유저 → 대한민국')),
+            ],
+            child: Padding(
+              padding: EdgeInsets.all(8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.build_outlined, size: 17, color: Bo.text2),
+                SizedBox(width: 6),
+                Text('관리 도구', style: TextStyle(fontSize: 13, color: Bo.text2, fontWeight: FontWeight.w500)),
+              ]),
+            ),
+          ),
+        ],
+      ),
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          _kpis(),
+          const SizedBox(height: Bo.gap),
+          BoGrid(
+            minItemWidth: 420,
+            maxColumns: 2,
+            stretch: false,
+            children: [_dailyCard(), _stageCard(), _signupCard(), _charCard()],
+          ),
+          const SizedBox(height: Bo.gap),
+          _feedCard(),
+        ],
+      ),
+    );
+  }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
+  // ── KPI ──
+  Widget _kpis() {
+    if (_usersLoading && _users.isEmpty && _runsLoading) return const BoLoading();
+    final errs = [
+      if (_usersError != null) BoError(error: _usersError!, onRetry: _loadUsers),
+      if (_runsError != null) BoError(error: _runsError!, onRetry: _loadRuns),
+    ];
+    final now = DateTime.now();
+    final today = startOfToday();
+    final w1 = now.subtract(const Duration(days: 7)), w2 = now.subtract(const Duration(days: 14));
+    int newToday = 0, new7 = 0, newPrev7 = 0, coinSum = 0, coinHolders = 0;
+    for (final u in _users) {
+      final d = u.data;
+      final c = tsOf(d['createdAt']);
+      if (c != null) {
+        if (!c.isBefore(today)) newToday++;
+        if (c.isAfter(w1)) {
+          new7++;
+        } else if (c.isAfter(w2)) {
+          newPrev7++;
+        }
+      }
+      final coins = intOf(d['coins']);
+      coinSum += coins;
+      if (coins > 0) coinHolders++;
+    }
+    final total = _users.length;
+
+    final d1 = now.subtract(const Duration(hours: 24)), d2 = now.subtract(const Duration(hours: 48));
+    final yesterdaySameTime = now.subtract(const Duration(days: 1));
+    final yesterday = today.subtract(const Duration(days: 1));
+    final dau = <String>{}, dauPrev = <String>{}, wau = <String>{};
+    int todayRuns = 0, yRunsSoFar = 0;
+    for (final r in _runs7d) {
+      wau.add(r.uid);
+      final at = r.at;
+      if (at == null) continue;
+      if (at.isAfter(d1)) {
+        dau.add(r.uid);
+      } else if (at.isAfter(d2)) {
+        dauPrev.add(r.uid);
+      }
+      if (!at.isBefore(today)) todayRuns++;
+      if (!at.isBefore(yesterday) && at.isBefore(yesterdaySameTime)) yRunsSoFar++;
+    }
+    final capped = _runs7d.length >= _runsCap;
+    final runsReady = !_runsLoading || _runs7d.isNotEmpty;
+    String rv(num v) => runsReady ? fmtNum(v) : '…';
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      ...errs,
+      BoGrid(
+        minItemWidth: 170,
+        children: [
+          BoKpi(
+            label: '전체 유저',
+            value: fmtNum(total),
+            sub: '로그인 회원',
+            icon: Icons.people_alt_outlined,
+          ),
+          BoKpi(
+            label: '신규 가입 (7일)',
+            value: fmtNum(new7),
+            delta: deltaOf(new7, newPrev7),
+            deltaLabel: '이전 7일 대비',
+            sub: '오늘 ${fmtNum(newToday)}명',
+            icon: Icons.person_add_alt_outlined,
+            color: Bo.purple,
+          ),
+          BoKpi(
+            label: 'DAU (24시간)',
+            value: rv(dau.length),
+            delta: runsReady ? deltaOf(dau.length, dauPrev.length) : null,
+            deltaLabel: '전일 대비',
+            sub: '판을 끝낸 회원 수',
+            icon: Icons.today_outlined,
+            color: Bo.green,
+          ),
+          BoKpi(
+            label: 'WAU (7일)',
+            value: rv(wau.length),
+            sub: capped ? '표본 $_runsCap판 제한' : '최근 7일 플레이 회원',
+            icon: Icons.date_range_outlined,
+            color: Bo.blue,
+          ),
+          BoKpi(
+            label: '오늘 판 수',
+            value: rv(todayRuns),
+            delta: runsReady ? deltaOf(todayRuns, yRunsSoFar) : null,
+            deltaLabel: '어제 같은 시각 대비',
+            sub: '7일 ${fmtNum(_runs7d.length)}${capped ? '+' : ''}판',
+            icon: Icons.sports_esports_outlined,
+            color: Bo.amber,
+          ),
+          BoKpi(
+            label: '보유 코인 합계',
+            value: fmtNum(coinSum),
+            sub: '평균 ${total == 0 ? 0 : (coinSum / total).toStringAsFixed(1)} · 보유자 ${fmtNum(coinHolders)}명',
+            icon: Icons.monetization_on_outlined,
+            color: Bo.coin,
+          ),
+        ],
+      ),
+    ]);
+  }
+
+  Widget _chartBody(Widget child, {bool runs = true}) {
+    if (runs && _runsLoading && _runs7d.isEmpty) return const SizedBox(height: _chartH, child: BoLoading());
+    if (runs && _runsError != null) return const SizedBox(height: _chartH, child: BoEmpty('플레이 기록을 불러오지 못했습니다'));
+    return SizedBox(height: _chartH, child: child);
+  }
+
+  // ── 일별 플레이 ──
+  Widget _dailyCard() {
+    final today = startOfToday();
+    final runs = dailyCounts(_runs7d.map((r) => r.at), 7);
+    final users = List<Set<String>>.generate(7, (_) => <String>{});
+    for (final r in _runs7d) {
+      if (r.at == null) continue;
+      final i = 6 - today.difference(dayOf(r.at!)).inDays;
+      if (i >= 0 && i < 7) users[i].add(r.uid);
+    }
+    final total = runs.fold<double>(0, (a, b) => a + b);
+    return BoCard(
+      title: '일별 플레이',
+      subtitle: '최근 7일(날짜별) · ${fmtNum(total)}판 · 회원 판 기준',
+      child: _chartBody(BoChart(
+        labels: dayLabels(7),
+        bars: [BoSeries('판 수', Bo.accent.withValues(alpha: 0.85), runs)],
+        line: BoSeries('플레이 유저', Bo.amber, [for (final s in users) s.length.toDouble()]),
+        height: _chartH - 28,
+      )),
+    );
+  }
+
+  // ── 스테이지 비교 ──
+  Widget _stageCard() {
+    final today = startOfToday();
+    final week = {for (final s in kStages) s.id: StageAgg()};
+    final todayAgg = {for (final s in kStages) s.id: StageAgg()};
+    for (final r in _runs7d) {
+      week[r.mapId]?.add(r);
+      if (r.at != null && !r.at!.isBefore(today)) todayAgg[r.mapId]?.add(r);
+    }
+    final maxRuns = week.values.fold<int>(0, (m, a) => a.runs > m ? a.runs : m).toDouble();
+    Widget head(String t, {bool num = true, int flex = 2}) =>
+        Expanded(flex: flex, child: Text(t, style: Bo.th, textAlign: num ? TextAlign.right : TextAlign.left));
+    Widget cell(String t, {int flex = 2, TextStyle? style}) =>
+        Expanded(flex: flex, child: Text(t, style: style ?? Bo.cell, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis));
+    return BoCard(
+      title: '스테이지별 비교',
+      subtitle: '최근 7일 판 수 · 평균/최고 생존 · 오늘 · 누적(maps.playCount)',
+      child: _chartBody(Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildHeader(),
-          const SizedBox(height: 16),
-          _buildStatCards(),
-          const SizedBox(height: 12),
-          _buildPlatformDistribution(),
-          const SizedBox(height: 16),
-          _buildRecentUsers(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Dashboard",
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "오늘 ${DateFormat('yyyy년 MM월 dd일').format(DateTime.now())} 현황입니다.",
-              style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.6)),
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            _buildActionButton("국가 기본값", Icons.flag_rounded, const Color(0xFF1DE9B6), _migrateDefaultCountry),
-            const SizedBox(width: 12),
-            _buildActionButton("레코드 국가", Icons.map_rounded, const Color(0xFF00B0FF), _migrateRecordFlags),
-            const SizedBox(width: 12),
-            _buildActionButton("새로고침", Icons.refresh_rounded, const Color(0xFF00FF88), _loadStats),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCards() {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _buildModernCard(
-          title: "총 사용자",
-          value: NumberFormat('#,###').format(_totalUsers),
-          subtitle: "Total Users",
-          icon: Icons.people_alt_rounded,
-          gradientColors: [const Color(0xFF4FACFE), const Color(0xFF00F2FE)],
-        ),
-        _buildModernCard(
-          title: "총 플레이",
-          value: NumberFormat('#,###').format(_totalGames),
-          subtitle: "S1:${NumberFormat('#,###').format(_zone1Plays)}  S2:${NumberFormat('#,###').format(_zone2Plays)}  S3:${NumberFormat('#,###').format(_zone3Plays)}",
-          icon: Icons.games_rounded,
-          gradientColors: [const Color(0xFF43E97B), const Color(0xFF38F9D7)],
-        ),
-        _buildModernCard(
-          title: "오늘 활성 유저",
-          value: NumberFormat('#,###').format(_todayActiveUsers),
-          subtitle: "Today Active",
-          icon: Icons.bolt_rounded,
-          gradientColors: [const Color(0xFFFFD700), const Color(0xFFFF8C00)],
-        ),
-        _buildModernCard(
-          title: "게스트 유저",
-          value: NumberFormat('#,###').format(_guestUsers),
-          subtitle: _totalUsers > 0
-              ? "전체의 ${(_guestUsers / _totalUsers * 100).toStringAsFixed(1)}%"
-              : "Guest Users",
-          icon: Icons.person_outline_rounded,
-          gradientColors: [const Color(0xFF9B59B6), const Color(0xFF8E44AD)],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildModernCard({
-    required String title,
-    required String value,
-    required String subtitle,
-    required IconData icon,
-    required List<Color> gradientColors,
-  }) {
-    return Container(
-      width: 220,
-      height: 130,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: gradientColors.map((c) => c.withOpacity(0.2)).toList(),
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: gradientColors.first.withOpacity(0.3), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+          Container(
+            height: 34,
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Bo.line))),
+            child: Row(children: [
+              head('스테이지', num: false, flex: 5),
+              head('유저'),
+              head('평균'),
+              head('최고'),
+              head('오늘'),
+              head('누적', flex: 3),
+            ]),
           ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -10,
-            bottom: -10,
-            child: Icon(icon, size: 90, color: gradientColors.first.withOpacity(0.1)),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.black26,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(icon, color: gradientColors.last, size: 16),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlatformDistribution() {
-    final unknown = (_totalUsers - _androidUsers - _iosUsers).clamp(0, _totalUsers);
-    final total = _totalUsers > 0 ? _totalUsers : 1;
-    final loggedIn = _totalUsers - _guestUsers;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _buildDistributionCard(
-          title: "로그인 유형",
-          items: [
-            _DistItem("로그인 유저", loggedIn, total, const Color(0xFF00FF88), Icons.verified_user_rounded),
-            _DistItem("게스트", _guestUsers, total, const Color(0xFF9B59B6), Icons.person_outline_rounded),
-          ],
-        )),
-        const SizedBox(width: 12),
-        Expanded(child: _buildDistributionCard(
-          title: "플랫폼 분포",
-          items: [
-            _DistItem("Android", _androidUsers, total, const Color(0xFF3DD9EB), Icons.android),
-            _DistItem("iOS", _iosUsers, total, Colors.white, Icons.apple),
-            _DistItem("Unknown", unknown, total, const Color(0xFF9E9E9E), Icons.help_outline_rounded),
-          ],
-        )),
-      ],
-    );
-  }
-
-  Widget _buildDistributionCard({required String title, required List<_DistItem> items}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.8)),
-          const SizedBox(height: 14),
-          Row(
-            children: items.map((item) => Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Icon(item.icon, size: 13, color: item.color),
-                    const SizedBox(width: 5),
-                    Text(item.label, style: TextStyle(color: item.color.withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.w600)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(
-                    NumberFormat('#,###').format(item.count),
-                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    "${(item.count / item.total * 100).toStringAsFixed(1)}%",
-                    style: TextStyle(color: item.color.withOpacity(0.7), fontSize: 11),
-                  ),
-                ],
-              ),
-            )).toList(),
-          ),
-          const SizedBox(height: 14),
-          // 세그먼트 바
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: SizedBox(
-              height: 10,
-              child: Row(
-                children: items.where((i) => i.count > 0).map((item) => Flexible(
-                  flex: item.count,
-                  child: Container(color: item.color.withOpacity(0.75)),
-                )).toList(),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: items.map((item) => Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 8, height: 8, decoration: BoxDecoration(color: item.color.withOpacity(0.75), borderRadius: BorderRadius.circular(2))),
-                const SizedBox(width: 4),
-                Text(item.label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
-              ]),
-            )).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentUsers() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              "최근 가입 사용자",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white70),
-            ),
-          ),
-          if (_recentUsers.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
-                child: Text("데이터가 없습니다.", style: TextStyle(color: Colors.white54)),
-              ),
-            )
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: DataTable(
-                      horizontalMargin: 12,
-                      columnSpacing: 16,
-                      headingRowHeight: 40,
-                      dataRowMinHeight: 52,
-                      dataRowMaxHeight: 52,
-                      headingRowColor: WidgetStateProperty.all(const Color(0xFF2C2C2C)),
-                      dataRowColor: WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.hovered)) {
-                          return Colors.white.withOpacity(0.05);
-                        }
-                        return Colors.transparent;
-                      }),
-                      columns: const [
-                        DataColumn(label: Text('닉네임', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(label: Text('이메일 / UID', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(label: Text('플랫폼', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(label: Text('가입일', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(label: Text('최근 플레이', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(numeric: true, label: Text('총', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(numeric: true, label: Text('S1', style: TextStyle(color: Color(0xFF4FACFE), fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(numeric: true, label: Text('S2', style: TextStyle(color: Color(0xFF43E97B), fontWeight: FontWeight.bold, fontSize: 13))),
-                        DataColumn(numeric: true, label: Text('S3', style: TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13))),
+          for (final s in kStages)
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Bo.lineSoft))),
+                child: Row(children: [
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(width: 8, height: 8, decoration: BoxDecoration(color: s.color, shape: BoxShape.circle)),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(s.label, style: Bo.cellStrong, overflow: TextOverflow.ellipsis)),
+                        ]),
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Expanded(child: BoBarTrack(ratio: maxRuns <= 0 ? 0 : week[s.id]!.runs / maxRuns, color: s.color, height: 6)),
+                          const SizedBox(width: 8),
+                          Text('${fmtNum(week[s.id]!.runs)}판', style: Bo.muted),
+                        ]),
                       ],
-                      rows: _recentUsers.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
-                        final lastUpdated = (data['lastUpdated'] as Timestamp?)?.toDate();
-                        final createdStr = createdAt != null ? DateFormat('yy/MM/dd HH:mm').format(createdAt) : '-';
-                        final lastStr = lastUpdated != null ? DateFormat('yy/MM/dd HH:mm').format(lastUpdated) : '-';
-                        final email = data['email'] as String? ?? '';
-                        final displayId = email.isNotEmpty ? email : doc.id;
-                        final mapCounts = data['mapPlayCounts'] as Map<String, dynamic>? ?? {};
-                        final zone1 = mapCounts['zone_1_classic'] as int? ?? 0;
-                        final zone2 = mapCounts['zone_2_obstacles'] as int? ?? 0;
-                        final zone3 = mapCounts['zone_5_maze'] as int? ?? 0;
-                        return DataRow(cells: [
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                (data['flag'] == null || data['flag'].toString().isEmpty) ? '🏳️' : data['flag'],
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                data['nickname'] ?? '-',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                              ),
-                            ],
-                          )),
-                          DataCell(
-                            Tooltip(
-                              message: doc.id,
-                              child: Text(
-                                displayId,
-                                style: TextStyle(
-                                  color: email.isNotEmpty ? Colors.white70 : Colors.white30,
-                                  fontSize: 11,
-                                  fontFamily: 'monospace',
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          DataCell(_buildPlatformIcon(data)),
-                          DataCell(Text(createdStr, style: const TextStyle(color: Colors.white54, fontSize: 12))),
-                          DataCell(Text(lastStr, style: const TextStyle(color: Colors.white54, fontSize: 12))),
-                          DataCell(Text(
-                            NumberFormat('#,###').format(data['totalGamesPlayed'] ?? 0),
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                          )),
-                          DataCell(_buildDashStageCount(zone1, const Color(0xFF4FACFE))),
-                          DataCell(_buildDashStageCount(zone2, const Color(0xFF43E97B))),
-                          DataCell(_buildDashStageCount(zone3, const Color(0xFFFFD700))),
-                        ]);
-                      }).toList(),
                     ),
                   ),
-                );
-              },
+                  cell(fmtNum(week[s.id]!.users.length)),
+                  cell(fmtSec(week[s.id]!.avg, digits: 1)),
+                  cell(fmtSec(week[s.id]!.best, digits: 1), style: Bo.cellStrong),
+                  cell(fmtNum(todayAgg[s.id]!.runs)),
+                  cell(fmtNum(_mapPlayCounts[s.id] ?? 0), flex: 3, style: Bo.muted),
+                ]),
+              ),
             ),
         ],
+      )),
+    );
+  }
+
+  // ── 신규 가입 ──
+  Widget _signupCard() {
+    final member = dailyCounts(_users.map((u) => tsOf(u.data['createdAt'])), 14);
+    final total = member.fold<double>(0, (a, b) => a + b);
+    return BoCard(
+      title: '신규 가입',
+      subtitle: '최근 14일 · ${fmtNum(total)}명 (users.createdAt)',
+      child: _usersLoading && _users.isEmpty
+          ? const SizedBox(height: _chartH, child: BoLoading())
+          : SizedBox(
+              height: _chartH,
+              child: BoChart(
+                labels: dayLabels(14),
+                bars: [BoSeries('회원', Bo.accent.withValues(alpha: 0.85), member)],
+                height: _chartH - 28,
+              ),
+            ),
+    );
+  }
+
+  // ── 캐릭터 사용 ──
+  Widget _charCard() {
+    final counts = <String, int>{};
+    for (final u in _users) {
+      final m = u.data['characterPlayCounts'];
+      if (m is Map) m.forEach((k, v) => counts['$k'] = (counts['$k'] ?? 0) + intOf(v));
+    }
+    final list = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final total = list.fold<int>(0, (a, e) => a + e.value);
+    return BoCard(
+      title: '캐릭터 사용',
+      subtitle: '누적 판 수 (users.characterPlayCounts 합)',
+      child: SizedBox(
+        height: _chartH,
+        child: list.isEmpty
+            ? const BoEmpty('캐릭터 사용 기록 없음')
+            : Center(
+                child: BoDonut(
+                  size: 150,
+                  center: fmtNum(total),
+                  centerSub: '판',
+                  slices: [for (final e in list) BoSlice(charName(e.key), e.value.toDouble(), charColor(e.key))],
+                ),
+              ),
       ),
     );
   }
 
-  Widget _buildActionButton(String label, IconData icon, Color color, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border.all(color: color.withOpacity(0.3)),
-            borderRadius: BorderRadius.circular(10),
-            color: color.withOpacity(0.05),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 8),
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDashStageCount(int count, Color color) {
-    if (count == 0) return const Text('-', style: TextStyle(color: Colors.white24, fontSize: 12));
-    return Text(
-      NumberFormat('#,###').format(count),
-      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
-    );
-  }
-
-  Widget _buildPlatformIcon(Map<String, dynamic> data) {
-    final platform = data['platform'] as String? ?? '';
-    IconData icon;
-    Color color;
-    switch (platform) {
-      case 'Android':
-        icon = Icons.android;
-        color = const Color(0xFF3DD9EB);
-        break;
-      case 'iOS':
-        icon = Icons.apple;
-        color = Colors.white;
-        break;
-      default:
-        icon = Icons.help_outline_rounded;
-        color = const Color(0xFF9E9E9E);
+  // ── 최근 플레이 ──
+  Widget _feedCard() {
+    const cols = [
+      BoCol('시각', width: 96),
+      BoCol('유저', flex: 3, minWidth: 180),
+      BoCol('스테이지', width: 150),
+      BoCol('생존', width: 100, numeric: true),
+      BoCol('레벨', width: 60, numeric: true),
+      BoCol('추가 기록', flex: 2, minWidth: 120),
+      BoCol('코인', width: 100, numeric: true),
+      BoCol('신기록', width: 56),
+    ];
+    Widget body;
+    if (_feedLoading && _feed.isEmpty) {
+      body = const BoLoading();
+    } else if (_feedError != null) {
+      body = BoError(error: _feedError!, onRetry: _loadFeed);
+    } else {
+      body = BoTable(
+        columns: cols,
+        rowCount: _feed.length,
+        onRowTap: (i) => BoNav.openUser(_feed[i].uid),
+        empty: const BoEmpty('플레이 기록이 아직 없습니다'),
+        cells: (i) {
+          final r = _feed[i];
+          final u = BoData.cached(r.uid);
+          return [
+            BoTable.text(timeAgo(r.at), style: Bo.muted, tooltip: fmtDateTimeSec(r.at)),
+            BoUserCell(uid: r.uid, data: u, charId: r.character),
+            BoStageCell(r.mapId),
+            BoTable.text(fmtSec(r.time), style: Bo.cellStrong),
+            BoTable.text('${r.level}'),
+            BoTable.text(r.statText, style: Bo.muted),
+            BoTable.text(r.coinText, color: Bo.coin),
+            r.best ? Icon(Icons.star_rounded, color: Bo.amber, size: 17) : const SizedBox(),
+          ];
+        },
+      );
     }
-    return Tooltip(
-      message: platform.isEmpty ? 'Unknown' : platform,
-      child: Icon(icon, size: 18, color: color),
+    return BoCard(
+      title: '최근 플레이',
+      subtitle: '전체 회원 최신 30판 · 행을 누르면 유저 상세',
+      padding: EdgeInsets.zero,
+      trailing: TextButton(onPressed: () => BoNav.go(BoSection.runs), child: const Text('플레이 기록 전체 보기')),
+      child: body,
     );
   }
-
-  Widget _buildPlatformInfo(Map<String, dynamic> data) {
-    final platform = data['platform'] as String? ?? 'Unknown';
-    final loginProvider = data['loginProvider'] as String? ?? 'Unknown';
-
-    IconData platformIcon;
-    Color platformColor;
-
-    switch (platform) {
-      case 'Android':
-        platformIcon = Icons.android;
-        platformColor = const Color(0xFF3DD9EB);
-        break;
-      case 'iOS':
-        platformIcon = Icons.apple;
-        platformColor = Colors.white;
-        break;
-      case 'Web':
-        platformIcon = Icons.web;
-        platformColor = const Color(0xFFFF9800);
-        break;
-      default:
-        platformIcon = Icons.help_outline_rounded;
-        platformColor = const Color(0xFF9E9E9E);
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-          decoration: BoxDecoration(
-            color: platformColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: platformColor.withOpacity(0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(platformIcon, size: 11, color: platformColor.withOpacity(0.8)),
-              const SizedBox(width: 4),
-              Text(platform, style: TextStyle(fontSize: 11, color: platformColor, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(loginProvider, style: const TextStyle(fontSize: 9, color: Colors.white54)),
-      ],
-    );
-  }
-}
-
-class _DistItem {
-  final String label;
-  final int count;
-  final int total;
-  final Color color;
-  final IconData icon;
-  const _DistItem(this.label, this.count, this.total, this.color, this.icon);
 }

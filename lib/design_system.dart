@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:country_flags/country_flags.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'character_data.dart';
-import 'zonber_painter.dart';
-import 'game_art.dart';
+import 'avatar.dart';
+import 'badges.dart';
+import 'audio_manager.dart';
+import 'haptics.dart';
 import 'language_manager.dart';
 import 'world_config.dart';
 
@@ -13,7 +14,7 @@ import 'world_config.dart';
 // ZONBER 디자인 시스템 v2.2 — docs/UI_DESIGN.md §2
 //
 // 기본은 라이트(오프화이트 배경 + 흰 카드 + 짙은 슬레이트 텍스트), 설정에서 다크로 전환할 수 있다.
-// 화면당 강조색은 스테이지 색 1개. gold 는 명패·챔피언·Hall of Fame 전용. 글로우·그라데이션 워시 없음.
+// 화면당 강조색은 스테이지 색 1개. gold 는 1위·뱃지·챔피언 강조 전용. 글로우·그라데이션 워시 없음.
 // 위젯 이름(Neon*)은 호출부 변경을 줄이기 위해 유지하고 스타일만 교체했다.
 //
 // 테마 색은 getter 라서 const 문맥에서 쓸 수 없다. 전환은 GameSettings.darkMode →
@@ -34,28 +35,18 @@ class AppColors {
   static Color get textDim => _t(0xFF64748B, 0xFF9AA3B2);
   static Color get up => _t(0xFF16A34A, 0xFF3DD68C);
   static Color get danger => _t(0xFFE5484D, 0xFFFF5A4E);
-  /// 명패·챔피언·의식 화면 전용. 다른 곳에서 쓰지 않는다.
+  /// 1위·뱃지·챔피언 강조 전용. 다른 곳에서 쓰지 않는다.
   static Color get gold => _t(0xFFC99700, 0xFFF5C542);
-  static Color get goldDim => _t(0xFF8A6A00, 0xFFC9B36A);
-  /// 명패 바탕 — 라이트 크림 / 다크 브론즈
-  static Color get plateMetal => _t(0xFFFFF4CC, 0xFF2A2412);
-  /// Hall of Fame 의식 화면 배경
-  static Color get ceremony => _t(0xFFFFFBEF, 0xFF07080B);
   /// 2·3위 메달
   static Color get silver => _t(0xFF8A94A6, 0xFFC8CFD9);
   static Color get bronze => _t(0xFFB87333, 0xFFC98A5A);
-  /// 코인 — 상점·보상 전용(명패 금색과 구분되는 주황빛 호박색)
+  /// 코인 — 상점·보상 전용(gold 와 구분되는 주황빛 호박색)
   static Color get coin => _t(0xFFE8920C, 0xFFFFB02E);
 
   /// 브랜드 기본 강조색(= Cyber 스테이지). 스테이지 문맥이 없는 화면에서 쓴다.
   static Color get primary => _t(0xFF0A9DBD, 0xFF22C7E6);
-  static Color get primaryDim => _t(0xFF7CCBDC, 0xFF0E6F7A);
   /// 위험/피격. 탄환 색은 월드 `ProjectileDef.color`가 정한다.
   static Color get secondary => danger;
-  /// 장애물/벽 전용 — 탄환 색과 절대 겹치지 않는 무채색 계열.
-  static const Color obstacle = Color(0xFF9FB3C8);
-  /// (구) 반투명 서피스 — 이제 surface 와 동일
-  static Color get surfaceGlass => surface;
 
   /// 상태바·내비게이션바 아이콘
   static SystemUiOverlayStyle get overlayStyle => SystemUiOverlayStyle(
@@ -106,7 +97,6 @@ class AppTextStyles {
       _withKr(GoogleFonts.manrope(fontSize: 12, fontWeight: FontWeight.w800, color: color ?? AppColors.textDim, letterSpacing: 1.0));
 
   static TextStyle get header => display(24);
-  static TextStyle get subHeader => display(18, weight: FontWeight.w700);
   static TextStyle get body => text(14, weight: FontWeight.w500);
 }
 
@@ -189,15 +179,16 @@ String formatCount(int n) {
 }
 
 /// 국기 이모지(regional indicator 2자) → ISO 2자 코드. 변환 불가면 빈 문자열.
+/// 국기 값 → ISO 코드(KR). 이모지 국기가 기본이고,
+/// 옛 기록·백오피스가 남긴 'KR' 같은 코드도 국기 이미지로 보이게 받아 준다(2026-09-23)
 String flagToIso(String flag) {
-  final runes = flag.runes.toList();
-  if (runes.length != 2) return '';
-  final buf = StringBuffer();
-  for (final r in runes) {
-    if (r < 0x1F1E6 || r > 0x1F1FF) return '';
-    buf.writeCharCode(r - 0x1F1E6 + 0x41);
+  final s = flag.trim();
+  final runes = s.runes.toList();
+  if (runes.length == 2 && runes.every((r) => r >= 0x1F1E6 && r <= 0x1F1FF)) {
+    return String.fromCharCodes([for (final r in runes) r - 0x1F1E6 + 0x41]);
   }
-  return buf.toString();
+  if (s.length == 2 && RegExp(r'^[A-Za-z]{2}$').hasMatch(s)) return s.toUpperCase();
+  return '';
 }
 
 // ── 레이아웃 ────────────────────────────────────────────────
@@ -260,11 +251,13 @@ class NeonAppBar extends StatelessWidget {
     this.actions,
   });
 
+  /// 페이지 머리 — 높이 56 · 왼쪽 뒤로 가기(44) · 제목(20, 왼쪽 정렬) · 오른쪽 [actions].
+  /// 랭킹 · 상점 · 뱃지 · 프로필 · 통계가 같은 모양을 쓴다(2026-09-22 통일).
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(12, 0, 16, 0),
       child: Row(
         children: [
           if (showBackButton) ...[
@@ -272,20 +265,20 @@ class NeonAppBar extends StatelessWidget {
               icon: Icons.arrow_back_rounded,
               onTap: onBack ?? () => Navigator.of(context).pop(),
               label: 'Back',
+              background: Colors.transparent,
             ),
-            const SizedBox(width: 8),
-          ],
+            const SizedBox(width: 4),
+          ] else
+            const SizedBox(width: 12),
           Expanded(
             child: Text(
               title,
               style: AppTextStyles.display(20),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              textAlign: showBackButton ? TextAlign.left : TextAlign.center,
             ),
           ),
           if (actions != null) ...actions!,
-          if (actions == null && showBackButton) const SizedBox(width: 44),
         ],
       ),
     );
@@ -607,18 +600,24 @@ class EmphasisText extends StatelessWidget {
             TextSpan(text: s, style: style)
           else
             for (final ch in s.characters)
+              // 글자는 다른 글자와 같은 줄에 그대로 두고, 점만 그 위에 띄운다
+              // (점을 글자와 한 칸에 쌓으면 강조 글자만 아래로 내려가 보인다)
               WidgetSpan(
-                alignment: PlaceholderAlignment.bottom,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.topCenter,
                   children: [
-                    Container(
-                      width: size * 0.2,
-                      height: size * 0.2,
-                      decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-                    ),
-                    SizedBox(height: size * 0.08),
                     Text(ch, style: style.copyWith(color: dotColor)),
+                    Positioned(
+                      top: -size * 0.26,
+                      child: Container(
+                        width: size * 0.2,
+                        height: size * 0.2,
+                        decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -667,11 +666,6 @@ class CoinIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 코인 그림(assets/images/game/coin.png). 없으면 아래 코드 그림
-    return GameArt.image('coin', width: size, height: size, fallback: _fallback);
-  }
-
-  Widget _fallback() {
     return Container(
       width: size,
       height: size,
@@ -717,7 +711,8 @@ class StageFilter extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: () {
         if (!sel) {
-          HapticFeedback.selectionClick();
+          AudioManager().playSfx(Sfx.click, volume: 0.35);
+          Haptics.tick();
           onChanged(w.id);
         }
       },
@@ -796,299 +791,20 @@ class AppSegmented extends StatelessWidget {
   }
 }
 
-/// 캐릭터 아바타 — 코드로 그린 동글동글한 존버(몸 색 = 캐릭터 색) + 그 존에서 입은 장비. 사진 업로드 없음.
-class CharacterAvatar extends StatelessWidget {
-  final String characterId;
-  final double size;
-  final Color? borderColor;
-  /// 입은 장비 id(gear.dart) — 랭킹에서는 그 유저가 지금 그 존에서 입은 것
-  final List<String> gear;
-  /// 몸통 스킨(cosmetics.dart skin_*)
-  final String? skin;
-  const CharacterAvatar({super.key, required this.characterId, this.size = 32, this.borderColor, this.gear = const [], this.skin});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = CharacterData.getCharacter(characterId);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: c.color.withValues(alpha: 0.18),
-        shape: BoxShape.circle,
-        border: borderColor != null ? Border.all(color: borderColor!, width: 2) : null,
-      ),
-      child: ClipOval(child: CustomPaint(painter: ZonberPainter(ZonberLook(color: c.color, body: c.id, gear: gear, skin: skin)))),
-    );
-  }
-}
-
-/// 명패 등급 — 세계 1위 챔피언 · 세계 TOP 10 골드 · 세계 TOP 100 실버 · 국가 TOP 10 브론즈.
-/// 등급마다 금속이 달라서 한눈에 급이 보인다. 랭킹 이름 옆 배지에도 같은 등급을 쓴다.
-enum PlateTier { champion, gold, silver, bronze }
-
-PlateTier plateTierOf(String scope, int rank) {
-  if (scope != 'world') return PlateTier.bronze;
-  if (rank <= 1) return PlateTier.champion;
-  if (rank <= 10) return PlateTier.gold;
-  return PlateTier.silver;
-}
-
-/// 명패 금속 — 테마(라이트/다크)와 무관하게 같은 금속으로 보인다.
-class PlateStyle {
-  final List<Color> metal; // 대각선 그라데이션(밝음 → 어두움 → 밝음)
-  final Color edge; // 테두리·리벳
-  final Color ink; // 각인 글자
-  final Color inkDim;
-  final IconData icon;
-  final String labelKey;
-  final bool darkPlate; // 각인 그림자 방향(어두운 판은 아래로, 밝은 판은 위로 파인 느낌)
-
-  const PlateStyle(this.metal, this.edge, this.ink, this.inkDim, this.icon, this.labelKey, {this.darkPlate = false});
-
-  static PlateStyle of(PlateTier t) {
-    switch (t) {
-      case PlateTier.champion:
-        return const PlateStyle(
-          [Color(0xFF3A2F17), Color(0xFF14110A), Color(0xFF2E2511)],
-          Color(0xFFE9B949), Color(0xFFF7D774), Color(0xFFC9A54A),
-          Icons.emoji_events_rounded, 'plate_tier_champion', darkPlate: true);
-      case PlateTier.gold:
-        return const PlateStyle(
-          [Color(0xFFFFF1C2), Color(0xFFF0C24A), Color(0xFFFFE08A)],
-          Color(0xFFB8860B), Color(0xFF4F3700), Color(0xFF7A5A12),
-          Icons.workspace_premium_rounded, 'plate_tier_gold');
-      case PlateTier.silver:
-        return const PlateStyle(
-          [Color(0xFFFAFBFD), Color(0xFFC3CAD5), Color(0xFFEEF1F5)],
-          Color(0xFF7E8898), Color(0xFF263040), Color(0xFF566173),
-          Icons.military_tech_rounded, 'plate_tier_silver');
-      case PlateTier.bronze:
-        return const PlateStyle(
-          [Color(0xFFF7D9BD), Color(0xFFCB895A), Color(0xFFF0C29C)],
-          Color(0xFF94552A), Color(0xFF45220E), Color(0xFF6F3E1D),
-          Icons.military_tech_rounded, 'plate_tier_bronze');
-    }
-  }
-}
-
-/// 명패 — Hall of Fame 진입 시 새겨지는 영구 기록. 등급별 금속 판에 이름을 각인한다.
-class NamePlate extends StatelessWidget {
-  final String nickname;
-  final String flag;
-  final String worldName;
-  final String scopeLabel; // 예: "WORLD TOP 100"
-  final int rank;
-  final double survivalTime;
-  final String dateLabel;
-  final bool compact;
-  /// 'world' | 'country' — 등급을 정한다
-  final String scope;
-  /// 빛 반사 위치 0→1 (의식 화면에서 한 번 훑고 지나간다). null 이면 고정 위치
-  final double? shine;
-
-  const NamePlate({
-    super.key,
-    required this.nickname,
-    required this.flag,
-    required this.worldName,
-    required this.scopeLabel,
-    required this.rank,
-    required this.survivalTime,
-    required this.dateLabel,
-    this.compact = false,
-    this.scope = 'world',
-    this.shine,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final lm = LanguageManager.of(context);
-    final st = PlateStyle.of(plateTierOf(scope, rank));
-    final double h = compact ? 112 : 150;
-    final r = compact ? 14.0 : 18.0;
-    // 각인 — 글자가 판에 파인 것처럼 한쪽은 밝게, 반대쪽은 어둡게
-    final engrave = [
-      Shadow(color: (st.darkPlate ? Colors.black : Colors.white).withValues(alpha: st.darkPlate ? 0.8 : 0.7), offset: const Offset(0, 1)),
-      Shadow(color: (st.darkPlate ? Colors.white : Colors.black).withValues(alpha: st.darkPlate ? 0.10 : 0.18), offset: const Offset(0, -1)),
-    ];
-    Widget rivet(Alignment a) => Align(
-          alignment: a,
-          child: Padding(
-            padding: EdgeInsets.all(compact ? 8 : 10),
-            child: Container(
-              width: compact ? 5 : 6,
-              height: compact ? 5 : 6,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [Colors.white.withValues(alpha: 0.9), st.edge], stops: const [0, 0.7]),
-              ),
-            ),
-          ),
-        );
-    final s = shine ?? 0.28;
-    return Container(
-      height: h,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(r),
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: st.metal),
-        border: Border.all(color: st.edge, width: 2),
-        boxShadow: [BoxShadow(color: st.edge.withValues(alpha: 0.28), blurRadius: 14, offset: const Offset(0, 6))],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(r - 2),
-        child: Stack(
-          children: [
-            // 빛 반사 — 비스듬한 띠 하나가 판 위를 지나간다
-            Positioned.fill(
-              child: LayoutBuilder(builder: (context, bc) {
-                final x = -90 + (bc.maxWidth + 180) * s;
-                return Stack(clipBehavior: Clip.none, children: [
-                  Positioned(
-                    left: x - 32,
-                    top: -h,
-                    width: 64,
-                    height: h * 3,
-                    child: Transform.rotate(
-                      angle: 0.45,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: [
-                            Colors.white.withValues(alpha: 0),
-                            Colors.white.withValues(alpha: st.darkPlate ? 0.12 : 0.5),
-                            Colors.white.withValues(alpha: 0),
-                          ]),
-                        ),
-                      ),
-                    ),
-                  ),
-                ]);
-              }),
-            ),
-            // 안쪽 테두리(판 가장자리 몰딩)
-            Positioned.fill(
-              child: Container(
-                margin: EdgeInsets.all(compact ? 5 : 6),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(r - 6),
-                  border: Border.all(color: st.ink.withValues(alpha: 0.22), width: 1),
-                ),
-              ),
-            ),
-            rivet(Alignment.topLeft),
-            rivet(Alignment.topRight),
-            rivet(Alignment.bottomLeft),
-            rivet(Alignment.bottomRight),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 26),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(st.icon, size: compact ? 13 : 15, color: st.ink),
-                        const SizedBox(width: 5),
-                        Text(
-                          '${lm.translate(st.labelKey)} · $worldName',
-                          style: AppTextStyles.label(color: st.ink)
-                              .copyWith(fontSize: compact ? 9 : 10, letterSpacing: 2, shadows: engrave),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: compact ? 5 : 9),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              nickname.toUpperCase(),
-                              maxLines: 1,
-                              style: AppTextStyles.display(compact ? 22 : 30, color: st.ink)
-                                  .copyWith(letterSpacing: 2.5, shadows: engrave),
-                            ),
-                          ),
-                        ),
-                        if (flag.isNotEmpty) ...[
-                          const SizedBox(width: 10),
-                          CountryChip(flag: flag, color: st.edge, height: compact ? 13 : 16),
-                        ],
-                      ],
-                    ),
-                    SizedBox(height: compact ? 6 : 10),
-                    // 가운데 가는 선 + 순위
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(width: compact ? 18 : 26, height: 1, color: st.inkDim.withValues(alpha: 0.6)),
-                        const SizedBox(width: 8),
-                        Text(
-                          '$scopeLabel #${formatCount(rank)}',
-                          style: AppTextStyles.text(compact ? 10 : 11, color: st.ink, weight: FontWeight.w800)
-                              .copyWith(letterSpacing: 1.2, shadows: engrave),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(width: compact ? 18 : 26, height: 1, color: st.inkDim.withValues(alpha: 0.6)),
-                      ],
-                    ),
-                    SizedBox(height: compact ? 3 : 5),
-                    Text(
-                      '${formatSurvival(survivalTime)}s · $dateLabel',
-                      style: AppTextStyles.text(compact ? 10 : 11, color: st.inkDim, weight: FontWeight.w700)
-                          .copyWith(letterSpacing: 1, shadows: engrave),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 랭킹 이름 옆 명패 배지 — 이 존에서 명패를 새긴 사람만 붙는다
-class PlateBadge extends StatelessWidget {
-  final PlateTier tier;
-  final double size;
-  const PlateBadge({super.key, required this.tier, this.size = 18});
-
-  @override
-  Widget build(BuildContext context) {
-    final st = PlateStyle.of(tier);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: st.metal),
-        border: Border.all(color: st.edge, width: 1.2),
-      ),
-      alignment: Alignment.center,
-      child: Icon(st.icon, size: size * 0.62, color: st.ink),
-    );
-  }
-}
-
 /// 리더보드 행
 class RankRow extends StatelessWidget {
   final int rank;
   final String nickname;
   final String flag;
-  final String characterId;
-  /// 그 유저가 지금 이 존에서 입은 장비
-  final List<String> gear;
-  final String? skin;
+  /// 그 유저의 아바타 한 벌(avatar.dart) — 장비는 [zone] 의 것을 입고 나온다
+  final Avatar avatar;
+  final String? zone;
   final double survivalTime;
   final bool highlighted;
   final Color? accent;
   final VoidCallback? onTap;
-  /// 이 존에서 새긴 명패 등급(없으면 null)
-  final PlateTier? plate;
+  /// 대표 뱃지(없으면 null)
+  final BadgeDef? badge;
   /// 목록 마지막 행이면 아래 구분선을 그리지 않는다
   final bool last;
 
@@ -1097,14 +813,13 @@ class RankRow extends StatelessWidget {
     required this.rank,
     required this.nickname,
     required this.flag,
-    required this.characterId,
-    this.gear = const [],
-    this.skin,
+    required this.avatar,
+    this.zone,
     required this.survivalTime,
     this.highlighted = false,
     this.accent,
     this.onTap,
-    this.plate,
+    this.badge,
     this.last = false,
   });
 
@@ -1132,15 +847,14 @@ class RankRow extends StatelessWidget {
                 style: AppTextStyles.display(rank > 999 ? 13 : 15, color: highlighted ? a : AppColors.textDim),
               ),
             ),
-            CharacterAvatar(
-              characterId: characterId,
-              gear: gear,
-              skin: skin,
+            AvatarView(
+              avatar: avatar,
+              zone: zone,
               size: 32,
-              borderColor: plate != null ? PlateStyle.of(plate!).edge : null,
+              borderColor: badge != null && badge!.tier >= 3 ? badge!.color : null,
             ),
             const SizedBox(width: 10),
-            // 이름 · 명패 배지 · 국기 — 남는 폭은 이름이 다 쓴다(Spacer 와 나눠 가지면 이름이 반만 보인다)
+            // 이름 · 뱃지 · 국기 — 남는 폭은 이름이 다 쓴다(Spacer 와 나눠 가지면 이름이 반만 보인다)
             Expanded(
               child: Row(
                 children: [
@@ -1152,9 +866,9 @@ class RankRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (plate != null) ...[
+                  if (badge != null) ...[
                     const SizedBox(width: 6),
-                    PlateBadge(tier: plate!, size: 18),
+                    BadgeIcon(badge: badge!, size: 18),
                   ],
                   const SizedBox(width: 8),
                   CountryChip(flag: flag, height: 13),
@@ -1188,7 +902,8 @@ class AppBottomNav extends StatelessWidget {
     final items = [
       (Icons.home_rounded, lm.translate('nav_home')),
       (Icons.emoji_events_rounded, lm.translate('nav_ranking')),
-      (Icons.storefront_rounded, lm.translate('nav_shop')),
+      (Icons.backpack_rounded, lm.translate('nav_bag')),
+      (Icons.military_tech_rounded, lm.translate('nav_badges')),
       (Icons.person_rounded, lm.translate('nav_profile')),
     ];
     return Container(
@@ -1205,7 +920,10 @@ class AppBottomNav extends StatelessWidget {
             Expanded(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => onTap(i),
+                onTap: () {
+                  if (i != index) AudioManager().playSfx(Sfx.click, volume: 0.3);
+                  onTap(i);
+                },
                 child: Container(
                   height: 60,
                   alignment: Alignment.center,
@@ -1478,6 +1196,38 @@ class AppScaffold extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 뱃지 아이콘 — 등급색 원 + 아이콘. [locked] 면 회색 원에 흐린 아이콘(아직 못 얻음)
+class BadgeIcon extends StatelessWidget {
+  final BadgeDef badge;
+  final double size;
+  final bool locked;
+  const BadgeIcon({super.key, required this.badge, this.size = 32, this.locked = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = locked ? AppColors.surface2 : badge.color;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: locked
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color.lerp(c, Colors.white, 0.35)!, c, Color.lerp(c, Colors.black, 0.25)!],
+              ),
+        color: locked ? c : null,
+        border: Border.all(color: locked ? AppColors.line : Color.lerp(c, Colors.black, 0.3)!, width: max(1, size * 0.05)),
+        boxShadow: locked || size < 24 ? null : [BoxShadow(color: c.withValues(alpha: 0.35), blurRadius: size * 0.2, offset: Offset(0, size * 0.06))],
+      ),
+      // 못 얻은 뱃지도 모양은 보이게 — 아이콘을 흐린 회색으로
+      child: Icon(badge.icon, size: size * 0.55, color: locked ? AppColors.textDim.withValues(alpha: 0.55) : Colors.white),
     );
   }
 }

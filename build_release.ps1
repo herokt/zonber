@@ -1,13 +1,4 @@
-# Step 1: Increment Version
-Write-Host "Incrementing version..."
-dart run scripts\increment_version.dart
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Version increment failed."
-    exit $LASTEXITCODE
-}
-
-# Step 2: Build APK
+# Step 1: Build APK (버전은 pubspec.yaml 의 version 을 직접 올린다)
 Write-Host "Building Release APK..."
 flutter build apk --release
 
@@ -16,12 +7,12 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# Step 3: Install on Device (Optional, but requested)
+# Step 2: Install on Device (Optional, but requested)
 # We assume one device is connected or default is fine.
 Write-Host "Installing on Device..."
 flutter install
 
-# Step 4: Build AAB
+# Step 3: Build AAB
 Write-Host "Building Release AAB..."
 flutter build appbundle --release
 

@@ -43,26 +43,32 @@ flutter pub get
 # 백오피스 관리자 앱 실행
 flutter run -t lib/backoffice/main_backoffice.dart
 
-# 데이터 관리 스크립트 (Node.js, scripts/ 폴더)
-node scripts/seed_rankings.mjs
-node scripts/check_rankings.mjs
-node scripts/cleanup_stages.mjs
+# 점검 스크립트 (Node.js, scripts/ 폴더 — npm 의존성 없음)
+node scripts/check_translations.mjs   # 번역 키 EN/KO 일치
+node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth login 필요, 읽기 전용)
 ```
 
 ## 아키텍처
+
+### 게임 코드 위치 (2026-09-22 main.dart 를 part 파일로 나눔)
+- `lib/main.dart` — 앱 초기화 · `ZonberApp` 페이지 라우팅 · 판 종료 처리(`_handleGameOver`)
+- `lib/game/` (`part of '../main.dart'`) — `game_screen.dart`(HUD) · `zonber_game.dart`(ZonberGame·맵) · `player.dart` · `projectiles.dart`(Bullet·스포너·피구 팀) · `keeper.dart` · `dodgeball.dart`
+- 밸런스 수치 `lib/balance.dart` · 시즌 `lib/season.dart` · 일일 미션 `lib/daily_rewards.dart` · 판 기록 `lib/run_history.dart`(서버) · `lib/playtest_log.dart`(기기)
+- 테스트 `flutter test`(test/logic_test.dart) · 규칙 시험 `node scripts/test_rules.mjs`
+- 효과음 `assets/audio/*.wav` — `python scripts/make_sfx.py` 로 합성, 이름·연결은 `lib/audio_manager.dart`(Sfx) · 진동 `lib/haptics.dart`
 
 ### 진입점 & 네비게이션
 `main.dart`:
 - 앱 초기화 (Firebase, AdMob, GameSettings, AudioManager)
 - `ZonberApp` 위젯에서 `_currentPage` 상태로 페이지 라우팅
-- 페이지: Menu(=HomePage), Ranking, MyProfile(=ProfilePage) ← 하단 탭 3개 / Game, Result, HallOfFame, Editor, EditorVerify, Profile(최초 설정), CharacterSelect, Login, Shop, Statistics
+- 페이지: Menu(=HomePage), Ranking, MyProfile(=ProfilePage) ← 하단 탭 3개 / Game, Result, Badges, Profile(최초 설정), Login, Shop, Statistics (캐릭터 고르기 = 상점 캐릭터 탭, CharacterSelect 페이지는 2026-09-22 제거). 맵 에디터·커스텀 맵·Hall of Fame 은 2026-09-22 코드째 제거
 - 월드 상태: `_currentWorldId` · `_bestTimes` · `_rankCache`. 랭킹 mapId는 `_currentWorld.rankingMapId`
 
 ### 게임 코어 (Flame 엔진)
 `main.dart`의 `ZonberGame` 클래스:
 - 고정 맵 크기: 480x768 (32px 타일 기준 15x24 그리드)
 - World height: 800 (맵 하단 UI 영역 포함)
-- 컴포넌트: `Player`(근접 회피 카운트, `keeperMode`면 공에 닿으면 세이브·`concedeGoal()`로 실점), `Bullet`(`ProjectileDef` 기반: 크기·색·straight/curve/bounce·벽 반응, 큰 공은 바닥 그림자, keeper면 골대 진입 시 실점), `BulletSpawner`(ring, keeper는 골대 기준 스폰·조준 / thrower → `_DodgeballThrower`: 피구 턴제 투구·단계별 패턴, `Bullet.splitAfter`로 분열 / shooter → `_KeeperShooter` + `KeeperGoal`: 페널티킥형 골문·슈터 1→5명·바나나킥). 진입 예고 표시 없음, `GoalZone`(keeper 골대), `Obstacle`, `MapArea`, `GridBackground`(스테이지 line 색 테두리 + `worlds/{id}_bg.png` 배경 슬롯)
+- 컴포넌트: `Player`(근접 회피 카운트, `keeperMode`면 공에 닿으면 세이브·`concedeGoal()`로 실점), `Bullet`(`ProjectileDef` 기반: 크기·색·straight/curve/bounce, 큰 공은 바닥 그림자, keeper면 골대 진입 시 실점), `BulletSpawner`(ring, keeper는 골대 기준 스폰·조준 / thrower → `_DodgeballThrower`: 피구 턴제 투구·단계별 패턴, `Bullet.splitAfter`로 분열 / shooter → `_KeeperShooter` + `KeeperGoal`: 페널티킥형 골문·슈터 1→5명·바나나킥). 진입 예고 표시 없음, `GoalZone`(keeper 골대), `MapArea`, `GridBackground`(스테이지 line 색 테두리 + `worlds/{id}_bg.png` 배경 슬롯)
 - 목표선: `_loadTargets()`가 올해 TOP 100 시간을 읽어 `game.setTargets()` → HUD가 다음 TOP N 까지 진행바 표시 (10분 캐시)
 - 터치 조작: 직접 드래그 (1:1 손가락 이동, 조이스틱 없음)
 - 충돌 시스템: Flame의 `HasCollisionDetection` + 탄환 터널링 방지 수동 처리
@@ -71,42 +77,40 @@ node scripts/cleanup_stages.mjs
 | 파일 | 역할 |
 |------|------|
 | `world_config.dart` | **스테이지 3종, 항상 열림** (`WorldConfig`/`ProjectileDef`/`SpawnStrategy`/`WorldMode`) — 1 Cyber · 2 Dodgeball(sideline 스포너) · 3 Keeper(mode keeper: 골대 반지름·lives 5). 리더보드는 전부 신규 mapId. 기획 [docs/STAGES.md](docs/STAGES.md) |
-| `game_config.dart` | 장애물 레이아웃 정의 (`zone_1_classic`/`zone_2_obstacles`/`zone_5_maze`) — 월드의 `layoutId`가 참조 |
-| `progress_store.dart` | 월드별 최고 기록·순위 캐시·명패(`PlateData`). SharedPreferences + Firestore `users/{uid}.bestTimes/plates` |
+| `game_config.dart` | 레이아웃 기본값(`zone_1_classic`: 탄속·스폰 간격) — 월드의 `layoutId`가 참조. 모든 월드가 `zone_1_classic`(장애물 없음) |
+| `progress_store.dart` | 월드별 최고 기록·순위 캐시. SharedPreferences + Firestore `users/{uid}.bestTimes` (옛 `plates` 는 로그인 때 뱃지로 옮김) |
 | `pages/home_page.dart` | 홈 — 월드 캐러셀·캐릭터·START |
 | `pages/ranking_page.dart` | 랭킹 탭 — 월드 탭 × 기간 × 세계/국가, 포디움, 내 행 고정 |
-| `pages/result_page.dart` | 결과 — 기록 제출, 순위 카드(count 집계), TOP 100/국가 TOP 10 진입 시 Hall of Fame |
-| `pages/hall_of_fame_page.dart` | 명패 의식 — 순위 카운트다운·각인·공유(share_plus) |
-| `pages/profile_page.dart` | 프로필 탭 — 명패·월드별 기록·캐릭터·설정·계정 (구 `MyProfilePage` 대체) |
+| `pages/result_page.dart` | 결과 — 기록 제출, 순위 카드(count 집계), 새로 얻은 뱃지 |
+| `pages/profile_page.dart` | 프로필 탭 — 대표 뱃지·월드별 기록·캐릭터·설정·계정 (구 `MyProfilePage` 대체) |
 | `ranking_system.dart` | Firestore 리더보드: 기록 저장/조회, 국가별 랭킹, 3개 기간(주/월/올해) + count 집계 순위 |
 | `achievement_manager.dart` | 9개 업적 (생존 티어, 국가/글로벌 랭킹); SharedPreferences + Firestore 이중 저장 |
 | `statistics_page.dart` | 유저 통계 + 획득 타이틀 (일간/주간/월간 랭커, 전설적 생존자) |
 | `translations.dart` | 200개+ 이중 언어 문자열 (EN/KO); `{placeholder}` 보간 지원 |
 | `language_manager.dart` | 언어 전환; SharedPreferences에서 읽음 |
-| `editor_game.dart` | 그리드 기반 맵 에디터 (15x24), 업로드 전 30초 생존 검증 필요 |
-| `map_service.dart` | 커스텀 맵 Firestore CRUD |
-| `maze_generator.dart` | 미로형 스테이지용 절차적 미로 생성 |
-| `design_system.dart` | 디자인 시스템 v2 — 다크 무채색 + 월드 강조색 1개, Sora(Display)/Manrope(Body). `Neon*` 이름 유지 + `AppChip`/`AppSegmented`/`CountryChip`/`CharacterAvatar`/`NamePlate`/`RankRow`/`AppBottomNav`. gold는 명패 전용 |
+| `design_system.dart` | 디자인 시스템 v2 — 다크 무채색 + 월드 강조색 1개, Sora(Display)/Manrope(Body). `Neon*` 이름 유지 + `AppChip`/`AppSegmented`/`CountryChip`/`NamePlate`/`RankRow`/`AppBottomNav`. gold는 1위·뱃지 강조 전용 |
+| `avatar.dart` | **아바타 단일 출처** — `Avatar`(캐릭터·스킨·잔상·오라·존별 장비 한 벌) + `AvatarView`(동그란 아바타) + `AvatarStage`(큰 전신, 잔상·오라까지). 아바타를 그리는 곳은 전부 여기를 쓴다(홈·랭킹·가방·프로필·게임 `Player`) |
+| `player_profile.dart` | **프로필 단일 출처** — `PlayerProfile`(닉네임·국가·아바타·가입일·최근 접속·뱃지·존별 기록·누적) + `PlayerProfileService.fetch(uid)`. 내 것과 남의 것이 같은 클래스 |
+| `pages/player_profile_view.dart` | 프로필 표시 부품 — `ProfileIdentityCard`/`StageRecordRow`/`ProfileMetaLine`/`ProfileBadgeStrip` + `showPlayerCard(uid)`(랭킹에서 이름을 누르면 뜨는 남의 프로필 창) |
 | `audio_manager.dart` | BGM/SFX 싱글톤 (flame_audio) |
 | `ad_manager.dart` / `ad_helper.dart` | AdMob 연동 (배너, 전면, 리워드); 광고 ID는 `kReleaseMode`로 자동 전환 |
-| `iap_service.dart` | 인앱 결제 서비스 (in_app_purchase 패키지) |
+| `iap_service.dart` | 인앱 결제 서비스 (in_app_purchase 패키지) — 광고 제거 IAP 예정, 아직 초기화하지 않음 |
 | `shop_page.dart` | 상점/IAP UI (캐릭터 스킨 등) |
 | `game_settings.dart` | SharedPreferences 기반 설정 저장 |
 | `user_profile.dart` | 닉네임, 국가 국기, 프로필 관리 |
-| `character_data.dart` | 캐릭터 정의 6종 + `CharacterStats`(체력/속도/기력 3축) |
+| `character_data.dart` | 캐릭터 정의 8종 + `CharacterStats`(능력치는 전부 동일 — 캐릭터는 외형·표정만 다르다) |
 | `game_guide_sheet.dart` | 게임 방법 가이드 바텀시트 (아이템 탭은 파워업 제거와 함께 삭제) |
 | `services/analytics_service.dart` | Firebase Analytics 래퍼. **이벤트 이름·파라미터는 이 파일에만** 둔다 (모바일 외 no-op) |
-| `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) / 게스트). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
-| `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple, 익명) |
-| `services/invite_service.dart` | 크루 초대 기능 |
+| `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
+| `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
 
 ### 백오피스 (별도 관리자 앱)
 `lib/backoffice/`에 위치. 진입점: `lib/backoffice/main_backoffice.dart`.
 Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고).
 - `dashboard_page.dart` — 실시간 유저/플레이 지표 및 스테이지 성과
 - `user_list_page.dart` — 유저 관리 UI
-- `play_stats_page.dart` — 플레이 통계 대시보드
-- `stage_stats_page.dart` — 스테이지별 성과 분석
+- `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
+- 이름표(캐릭터·장비·뱃지 한글명)는 `bo_catalog.dart`
 
 ### 디자인 시스템
 모든 UI는 `design_system.dart`의 네온 테마 사용:
@@ -114,9 +118,9 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고).
 - 컴포넌트: `NeonScaffold`, `NeonAppBar`, `NeonCard`, `NeonButton`, `NeonDialog`
 
 ### 인증
-**게스트 기본화(2026-09):** 앱 첫 실행은 `_ZonberAppState._enterAsGuest()`가 익명 로그인 + 게스트 프로필로 바로 메뉴에 들어간다. 로그아웃도 로그인 화면이 아니라 게스트로 복귀한다. 게스트는 **랭킹 등록 불가**(기록은 증발) — 로그인은 `ResultPage`의 점수 제출 시점에만 요구한다.
+**게스트 = 로그인하지 않은 상태 · 게임 맛보기만(2026-09-22):** 앱 첫 실행은 `_ZonberAppState._enterAsGuest()`가 **로그인 없이**(익명 로그인도 하지 않는다) 바로 메뉴에 들어간다. 로그아웃도 게스트로 복귀한다. 게스트는 **기기·서버 어디에도 아무것도 저장하지 않는다** — 기록·코인·미션·뱃지·통계·프로필·플레이 수 모두. 화면(코인·상점·뱃지·미션·내 최고·통계)은 그대로 보이되 값은 초기값(0·—)이고, 구매·보상 받기는 로그인 안내(`guest_login_to_save`). 저장 차단은 각 store(`CoinStore`·`ProgressStore`·`DailyRewards`·`AchievementManager`·`BadgeStatsStore`·`UserProfileManager`·`PlaytestLog`)가 `AuthService.isGuest`로 직접 막고, `_handleGameOver`도 게스트는 결과만 보여 준다. 게스트 진입 때 기기의 유저 데이터를 지우고(`_clearLocalData`), 예전 버전의 익명 세션은 시작 시 로그아웃시킨다. 로그인 세션은 Firebase 가 기기에 저장하므로 다음 실행에 자동 로그인된다. 규칙도 회원(`isMember`)만 쓰기 허용. 예전 게스트 데이터 정리 = `scripts/delete_guest_data.mjs`.
 
-Firebase Auth 3가지 로그인 방식 (Google, Apple(iOS 전용 노출), 게스트/익명):
+Firebase Auth 로그인 방식 (Google, Apple(iOS 전용 노출)):
 - `services/auth_service.dart`에서 Firebase Auth 호출 래핑
 - `login_page.dart`가 UI 진입점
 - Firebase/AdMob은 모바일에서만 초기화:
@@ -136,20 +140,20 @@ if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
 ## 유지보수 명령어
 
 ```bash
-# 주간 종합 점검 (번역 키, 스테이지 키, 에셋 존재 여부, 버전 확인)
-node scripts/weekly_check.mjs
-
-# EN/KO 번역 키 누락만 검사
+# EN/KO 번역 키 누락 검사
 node scripts/check_translations.mjs
 
-# Firestore 랭킹 데이터 정합성 검사
-node scripts/check_rankings.mjs
+# firestore.rules 를 배포 없이 시험 (gcloud auth login, 읽기 전용)
+node scripts/test_rules.mjs
 
-# Firestore 오래된 스테이지 레코드 정리
-node scripts/cleanup_stages.mjs
+# 효과음 합성 / 존 배경 생성
+python scripts/make_sfx.py
+python scripts/make_stage_bg.py
 ```
 
-**자동 훅** (`.claude/settings.local.json`에 설정됨):
+> 옛 익명 SDK 관리 스크립트(seed/check/cleanup·마이그레이션)는 2026-09-22 삭제했다. DB 를 고칠 일이 있으면 `test_rules.mjs` 처럼 gcloud 토큰 + REST 로 새로 만든다.
+
+**자동 훅** (`.claude/settings.local.json`에 설정됨 — 개인 로컬 파일, git 추적 안 함):
 - `translations.dart` 수정 후 → `check_translations.mjs` 자동 실행
 - `game_config.dart` 수정 후 → 스테이지 개발 체크리스트 표시
 - `character_data.dart` 수정 후 → 캐릭터 개발 체크리스트 표시
@@ -160,26 +164,19 @@ node scripts/cleanup_stages.mjs
 1. `world_config.dart` — `WorldData.worlds`에 `WorldConfig` 추가(난이도 순). `rankingMapId`는 새 Firestore `maps/{id}`
 2. `translations.dart` — `world_{id}`, `world_{id}_tagline`, `proj_*` 키 EN + KO
 3. 스포너 전략은 `ring`(플레이어/골대 중심 원주)과 `sideline`(맵 4변 바깥) 두 가지. 새 전략은 `BulletSpawner._spawnBullet()`에 분기
-5. 배경·히어로 이미지는 `assets/images/worlds/{id}_bg.png`, `{id}_hero.png` 슬롯에 넣으면 자동 반영(없으면 코드 드로잉). 더미 재생성 `node scripts/make_dummy_assets.mjs`
+5. 배경·히어로 이미지는 `assets/images/worlds/{id}_bg.png`, `{id}_hero.png` 슬롯에 넣으면 자동 반영(없으면 코드 드로잉)
 4. 홈 캐러셀·랭킹 탭·프로필 그리드는 `WorldData.worlds`를 그대로 순회하므로 UI 수정 불필요
 
-### 새 스테이지(장애물 레이아웃) 추가 시
-1. `game_config.dart` — `GameConfig.stages`에 `StageConfig` 추가
-2. `translations.dart` — `nameKey`, `descKey` 키를 EN + KO 양쪽에 추가
-3. `map_selection_page.dart` — 스테이지 카드 UI 확인
-4. Firestore — `maps/{stageId}` 문서 생성 (스크립트 또는 콘솔)
-5. `node scripts/weekly_check.mjs` — 키 누락 없는지 최종 확인
+### 장애물 레이아웃
+2026-09-22 장애물 레이아웃(`zone_2_obstacles` 기둥·`zone_5_maze` 미로)과 `maze_generator.dart` 를 제거했다. 모든 월드가 `zone_1_classic`(장애물 없음)을 쓴다. 장애물 시스템(`Obstacle` 컴포넌트, 탄환 벽 반사 `WallBehavior`/`onWall`/`maxBounces`, 플레이어 밀어내기)도 함께 제거했다.
 
 ### 새 캐릭터 추가 시
 1. `character_data.dart` — `CharacterData.availableCharacters`에 `Character` 추가 (`CharacterStats`의 체력/속도/기력 3축 밸런싱)
-2. `assets/images/characters/{id}.png` — 에셋 파일 추가 (`pubspec.yaml`은 폴더 단위 등록이라 수정 불필요)
-3. `character_selection_page.dart` — UI에 캐릭터 카드 표시 확인
-4. `statistics_page.dart` — `_characterName()` / `_characterIcon()`에 분기 추가
-5. `backoffice/play_stats_page.dart` — `_characterNames`에 추가
+2. 그림 — 캐릭터는 코드 드로잉(`zonber_painter.dart`)이라 색만 정하면 된다 (2026-09-22 1차 AI 아트(`assets/images/game/`·`GameArt`)는 제거했다 — 캐릭터·장비·공·이펙트는 전부 코드 드로잉)
+3. `shop_page.dart` 캐릭터 탭에 표시되는지 확인 (캐릭터 고르기 = 상점)
+4. `backoffice/bo_catalog.dart` — `kCharNames`에 한글 이름 추가
 6. `translations.dart` — 이름/설명 키를 EN + KO 양쪽에 추가
 7. `shop_page.dart` + `iap_service.dart` — 유료 캐릭터인 경우 IAP 항목 추가 (현재 IAP 비활성)
-
-> ⚠️ `Player.render()` 수정은 **불필요**합니다. `Player`는 `SpriteComponent`라 `imagePath`만 있으면 자동 렌더링됩니다. 도형 분기 코드는 존재하지 않습니다.
 
 ### 파워업(아이템) 시스템
 2026-09에 **제거됨**. `powerup_system.dart`·`PowerUpManager`·`PowerUpComponent`·HUD 오버레이·가이드 아이템 탭·`powerup_*` 문자열이 모두 삭제됐다. 월드별 기믹은 [docs/GAME_TYPES_DESIGN.md](docs/GAME_TYPES_DESIGN.md) 설계를 따른다. 다시 넣지 말 것.
@@ -190,7 +187,7 @@ node scripts/cleanup_stages.mjs
 3. 체크 함수 — `bool Function(double survivalTime, int rank)` 형태로 구현
 
 ### 릴리즈 전 체크리스트
-1. `node scripts/weekly_check.mjs` — 종합 점검 통과 확인
+1. `node scripts/check_translations.mjs` · `flutter test` 통과 확인
 2. `pubspec.yaml` — 버전 번호 올리기 (`version: x.y.z+build`)
 3. `flutter analyze` — 신규 warning 없는지 확인
 4. `flutter build apk --release` / `flutter build appbundle --release`
@@ -199,24 +196,11 @@ node scripts/cleanup_stages.mjs
 
 ## 맵 / 스테이지 시스템
 
-### 공식 스테이지 (`game_config.dart`에 정의)
-- `zone_1_classic` — 기본 난이도 **← 현재 유일한 출시 스테이지**
-- `zone_2_obstacles` — 중앙 대칭 4기둥 + 탄환 반사 (미출시)
-- `zone_5_maze` — 절차적 생성 미로 (`maze_generator.dart` 사용, 미출시)
+스테이지는 `world_config.dart`의 월드 3종(cyber · dodgeball · keeper)이고, 리더보드 mapId 는 월드의 `rankingMapId`다.
+`game_config.dart`의 `zone_1_classic`은 탄속·스폰 간격 기본값만 준다(월드 값이 우선).
 
-> ⚠️ 메뉴에 스테이지 선택 화면이 없어 `_currentMapId`는 항상 `zone_1_classic`이다.
-> 정의·장애물 로직·랭킹 구조는 3개 모두 살아 있으니, 선택 화면만 붙이면 다시 열 수 있다.
-
-### 커스텀 맵 (UGC) — 미출시
-- Firestore `custom_maps` 컬렉션에 저장, 그리드는 1D 배열
-- 업로드 전 제작자가 30초 생존 검증 필요
-- ⚠️ **에디터 진입점이 제거되어 있다.** 업로드된 맵을 플레이할 화면이 없기 때문
-  (`getCustomMaps()`의 유일한 호출부는 에디터의 "불러오기" 다이얼로그).
-  되살리려면 커스텀 맵 브라우저 화면이 먼저 필요하다.
-
-### 에디터 제한
-- 중앙 3x3 타일 (스폰 영역)에는 벽 배치 불가
-- 외곽 테두리 타일은 수정 불가
+> 맵 에디터(UGC)·커스텀 맵(`editor_game.dart`·`map_service.dart`)은 2026-09-22 코드째 제거했다.
+> Firestore `custom_maps` 컬렉션 규칙은 `firestore.rules`에 그대로 남아 있다.
 
 ## 싱글톤 서비스
 
@@ -236,8 +220,7 @@ maps/
       └── records/          # 리더보드 항목
           └── {recordId}    # userId, nickname, flag, survivalTime, characterId, timestamp
 
-custom_maps/
-  └── {mapId}               # name, author, width, height, grid[], verified, createdAt
+custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규칙만 남음)
 ```
 
 랭킹 기록은 3개 기간 지원: `weekly`, `monthly`, `allTime` (현재 연도). 일일은 2026-09-18 제거.
@@ -281,13 +264,13 @@ custom_maps/
 
 - `energyCooldown` = 에너지 1칸 회복에 걸리는 초 (낮을수록 좋음)
 - `iframeDuration` = 피격 후 무적 시간. **무적 중 닿는 탄환은 제거**되므로 방어이자 돌파 수단
-- 밸런싱 기준: `invulnBudget`(= maxEnergy × iframeDuration)이 **2.5 ~ 5.0** 범위
+- 밸런싱 기준: maxEnergy × iframeDuration(무적 시간 총합)이 **2.5 ~ 5.0** 범위
 - 해금은 `unlockKey`로 판정. 이미 선택 중인 캐릭터는 조건과 무관하게 유지됨
-- 렌더링은 `SpriteComponent` + `assets/images/characters/{id}.png`
+- 렌더링은 코드 드로잉(`zonber_painter.dart`). 2026-09-22 1차 AI 아트(`assets/images/game/`·`GameArt`)는 제거했다 — 캐릭터·장비·공·이펙트는 전부 코드 드로잉
 
-## 뱃지 / 칭호 숨김
+## 뱃지
 
-`achievement_manager.dart`의 `kShowAchievementBadges = false`가 리더보드 엠블럼·유저 팝업, 통계 페이지 칭호 섹션(+`getUserTitles` 4회 쿼리), 결과 화면의 순위 업적 계산(8회 쿼리)을 모두 끈다. 생존 업적은 캐릭터 해금에 쓰이므로 계속 계산·저장된다. 뱃지 구조 개편이 끝나면 플래그와 분기를 함께 제거한다.
+2026-09-22 명패·칭호를 뱃지로 바꿨다 — 정의·조건 `lib/badges.dart`, 저장 `lib/achievement_manager.dart`(users/{uid}.achievements). 기획 [docs/BADGES.md](docs/BADGES.md).
 
 ## Analytics
 
@@ -297,8 +280,8 @@ custom_maps/
 
 `assets/audio/` 위치. **현재 파일은 전부 합성 플레이스홀더**(Node로 생성, 라이선스 무관)이며 정식 에셋으로 교체 대상:
 - `bgm.mp3` — 배경 음악 (루프, 30초 128BPM)
-- `hit.wav` — 피격(에너지 소모), `gameover.wav` — 게임 오버, `shoot.wav` — 슬롯만 확보(미사용: 초당 10발 스폰마다 재생하면 소음)
-- 설정 › 사운드 토글(`MyProfilePage`)이 `GameSettings.setSound` + BGM 정지를 처리한다
+- `hit.wav` — 피격(에너지 소모), `gameover.wav` — 게임 오버 (전체 목록은 `Sfx`)
+- 설정 › 사운드 토글(`ProfilePage`)이 `GameSettings.setSound` + BGM 정지를 처리한다
 
 ## AdMob 설정
 

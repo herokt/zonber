@@ -19,7 +19,6 @@ class AdHelper {
 
   // 📱 PRODUCTION AD IDS (Real Ads)
   // Android
-  static const String androidAppId = 'ca-app-pub-2067804993393343~6812656981';
   static const String androidBannerId =
       'ca-app-pub-2067804993393343/7647867139';
   static const String androidInterstitialId =
@@ -28,7 +27,6 @@ class AdHelper {
       'ca-app-pub-2067804993393343/7032982983';
 
   // iOS
-  static const String iosAppId = 'ca-app-pub-2067804993393343~6579695026';
   static const String iosBannerId = 'ca-app-pub-2067804993393343/8298797345';
   static const String iosInterstitialId =
       'ca-app-pub-2067804993393343/1274030470';

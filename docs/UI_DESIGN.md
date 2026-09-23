@@ -1,5 +1,7 @@
 # ZONBER UI 리뉴얼 기획 — v0.1
 
+> ⚠️ 2026-09-22 **명패는 제거되고 뱃지로 바뀌었다** — [BADGES.md](BADGES.md). 아래의 명패 관련 내용은 옛 기획이다.
+
 > **v1.0 반영(2026-09-18):** 스테이지 3개(Cyber · Dodgeball · Keeper) 항상 열림 → 캐러셀에 잠금/해금 없음, 카드 칩은 "STAGE n". 랭킹 기간은 주/월/올해. Keeper는 HUD 하단 카운터가 SAVES, 에너지 핍은 남은 허용 골(5). 진입 예고 표시 없음(2026-09-18 제거). 홈 카드 히어로·게임 배경은 `assets/images/worlds/` 슬롯(현재 더미). §6 리소스 표는 [RESOURCES.md](RESOURCES.md)가 최신이다.
 
 > 작성 2026-09-18. 전제: 5개 월드([GAME_TYPES_DESIGN.md](GAME_TYPES_DESIGN.md) v0.2), 리더보드 월드별 완전 분리, 아이템 없음, 뱃지·칭호는 개편 대상.

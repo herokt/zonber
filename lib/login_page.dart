@@ -55,7 +55,6 @@ class _LoginPageState extends State<LoginPage> {
 
     if (result != null) {
       final credential = result['credential'] as UserCredential?;
-      final fullName = result['fullName'] as String?;
 
       if (credential != null) {
         // Sync existing profile from Firestore (returning user).
@@ -75,15 +74,9 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _handleGuestContinue() async {
-    setState(() => _isLoading = true);
-    // 익명 세션을 만들어야 앱 재실행 시 로그인 화면을 다시 보지 않고,
-    // 통계·업적을 uid 기준으로 이어갈 수 있다.
-    await _authService.signInAnonymously();
-    await UserProfileManager.enableGuestMode();
+  /// 게스트로 계속 — 로그인 없이 게임 맛보기만(아무것도 저장하지 않는다)
+  void _handleGuestContinue() {
     AnalyticsService().logLoginSkipped();
-    if (!mounted) return;
-    setState(() => _isLoading = false);
     widget.onGuestContinue?.call();
   }
 
@@ -134,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: Divider(color: AppColors.textDim.withOpacity(0.3)),
+                        child: Divider(color: AppColors.textDim.withValues(alpha: 0.3)),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -148,7 +141,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       Expanded(
-                        child: Divider(color: AppColors.textDim.withOpacity(0.3)),
+                        child: Divider(color: AppColors.textDim.withValues(alpha: 0.3)),
                       ),
                     ],
                   ),

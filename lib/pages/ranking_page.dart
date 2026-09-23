@@ -1,24 +1,29 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../avatar.dart';
 import '../design_system.dart';
+import '../badges.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
 import '../ranking_system.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
+import 'player_profile_view.dart';
 
 /// 랭킹 탭 — 월드 탭 × 기간 × 세계/국가, 포디움, 내 행 고정. (docs/UI_DESIGN.md §4.5)
 class RankingPage extends StatefulWidget {
   final String initialWorldId;
   final Map<String, RankCacheEntry> rankCache;
   final VoidCallback onLogin;
+  final VoidCallback onBack;
 
   const RankingPage({
     super.key,
     required this.initialWorldId,
     required this.rankCache,
     required this.onLogin,
+    required this.onBack,
   });
 
   @override
@@ -49,6 +54,13 @@ class _RankingPageState extends State<RankingPage> {
     super.initState();
     _worldId = widget.initialWorldId;
     _load();
+  }
+
+  /// 랭킹에서 누군가를 누르면 그 사람 프로필을 연다(users/{uid} 는 공개 — player_profile.dart)
+  void _openPlayer(Map<String, dynamic> record) {
+    final uid = (record['userId'] as String?) ?? '';
+    if (uid.isEmpty) return;
+    showPlayerCard(context, uid: uid, zone: _worldId);
   }
 
   bool get _isGuest => FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
@@ -95,7 +107,6 @@ class _RankingPageState extends State<RankingPage> {
     final lm = LanguageManager.of(context);
     final world = WorldData.getWorld(_worldId);
     final accent = world.accent;
-    final cache = widget.rankCache[world.id];
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -104,21 +115,7 @@ class _RankingPageState extends State<RankingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(lm.translate('ranking'), style: AppTextStyles.display(22)),
-                  const Spacer(),
-                  if (cache != null)
-                    Text(
-                      lm.translate('records_count').replaceAll('{n}', formatCount(cache.total)),
-                      style: AppTextStyles.text(12, color: AppColors.textDim, weight: FontWeight.w700),
-                    ),
-                ],
-              ),
-            ),
+            NeonAppBar(title: lm.translate('nav_ranking'), showBackButton: true, onBack: widget.onBack),
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -168,48 +165,54 @@ class _RankingPageState extends State<RankingPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
             Expanded(
               child: _loading
                   ? Center(child: CircularProgressIndicator(color: accent))
                   : _records.isEmpty
                       ? _empty(lm)
                       : ListView(
-                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                          children: [
-                            _Podium(records: _records.take(3).toList(), accent: accent, myIndex: _myIndex),
-                            if (_records.length > 3) ...[
-                              const SizedBox(height: 14),
-                              // 4위 이하 — 한 장의 카드 안에 줄로
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: AppColors.line),
+                              padding: const EdgeInsets.fromLTRB(24, 2, 24, 8),
+                              children: [
+                                _Podium(
+                                    records: _records.take(3).toList(),
+                                    accent: accent,
+                                    myIndex: _myIndex,
+                                    zone: _worldId,
+                                    onPick: _openPlayer),
+                                if (_records.length > 3) const SizedBox(height: 14),
+                                // 4위 이하 — 한 장의 카드 안에 줄로
+                                if (_records.length > 3)
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.line),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Column(
+                                    children: [
+                                      for (int i = 3; i < _records.length; i++)
+                                        RankRow(
+                                          rank: i + 1,
+                                          nickname: (_records[i]['nickname'] as String?) ?? lm.translate('unknown'),
+                                          flag: (_records[i]['flag'] as String?) ?? '',
+                                          avatar: Avatar.fromRecord(_records[i], zone: _worldId),
+                                          zone: _worldId,
+                                          survivalTime: ((_records[i]['survivalTime'] as num?) ?? 0).toDouble(),
+                                          highlighted: i == _myIndex,
+                                          accent: accent,
+                                          badge: badgeOfRecord(_records[i]),
+                                          last: i == _records.length - 1,
+                                          onTap: () => _openPlayer(_records[i]),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                                clipBehavior: Clip.antiAlias,
-                                child: Column(
-                                  children: [
-                                    for (int i = 3; i < _records.length; i++)
-                                      RankRow(
-                                        rank: i + 1,
-                                        nickname: (_records[i]['nickname'] as String?) ?? lm.translate('unknown'),
-                                        flag: (_records[i]['flag'] as String?) ?? '',
-                                        characterId: (_records[i]['characterId'] as String?) ?? 'neon_green',
-                                        gear: _gearOf(_records[i]),
-                                        skin: _records[i]['skin'] as String?,
-                                        survivalTime: ((_records[i]['survivalTime'] as num?) ?? 0).toDouble(),
-                                        highlighted: i == _myIndex,
-                                        accent: accent,
-                                        plate: plateOfRecord(_records[i]),
-                                        last: i == _records.length - 1,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                              ],
+                            ),
             ),
+            const SizedBox(height: 12),
             _myBar(lm, accent),
           ],
         ),
@@ -287,7 +290,7 @@ class _RankingPageState extends State<RankingPage> {
           children: [
             Text(_myIndex >= 0 ? '#${_myIndex + 1}' : lm.translate('my_record'), style: AppTextStyles.display(14)),
             const SizedBox(width: 10),
-            CharacterAvatar(characterId: (_mine!['characterId'] as String?) ?? 'neon_green', gear: _gearOf(_mine!), skin: _mine!['skin'] as String?, size: 28),
+            AvatarView(avatar: Avatar.fromRecord(_mine!, zone: _worldId), zone: _worldId, size: 28),
             const SizedBox(width: 10),
             Expanded(
               child: Row(
@@ -296,9 +299,9 @@ class _RankingPageState extends State<RankingPage> {
                     child: Text((_mine!['nickname'] as String?) ?? '',
                         style: AppTextStyles.text(14, weight: FontWeight.w800), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
-                  if (plateOfRecord(_mine!) != null) ...[
+                  if (badgeOfRecord(_mine!) != null) ...[
                     const SizedBox(width: 6),
-                    PlateBadge(tier: plateOfRecord(_mine!)!, size: 18),
+                    BadgeIcon(badge: badgeOfRecord(_mine!)!, size: 18),
                   ],
                 ],
               ),
@@ -319,11 +322,10 @@ class _RankingPageState extends State<RankingPage> {
   }
 }
 
-/// 기록에 붙은 명패 등급(ranking_system 이 users.plates 에서 붙인 값). 없으면 null
-PlateTier? plateOfRecord(Map<String, dynamic> r) {
-  final rank = (r['plateRank'] as num?)?.toInt();
-  if (rank == null) return null;
-  return plateTierOf((r['plateScope'] as String?) ?? 'world', rank);
+/// 기록 주인의 대표 뱃지(ranking_system 이 users.achievements 에서 붙인 값). 없으면 null
+BadgeDef? badgeOfRecord(Map<String, dynamic> r) {
+  final key = r['badge'] as String?;
+  return key == null ? null : Badges.byKey(key);
 }
 
 /// 1~3위 포디움 — 메달 색 받침대 위에 캐릭터·이름·국기·기록
@@ -331,7 +333,11 @@ class _Podium extends StatelessWidget {
   final List<Map<String, dynamic>> records;
   final Color accent;
   final int myIndex;
-  const _Podium({required this.records, required this.accent, required this.myIndex});
+  /// 이 존에서 입은 장비를 아바타에 입혀 준다
+  final String zone;
+  /// 아바타·이름을 누르면 그 사람 프로필
+  final void Function(Map<String, dynamic> record) onPick;
+  const _Podium({required this.records, required this.accent, required this.myIndex, required this.zone, required this.onPick});
 
   @override
   Widget build(BuildContext context) {
@@ -339,19 +345,22 @@ class _Podium extends StatelessWidget {
       if (i >= records.length) return const Expanded(child: SizedBox());
       final r = records[i];
       final first = i == 0;
-      final plate = plateOfRecord(r);
+      final badge = badgeOfRecord(r);
       final flag = (r['flag'] as String?) ?? '';
-      final avatar = first ? 64.0 : 52.0;
+      final avatarSize = first ? 64.0 : 52.0;
       return Expanded(
-        child: Column(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onPick(r),
+          child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             if (first) Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 26),
             if (first) const SizedBox(height: 2),
             // 캐릭터 + 아래쪽 순위 메달
             SizedBox(
-              width: avatar + 8,
-              height: avatar + 12,
+              width: avatarSize + 8,
+              height: avatarSize + 12,
               child: Stack(
                 clipBehavior: Clip.none,
                 alignment: Alignment.topCenter,
@@ -366,12 +375,7 @@ class _Podium extends StatelessWidget {
                         colors: [medal.withValues(alpha: 0.5), medal, medal.withValues(alpha: 0.7)],
                       ),
                     ),
-                    child: CharacterAvatar(
-                      characterId: (r['characterId'] as String?) ?? 'neon_green',
-                      gear: _gearOf(r),
-                      skin: r['skin'] as String?,
-                      size: avatar,
-                    ),
+                    child: AvatarView(avatar: Avatar.fromRecord(r, zone: zone), zone: zone, size: avatarSize),
                   ),
                   Positioned(
                     bottom: 0,
@@ -400,9 +404,9 @@ class _Podium extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                 ),
-                if (plate != null) ...[
+                if (badge != null) ...[
                   const SizedBox(width: 4),
-                  PlateBadge(tier: plate, size: 15),
+                  BadgeIcon(badge: badge, size: 15),
                 ],
               ],
             ),
@@ -437,6 +441,7 @@ class _Podium extends StatelessWidget {
             ),
           ],
         ),
+        ),
       );
     }
 
@@ -463,4 +468,3 @@ class _Podium extends StatelessWidget {
 }
 
 /// 기록 주인이 지금 이 존에서 입은 장비(ranking_system 이 유저 문서에서 채운다)
-List<String> _gearOf(Map<String, dynamic> r) => (r['gear'] as List?)?.whereType<String>().toList() ?? const [];

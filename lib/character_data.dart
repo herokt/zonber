@@ -23,9 +23,6 @@ class CharacterStats {
     iframeDuration: 1.5,
   );
 
-  /// 실질 생존력 지표 — 무적 시간의 총합(초).
-  /// 무적 중에는 닿는 탄환이 제거되므로 이 값이 곧 "탄막을 뚫고 지나갈 수 있는 시간"이다.
-  double get invulnBudget => maxEnergy * iframeDuration;
 }
 
 class Character {
@@ -34,7 +31,6 @@ class Character {
   final Color color;
   /// 성격 한 줄(컨셉 문서 docs/CHARACTER_CONCEPT.md). 능력치는 모두 같다.
   final String description;
-  final String? imagePath;
   final CharacterStats stats;
 
   /// 해금 조건이 되는 업적 키. null이면 기본 해금.
@@ -49,7 +45,6 @@ class Character {
     required this.color,
     required this.description,
     required this.stats,
-    this.imagePath,
     this.unlockKey,
     this.price = 0,
   });
@@ -62,7 +57,6 @@ class CharacterData {
       name: 'Mint',
       color: Color(0xFF3FBF97),
       description: 'The original zoner. Calm, steady, always there.',
-      imagePath: 'assets/images/characters/neon_green.png',
       stats: CharacterStats.standard,
     ),
 
@@ -71,9 +65,8 @@ class CharacterData {
       name: 'Zap',
       color: Color(0xFF3B8EF0),
       description: 'Restless and quick-witted. Never sits still.',
-      imagePath: 'assets/images/characters/electric_blue.png',
       unlockKey: 'ach_survivor',
-      price: 300,
+      price: 200,
       stats: CharacterStats.standard,
     ),
 
@@ -82,9 +75,8 @@ class CharacterData {
       name: 'Luna',
       color: Color(0xFFA66BF2),
       description: 'Dreamy and mysterious. Hums while dodging.',
-      imagePath: 'assets/images/characters/plasma_purple.png',
       unlockKey: 'ach_veteran',
-      price: 400,
+      price: 200,
       stats: CharacterStats.standard,
     ),
 
@@ -92,10 +84,9 @@ class CharacterData {
       id: 'cyber_red',
       name: 'Blaze',
       color: Color(0xFFF2503D),
-      description: 'Hot-headed competitor. Hates losing.',
-      imagePath: 'assets/images/characters/cyber_red.png',
+      description: 'Fired up and puffy-cheeked. Pouts when losing.',
       unlockKey: 'ach_elite',
-      price: 500,
+      price: 200,
       stats: CharacterStats.standard,
     ),
 
@@ -104,9 +95,8 @@ class CharacterData {
       name: 'Sunny',
       color: Color(0xFFFFC928),
       description: 'Easygoing sunshine. Smiles even when hit.',
-      imagePath: 'assets/images/characters/solar_gold.png',
       unlockKey: 'ach_master',
-      price: 700,
+      price: 200,
       stats: CharacterStats.standard,
     ),
 
@@ -114,10 +104,29 @@ class CharacterData {
       id: 'void_dark',
       name: 'Wraith',
       color: Color(0xFF5B6272),
-      description: 'Quiet shadow. Nobody knows where it came from.',
-      imagePath: 'assets/images/characters/void_dark.png',
+      description: 'Quiet night. Watches with long lashes and says nothing.',
       unlockKey: 'ach_legend',
-      price: 900,
+      price: 200,
+      stats: CharacterStats.standard,
+    ),
+
+    Character(
+      id: 'blossom_pink',
+      name: 'Cherry',
+      color: Color(0xFFFF7FB0),
+      description: 'Loves being looked at. Poses even mid-dodge.',
+      unlockKey: 'b_runs_100',
+      price: 200,
+      stats: CharacterStats.standard,
+    ),
+
+    Character(
+      id: 'frost_cyan',
+      name: 'Coco',
+      color: Color(0xFF35C9E8),
+      description: 'The little one. Big round eyes, tiny cat mouth.',
+      unlockKey: 'b_time_1h',
+      price: 200,
       stats: CharacterStats.standard,
     ),
   ];
@@ -129,40 +138,8 @@ class CharacterData {
     );
   }
 
-  /// (구) 스탯 등급 — 능력치 통일 후 UI 에서 쓰지 않는다
-  static int energyRating(int maxEnergy) => maxEnergy.clamp(1, 5);
-
-  static int speedRating(double mult) {
-    if (mult >= 1.4) return 5;
-    if (mult >= 1.2) return 4;
-    if (mult >= 1.0) return 3;
-    if (mult >= 0.80) return 2;
-    return 1;
-  }
-
-  static int cooldownRating(double cooldown) {
-    if (cooldown >= 45) return 1;  // 매우 느림 (50~55초)
-    if (cooldown >= 30) return 2;  // 느림 (35초)
-    if (cooldown >= 22) return 3;  // 보통 (25초)
-    if (cooldown >= 14) return 4;  // 빠름 (18초)
-    return 5;                      // 매우 빠름 (10초)
-  }
-
-  /// 회피(무적 시간) 등급
-  static int iframeRating(double duration) {
-    if (duration >= 2.2) return 5;  // 2.5s
-    if (duration >= 1.55) return 4; // 1.6s
-    if (duration >= 1.4) return 3;  // 1.5s
-    if (duration >= 1.15) return 2; // 1.2~1.3s
-    return 1;                       // 1.0s
-  }
-
-  /// 해금이 필요 없는 기본 캐릭터인지
-  static bool isDefault(String id) => getCharacter(id).unlockKey == null;
-
-  /// 현재는 전 캐릭터 개방 — 업적(뱃지·타이틀) 구조 개편 뒤 해금 조건을 다시 켠다.
-  /// false 로 바꾸면 unlockKey 업적 보유 여부로 판정한다.
-  static const bool allUnlocked = true;
+  /// 2026-09-22 코인 해금을 켰다(false). 이미 쓰던 캐릭터는 상점이 보유로 넣어 준다(ShopPage._load).
+  static const bool allUnlocked = false;
 
   /// 해금 여부 — 기본 캐릭터 · 업적 달성 · 상점에서 코인으로 구매 중 하나
   static bool isUnlocked(Character char, List<String> achievementKeys) {
