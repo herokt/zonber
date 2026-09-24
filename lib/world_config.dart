@@ -204,7 +204,7 @@ class WorldData {
       // dodgeball_bg.png(960×1536) 코트 라인을 잰 값 ÷2. 배경을 바꾸면 다시 잴 것.
       court: Rect.fromLTRB(46, 230, 434, 690),
       playArea: Rect.fromLTRB(46, 462, 434, 690), // 중앙선(y 460) 아래 = 우리 편 진영
-      view: Rect.fromLTRB(0, 190, 480, 750), // 코트 + 외야 띠만 보이게(세로 560)
+      view: Rect.fromLTRB(0, 170, 480, 750), // 코트 + 외야 띠만 보이게(세로 580) — 코트 중심(460) 기준 위아래 같게
     ),
     // ── 3. Keeper — 가운데 골대를 지킨다. 공에 닿으면 세이브, 골대에 들어오면 실점 ──
     WorldConfig(
@@ -263,7 +263,8 @@ class WorldData {
       goalRadius: 64,
       // 페널티 에어리어 = 키퍼 이동 영역 = 나의 존 (KeeperGoal.penaltyBox 와 같은 값)
       playArea: Rect.fromLTRB(12, 420, 468, 720),
-      view: Rect.fromLTRB(0, 250, 480, 768), // 반코트 — 페널티 에어리어와 그 앞 슈터 자리만(세로 518)
+      // 반코트 — 페널티 에어리어와 그 앞 슈터 자리만(세로 513). 위쪽은 가장 높은 슈터(y 280, 찰 때 반지름 ~18) 바로 위까지
+      view: Rect.fromLTRB(0, 255, 480, 768),
       lives: 5,
       accent: Color(0xFF2F6FE4),
       floor: Color(0xFFA8DC8F), // 밝은 잔디

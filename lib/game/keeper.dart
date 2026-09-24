@@ -231,7 +231,6 @@ class _KeeperShooter {
         // 직선·강슛·총알슛·무회전(무회전은 흔들림이 매번 달라 보정하지 않는다)
         game.mapArea.add(Bullet(origin, target, speed: speed, def: def));
     }
-    if (kind == _Kick.rocket) game.shake(2, 0.1);
     AudioManager().playSfx(Sfx.kick, volume: kind == _Kick.rocket ? 0.8 : 0.55, minGapMs: 50);
   }
 }

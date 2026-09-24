@@ -57,7 +57,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   /// 나의 존: 캐릭터가 움직일 수 있는 영역. 갤럭시 = 맵 전체, 피구 = 우리 진영, 골키퍼 = 페널티 에어리어
   Rect get zoneRect => worldConfig.playArea ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
   /// 화면에 보이는 무대 창 — 피구·골키퍼는 무대 일부(반코트)만 보여 준다.
-  /// 기기 화면이 세로로 더 길면 [_fitView] 가 무대 안에서 창을 위(골키퍼) 또는 위아래(피구)로 늘린다.
+  /// 기기 화면이 세로로 더 길면 [_fitView] 가 무대 안에서 창을 위아래로 늘린다(피구는 코트 중심 기준, 골키퍼는 늘리지 않는다).
   Rect get viewRect => _fittedView ?? worldConfig.view ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
   Rect? _fittedView;
 
@@ -72,9 +72,15 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       if (wantH > base.height + 1) {
         final extra = wantH - base.height;
         if (worldConfig.mode == WorldMode.keeper) {
-          // 골문은 무대 맨 아래라 아래로는 못 늘린다 — 위로 절반만 늘려서
-          // 경기장(창)이 화면 가운데에 오게 한다(남는 위아래는 같은 잔디색 여백)
-          vr = Rect.fromLTRB(base.left, max(0, base.top - extra / 2), base.right, base.bottom);
+          // 골키퍼: 늘리지 않는다 — 골문은 무대 맨 아래라 위로만 늘어나는데, 슈터 위 빈 잔디만 길어져
+          // 골문 쪽이 아래로 치우쳐 보였다. 창(슈터 자리 ~ 골문)이 화면 가운데, 남는 위아래는 같은 잔디색 여백
+          vr = base;
+        } else if (worldConfig.court != null) {
+          // 피구: 코트가 화면 가운데 — 코트 중심에서 위아래로 같은 만큼만 늘린다.
+          // 무대 끝에 닿으면 거기까지(남는 위아래는 같은 마루색 여백). 한쪽으로 몰면 코트가 아래로 치우친다
+          final cy = worldConfig.court!.center.dy;
+          final half = min(base.height / 2 + extra / 2, min(cy, mapHeight - cy));
+          vr = Rect.fromLTRB(base.left, cy - half, base.right, cy + half);
         } else {
           final top = max(0.0, base.top - extra / 2);
           final bottom = min(mapHeight, base.bottom + extra / 2);
@@ -100,15 +106,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
   // ── 타격감 연출 ──
   final Random _fxRng = Random();
-  double _shakeT = 0, _shakeDur = 1, _shakeMag = 0;
   /// 붉은 번쩍임 트리거(값이 바뀔 때마다 한 번)
   final ValueNotifier<int> flashNotifier = ValueNotifier(0);
-  void shake(double mag, double dur) {
-    if (mag < _shakeMag * (_shakeT / _shakeDur)) return;
-    _shakeMag = mag;
-    _shakeDur = dur;
-    _shakeT = dur;
-  }
 
   /// [at] 에서 [color] 파편이 튀어 퍼진다
   void burst(Vector2 at, Color color, {int count = 16, double speed = 220, double size = 3}) {
@@ -139,25 +138,22 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   void flash() => flashNotifier.value++;
 
 
-  /// 피격(피하기 존) — 흔들림 · 파편 · 붉은 번쩍임
+  /// 피격(피하기 존) — 파편 · 붉은 번쩍임 (경기장 흔들림은 2026-09-24 전 존에서 뺐다)
   void fxHit(Vector2 at, Color ballColor) {
-    shake(7, 0.3);
     burst(at, ballColor, count: 18, speed: 240);
     burst(at, Colors.white, count: 8, speed: 140, size: 2);
     flash();
   }
 
-  /// 실점(골키퍼) — 큰 흔들림 · 그물 앞 파편(문구는 띄우지 않는다)
+  /// 실점(골키퍼) — 그물 앞 파편 · 붉은 번쩍임(문구는 띄우지 않는다)
   void fxGoal(Vector2 at) {
-    shake(11, 0.45);
     burst(at, Colors.white, count: 22, speed: 260, size: 3);
     burst(at, const Color(0xFFE5484D), count: 12, speed: 180);
     flash();
   }
 
-  /// 세이브 — 가벼운 흔들림 · 파편(문구·연속 표시는 띄우지 않는다)
+  /// 세이브 — 파편(문구·연속 표시는 띄우지 않는다)
   void fxSave(Vector2 at) {
-    shake(3.5, 0.15);
     burst(at, Colors.white, count: 12, speed: 200, size: 2.5);
   }
 
@@ -349,17 +345,6 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   void update(double dt) {
     // (멈칫 hit-stop 은 뺐다 — 맞고·막고·먹히는 순간 화면이 0.07~0.12초 서서 프레임이 끊긴 것처럼 보였다)
     super.update(dt);
-
-    // 화면 흔들림
-    final base = Vector2(viewRect.center.dx, viewRect.center.dy);
-    if (_shakeT > 0) {
-      _shakeT -= dt;
-      final m = _shakeMag * (_shakeT / _shakeDur).clamp(0.0, 1.0);
-      camera.viewfinder.position = base + Vector2((_fxRng.nextDouble() - 0.5) * 2 * m, (_fxRng.nextDouble() - 0.5) * 2 * m);
-    } else {
-      _shakeMag = 0;
-      camera.viewfinder.position = base;
-    }
 
     // 시작 연출 — 나의 존 깜빡임 → START! → 시작
     if (inIntro) {

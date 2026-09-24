@@ -521,7 +521,6 @@ class Bullet extends PositionComponent
         // 포스트 — 맞은 각도대로 튕긴다. 맞고 골문 안으로 들어갈 수도 있다(득점 대상 유지)
         reflectSoft(off, e: 0.75, friction: 0.95);
         position = pc + off.normalized() * (KeeperGoal.postRadius + br + 1);
-        game.shake(4, 0.18);
         game.burst(position.clone(), Colors.white, count: 8, speed: 150, size: 2);
         AudioManager().playSfx(Sfx.hit, volume: 0.35, minGapMs: 60);
         return false;

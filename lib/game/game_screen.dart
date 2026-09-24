@@ -258,7 +258,7 @@ class _EnergyPips extends StatelessWidget {
             for (int i = 0; i < e.max; i++)
               Container(
                 margin: const EdgeInsets.only(left: 3),
-                width: e.max > 3 ? 7 : 10,
+                width: e.max > 4 ? 5 : e.max > 3 ? 7 : 10, // 자리 44 안에 — 골키퍼 목숨 5칸이 넘쳤다
                 height: 24,
                 decoration: BoxDecoration(
                   color: i < e.current
