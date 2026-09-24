@@ -23,7 +23,7 @@ class BoStage {
   String get label => 'ZONE $no $name';
 }
 
-const Map<String, String> _kStageNamesKo = {'cyber': '갤럭시', 'dodgeball': '피구', 'keeper': '골키퍼'};
+const Map<String, String> _kStageNamesKo = {'cyber': '갤럭시', 'dodgeball': '피구', 'keeper': '프리킥'};
 const Map<String, String> _kStageStats = {'cyber': 'graze', 'dodgeball': 'close_dodge', 'keeper': 'save_streak'};
 
 final List<BoStage> kStages = [
