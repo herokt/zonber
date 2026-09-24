@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'design_system.dart';
 
 import 'language_manager.dart';
+import 'store_shot.dart';
 import 'achievement_manager.dart';
 import 'progress_store.dart';
 import 'coin_store.dart';
@@ -336,6 +337,8 @@ class UserProfileManager {
   }
 
   static Future<Map<String, String>> getProfile() async {
+    // 스토어 스크린샷 — 기기에 저장된 내 프로필 대신 처음 시작한 사람
+    if (kStoreShot) return {'nickname': '', 'flag': '', 'countryName': '', 'characterId': 'neon_green'};
     final prefs = await SharedPreferences.getInstance();
     return {
       'nickname': prefs.getString(_keyNickname) ?? 'Unknown',

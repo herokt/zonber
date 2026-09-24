@@ -1,6 +1,7 @@
 import 'gear.dart';
 import 'season.dart';
 import 'badges.dart';
+import 'store_shot.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -176,6 +177,7 @@ class RankingSystem {
     String mapId, {
     RankingPeriod period = RankingPeriod.allTime,
   }) async {
+    if (kStoreShot) return StoreShot.records(mapId);
     if (_db == null) return [];
     try {
       final periodStart = _getPeriodStart(period);
@@ -228,6 +230,7 @@ class RankingSystem {
 
   /// 올해 상위 기록 시간 목록(내림차순, 최대 limit). 목표선·TOP N 진입선 계산용.
   Future<List<double>> getTopTimes(String mapId, {int limit = 100}) async {
+    if (kStoreShot) return StoreShot.topTimes(mapId, limit: limit);
     if (_db == null) return [];
     try {
       final periodStart = _getPeriodStart(RankingPeriod.allTime);
@@ -259,6 +262,7 @@ class RankingSystem {
     RankingPeriod period = RankingPeriod.allTime,
     int limit = 30,
   }) async {
+    if (kStoreShot) return StoreShot.records(mapId, limit: limit);
     if (_db == null) return [];
     try {
       final periodStart = _getPeriodStart(period);
@@ -287,6 +291,7 @@ class RankingSystem {
     String userId, {
     RankingPeriod period = RankingPeriod.allTime,
   }) async {
+    if (kStoreShot) return null;
     if (_db == null || userId.isEmpty) return null;
     try {
       final periodStart = _getPeriodStart(period);
