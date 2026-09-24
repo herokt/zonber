@@ -51,6 +51,7 @@ import 'game_config.dart'; // [NEW] Added for Stage Config
 import 'backoffice/admin_gate.dart';
 import 'backoffice/backoffice_home.dart'; // Added for Secret Admin
 import 'firebase_options.dart'; // Added by instruction
+import 'store_shot.dart';
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -61,6 +62,7 @@ part 'game/player.dart';
 part 'game/projectiles.dart';
 part 'game/keeper.dart';
 part 'game/dodgeball.dart';
+part 'store_shot_run.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,6 +76,11 @@ void main() async {
 
   // 테마는 첫 프레임 전에 읽는다 — 다크 사용자에게 라이트 스플래시가 번쩍이지 않게
   await GameSettings().load();
+  if (kStoreShot) {
+    // 스토어 스크린샷 — 소리·진동 끔 · 라이트 테마 · 시스템 바 숨김(상태바는 합성할 때 그린다)
+    GameSettings().storeShotDefaults();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
   AppColors.isDark = GameSettings().darkMode;
 
   // Status bar/nav bar: transparent, 아이콘 밝기는 테마를 따른다 (edge-to-edge compatible)
@@ -166,6 +173,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   }
 
   Future<void> _initializeApp() async {
+    if (kStoreShot) return _startStoreShots();
     // 1. Initialize Core Services (Firebase, AdMob, IAP)
     if (kIsWeb) {
       try {
@@ -381,6 +389,9 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     });
   }
 
+  /// 화면만 바꾼다(분석·게임 준비 없이) — 스토어 스크린샷 시작용
+  void _showPage(String page) => setState(() => _currentPage = page);
+
   void _navigateTo(String page, {String? mapId, double initialTime = 0.0}) {
     if (page == 'Shop' && _currentPage != 'Shop') _shopReturn = _currentPage;
     // Create the game object here (before setState) so that build() always
@@ -530,6 +541,14 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         PointerDeviceKind.stylus,
       }),
       locale: Locale(LanguageManager().currentLanguage),
+      // 스토어 스크린샷 — 시스템 바를 숨겼으니 위쪽에 상태바 자리를 비워 둔다(합성 때 그 자리에 상태바를 그린다)
+      builder: kStoreShot
+          ? (context, child) {
+              final mq = MediaQuery.of(context);
+              const inset = EdgeInsets.only(top: StoreShot.statusBarDp);
+              return MediaQuery(data: mq.copyWith(padding: inset, viewPadding: inset), child: child!);
+            }
+          : null,
       supportedLocales: const [Locale('en'), Locale('ko'), Locale('zh'), Locale('ja')],
       localizationsDelegates: const [
         CountryLocalizations.delegate,
@@ -773,7 +792,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     showNeonDialog(
       context: context,
       title: langManager.translate('paused'),
-      message: (FirebaseAuth.instance.currentUser?.isAnonymous ?? true)
+      message: AuthService.isGuest
           ? langManager.translate('guest_no_ranking_note')
           : null,
       barrierDismissible: false, // 바깥 탭으로 닫히면 게임이 멈춘 채 남는다

@@ -87,7 +87,7 @@ class _GameScreen extends StatelessWidget {
                 valueListenable: game.targetNotifier,
                 builder: (context, target, _) {
                   if (target == null) return const SizedBox.shrink();
-                  final guest = FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
+                  final guest = AuthService.isGuest;
                   return ValueListenableBuilder<double>(
                     valueListenable: game.survivalTimeNotifier,
                     builder: (context, t, _) => Padding(

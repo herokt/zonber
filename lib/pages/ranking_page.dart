@@ -7,6 +7,7 @@ import '../badges.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
 import '../ranking_system.dart';
+import '../services/auth_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
 import 'player_profile_view.dart';
@@ -63,7 +64,7 @@ class _RankingPageState extends State<RankingPage> {
     showPlayerCard(context, uid: uid, zone: _worldId);
   }
 
-  bool get _isGuest => FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
+  bool get _isGuest => AuthService.isGuest;
 
   Future<void> _load() async {
     final seq = ++_loadSeq;
@@ -256,6 +257,7 @@ class _RankingPageState extends State<RankingPage> {
                   child: OneLineText(lm.translate('guest_no_ranking_note'),
                       style: AppTextStyles.text(12, color: AppColors.textDim)),
                 ),
+                const SizedBox(width: 10), // 안내가 길면(영어) '로그인'과 붙어 보였다
                 Text(lm.translate('login'), style: AppTextStyles.text(13, weight: FontWeight.w800)),
                 Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 18),
               ],

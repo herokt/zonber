@@ -342,7 +342,7 @@ class Player extends PositionComponent
 
   /// Keeper: 골을 허용했다 — 목숨 1 소모. 0이면 게임 오버.
   void concedeGoal() {
-    if (game.isGameOver) return;
+    if (game.isGameOver || game.storeShot) return;
     showFace(ZonberFace.hurt, 0.9, squash: true);
     _energy = (_energy - 1.0).clamp(0.0, _maxShields.toDouble());
     _notifyEnergy();
@@ -371,6 +371,7 @@ class Player extends PositionComponent
         Haptics.tick();
         return;
       }
+      if (game.storeShot) return; // 스토어 스크린샷 — 공이 지나간다
       if (_isInvincible) {
         // 무적 중 — 총알만 제거
         other.removeFromParent();

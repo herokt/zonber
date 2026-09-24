@@ -107,7 +107,37 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     ));
   }
 
-  void flash() => flashNotifier.value++;
+  void flash() {
+    if (!storeShot) flashNotifier.value++;
+  }
+
+  /// 스토어 스크린샷 모드(store_shot.dart) — 캐릭터는 맞지 않고, 골을 먹어도 목숨이 줄지 않고, 붉은 번쩍임도 없다
+  bool storeShot = false;
+
+  /// 스토어 스크린샷 — 생존 시간 [t] 까지 판을 빠르게 돌려 둔다(엔진은 멈춘 채로 부른다)
+  Future<void> storeShotAdvance(double t) async {
+    storeShot = true;
+    debugNoGameOver = true;
+    int n = 0;
+    while (survivalTime < t || inIntro) {
+      update(1 / 60);
+      // 공의 onLoad(비동기)가 끝나야 붙는다 — 매 스텝 한 번씩 넘겨 준다. 안 그러면 붙지 못한 공이 동시 탄 상한에
+      // 잡히지 않고 수천 개 쌓였다가 한꺼번에 붙었다(판이 수십 초 굳고 ANR)
+      await Future<void>.value();
+      if (++n % 300 == 0) await Future<void>.delayed(Duration.zero); // 화면이 굳지 않게 가끔 쉰다
+    }
+    if (worldConfig.mode != WorldMode.keeper) {
+      // 공이 캐릭터에 겹친 순간이면 맞는 장면처럼 보인다 — 가까이(70) 공이 없을 때까지 조금 더 돌린다(최대 8초)
+      bool crowded() => mapArea.children.whereType<Bullet>().any((b) => b.position.distanceTo(player.position) < 70);
+      for (int k = 0; k < 480 && crowded(); k++) {
+        update(1 / 60);
+        await Future<void>.value();
+      }
+      // 공이 캐릭터를 통과하니 근접 회피가 실제 판보다 몇 배 많이 세어진다 — 실제 판 수준(초당 ~0.6)으로
+      player.grazeCount = (survivalTime * 0.6).round();
+      grazeNotifier.value = player.grazeCount;
+    }
+  }
 
 
   /// 피격(피하기 존) — 파편 · 붉은 번쩍임 (경기장 흔들림은 2026-09-24 전 존에서 뺐다)
