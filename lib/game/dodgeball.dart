@@ -140,7 +140,8 @@ class _DodgeballThrower {
     if (tier >= 6) target += game.player.recentVelocity * 0.35;
     final dir = (target - origin).normalized();
     final perp = Vector2(-dir.y, dir.x);
-    final speed = speedAt(t);
+    // 코트가 길어진 만큼 빠르게 — 공이 오는 시간은 예전 코트와 같다(Balance.dodgeThrowScale)
+    final speed = speedAt(t) * Balance.dodgeThrowScale;
 
     void add(Vector2 from, ProjectileDef def, double v, {int splitInto = 0}) {
       final b = Bullet(from, from + dir * 100, speed: v * def.speedMult, def: def);

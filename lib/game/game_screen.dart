@@ -120,7 +120,7 @@ class _GameScreen extends StatelessWidget {
                 },
               ),
               ),
-              // ── 무대 — ZonberGame 이 가운데 맞춤으로 그린다 ──
+              // ── 경기장 — 세 존 모두 같은 480×768 무대를 이 영역에 가장 크게, 가운데 맞춤으로 그린다(ZonberGame._fitView) ──
               Expanded(
                 child: Stack(
                   children: [
@@ -196,10 +196,11 @@ class _GameScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // 추가 기록 칩 — 경기장 위쪽 가장자리(아래쪽은 골키퍼 골문·피구 내 뒤 외야가 있다)
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 16,
+                      top: 12,
                       child: IgnorePointer(
                         child: ValueListenableBuilder<int>(
                           valueListenable: game.grazeNotifier,
