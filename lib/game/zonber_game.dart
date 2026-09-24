@@ -56,45 +56,17 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   // ── 나의 ZONE · 시작 연출 ──
   /// 나의 존: 캐릭터가 움직일 수 있는 영역. 갤럭시 = 맵 전체, 피구 = 우리 진영, 골키퍼 = 페널티 에어리어
   Rect get zoneRect => worldConfig.playArea ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
-  /// 화면에 보이는 무대 창 — 피구·골키퍼는 무대 일부(반코트)만 보여 준다.
-  /// 기기 화면이 세로로 더 길면 [_fitView] 가 무대 안에서 창을 위아래로 늘린다(피구는 코트 중심 기준, 골키퍼는 늘리지 않는다).
-  Rect get viewRect => _fittedView ?? worldConfig.view ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
-  Rect? _fittedView;
+  /// 경기장 — 세 존 모두 무대 480×768 전체(2026-09-24). 존마다 화면에 같은 크기·같은 자리로 보인다.
+  /// (예전엔 피구·골키퍼가 무대 일부만 보여 줘서 존마다 경기장 크기가 달랐고, 기기 비율에 따라 창을 늘였다)
+  static const Rect viewRect = Rect.fromLTWH(0, 0, mapWidth, mapHeight);
 
-  /// 게임 영역 크기 [screen] 에 맞춰 보이는 창을 정하고 카메라를 맞춘다.
-  /// 폭을 꽉 채웠을 때 남는 세로 공간만큼 창을 늘린다(무대 480×768 밖으로는 안 나간다).
-  void _fitView(Vector2 screen) {
-    final base = worldConfig.view ?? const Rect.fromLTWH(0, 0, mapWidth, mapHeight);
-    Rect vr = base;
-    if (screen.x > 0 && screen.y > 0) {
-      final aspect = screen.x / screen.y;
-      final wantH = (base.width + arenaMargin * 2) / aspect - arenaMargin * 2;
-      if (wantH > base.height + 1) {
-        final extra = wantH - base.height;
-        if (worldConfig.mode == WorldMode.keeper) {
-          // 골키퍼: 늘리지 않는다 — 골문은 무대 맨 아래라 위로만 늘어나는데, 슈터 위 빈 잔디만 길어져
-          // 골문 쪽이 아래로 치우쳐 보였다. 창(슈터 자리 ~ 골문)이 화면 가운데, 남는 위아래는 같은 잔디색 여백
-          vr = base;
-        } else if (worldConfig.court != null) {
-          // 피구: 코트가 화면 가운데 — 코트 중심에서 위아래로 같은 만큼만 늘린다.
-          // 무대 끝에 닿으면 거기까지(남는 위아래는 같은 마루색 여백). 한쪽으로 몰면 코트가 아래로 치우친다
-          final cy = worldConfig.court!.center.dy;
-          final half = min(base.height / 2 + extra / 2, min(cy, mapHeight - cy));
-          vr = Rect.fromLTRB(base.left, cy - half, base.right, cy + half);
-        } else {
-          final top = max(0.0, base.top - extra / 2);
-          final bottom = min(mapHeight, base.bottom + extra / 2);
-          // 한쪽이 무대 끝에 닿으면 남은 만큼 반대쪽으로
-          final short = extra - ((base.top - top) + (bottom - base.bottom));
-          vr = Rect.fromLTRB(base.left, max(0, top - short), base.right, min(mapHeight, bottom + short));
-        }
-      }
-    }
-    _fittedView = vr;
-    camera.viewfinder.visibleGameSize = Vector2(vr.width + arenaMargin * 2, vr.height + arenaMargin * 2);
-    camera.viewfinder.position = Vector2(vr.center.dx, vr.center.dy);
+  /// 경기장(+테두리 여백)이 게임 영역 안에 통째로 들어가는 가장 큰 크기로, 가운데 맞춤.
+  /// 폭·높이 중 먼저 닿는 쪽에 맞추고(비율 유지), 남는 쪽은 존 바닥색 여백이 양쪽에 같게 남는다.
+  /// 무대 좌표는 기기와 무관하게 같다 — 기기마다 보이는 경기장 넓이가 달라지지 않는다(랭킹 공정).
+  void _fitView() {
+    camera.viewfinder.visibleGameSize = Vector2(mapWidth + arenaMargin * 2, mapHeight + arenaMargin * 2);
+    camera.viewfinder.position = Vector2(mapWidth / 2, mapHeight / 2);
     camera.viewfinder.anchor = Anchor.center;
-    if (isLoaded) mapArea.clip = vr;
   }
   /// 시작 전 남은 인트로 시간(초). 이 동안은 공이 나오지 않고 시간도 흐르지 않는다.
   double introLeft = 0;
@@ -297,8 +269,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     mapArea.add(player);
 
     camera.stop();
-    _fitView(size);
-    mapArea.clip = viewRect;
+    _fitView();
 
     spawner = BulletSpawner();
     mapArea.add(spawner);
@@ -366,7 +337,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
     // 기기·창 크기가 바뀌면 보이는 무대 창을 다시 맞춘다
-    if (isLoaded) _fitView(size);
+    if (isLoaded) _fitView();
   }
 
   // PanDetector Implementation for Direct Touch Control
@@ -381,15 +352,11 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 class MapArea extends PositionComponent {
   MapArea() : super(size: Vector2(ZonberGame.mapWidth, ZonberGame.mapHeight));
 
-  /// 보이는 무대 창 — 이 바깥(배경 그림·공)은 그리지 않는다
-  Rect? clip;
-
+  /// 경기장 밖(테두리 여백)으로 나간 공·파편은 그리지 않는다
   @override
   void renderTree(Canvas canvas) {
-    final c = clip;
-    if (c == null) return super.renderTree(canvas);
     canvas.save();
-    canvas.clipRect(c);
+    canvas.clipRect(ZonberGame.viewRect);
     super.renderTree(canvas);
     canvas.restore();
   }
@@ -405,7 +372,7 @@ class MapArea extends PositionComponent {
 class GridBackground extends Component with HasGameReference<ZonberGame> {
   @override
   void render(Canvas canvas) {
-    final rect = game.viewRect;
+    const rect = ZonberGame.viewRect;
     // 바깥 가장자리를 살짝 눌러 무대가 떠 보이게
     canvas.drawRect(
       rect.inflate(3),

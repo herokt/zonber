@@ -56,7 +56,8 @@ class DodgeTeam {
     switch (side) {
       case 0: return Vector2(c.left / 2, o.top + 24 + _rng.nextDouble() * (o.height - 48));
       case 1: return Vector2((c.right + W) / 2, o.top + 24 + _rng.nextDouble() * (o.height - 48));
-      default: return Vector2(o.left + 40 + _rng.nextDouble() * (o.width - 80), c.bottom + 30);
+      // 내 뒤 — 코트 아래 외야 띠 가운데
+      default: return Vector2(o.left + 40 + _rng.nextDouble() * (o.width - 80), (c.bottom + ZonberGame.mapHeight) / 2);
     }
   }
 

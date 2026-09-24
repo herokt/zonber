@@ -47,9 +47,9 @@ def dodgeball():
         for jy in rng.integers(0, H, size=2):
             img[jy:jy + 2, x0:x1] -= 16
 
-    # ── 코트 좌표(@2x) — world_config: court 46,230,434,690 / 중앙선 460 (보이는 창 y 190~750) ──
-    L, T, R, B = 92, 460, 868, 1380
-    MID = 920
+    # ── 코트 좌표(@2x) — world_config: court 46,72,434,696 / 중앙선 384 (무대 480×768 가운데, 2026-09-24) ──
+    L, T, R, B = 92, 144, 868, 1392
+    MID = 768
     # 외야(코트 바깥)는 살짝 어둡게
     mask = np.ones((H, W, 1), dtype=np.float32) * 0.9
     mask[T:B, L:R] = 1.0
@@ -67,9 +67,10 @@ def dodgeball():
     lw = 8
     d.rectangle([L - lw, T - lw, R + lw - 1, B + lw - 1], outline=white, width=lw)  # 코트 외곽(안쪽 가장자리 = court)
     d.rectangle([L, MID - lw // 2, R, MID + lw // 2 - 1], fill=white)  # 중앙선
-    for ay in (766, 1074):  # 공격선(중앙선에서 반 코트의 1/3)
+    third = (MID - T) // 3
+    for ay in (MID - third, MID + third):  # 공격선(중앙선에서 반 코트의 1/3)
         d.rectangle([L, ay - 3, R, ay + 3], fill=white)
-    cr = 118
+    cr = 150
     d.ellipse([W // 2 - cr, MID - cr, W // 2 + cr, MID + cr], outline=white, width=lw)  # 센터 서클
     im.save(f'{OUT}/dodgeball_bg.png', optimize=True)
     print('wrote dodgeball_bg.png')
