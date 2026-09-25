@@ -56,7 +56,8 @@ class DodgeTeam {
     switch (side) {
       case 0: return Vector2(c.left / 2, o.top + 24 + _rng.nextDouble() * (o.height - 48));
       case 1: return Vector2((c.right + W) / 2, o.top + 24 + _rng.nextDouble() * (o.height - 48));
-      default: return Vector2(o.left + 40 + _rng.nextDouble() * (o.width - 80), c.bottom + 30);
+      // 내 뒤 — 코트 아래 외야 띠 가운데
+      default: return Vector2(o.left + 40 + _rng.nextDouble() * (o.width - 80), (c.bottom + ZonberGame.mapHeight) / 2);
     }
   }
 
@@ -521,7 +522,6 @@ class Bullet extends PositionComponent
         // 포스트 — 맞은 각도대로 튕긴다. 맞고 골문 안으로 들어갈 수도 있다(득점 대상 유지)
         reflectSoft(off, e: 0.75, friction: 0.95);
         position = pc + off.normalized() * (KeeperGoal.postRadius + br + 1);
-        game.shake(4, 0.18);
         game.burst(position.clone(), Colors.white, count: 8, speed: 150, size: 2);
         AudioManager().playSfx(Sfx.hit, volume: 0.35, minGapMs: 60);
         return false;

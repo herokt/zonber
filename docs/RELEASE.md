@@ -18,7 +18,7 @@
 | 5-5 | 자동 테스트 | ✅ | `flutter test` — test/logic_test.dart 16개(코인·장비·미션·스테이지·시즌) |
 | 6 | 개인정보처리방침 | ✅ 갱신 | `docs/privacy.html` 시행일 2026-09-22 — 게스트 통계·코인·외형 공개 반영. 게시 위치에 다시 올린다 |
 | 7 | 인앱 결제(광고 제거) | ❌ | Play Console · App Store Connect 에 상품 `remove_ads`(iOS `com.zonber.game.remove_ads`) 등록 → `main.dart` 의 `IAPService().initialize()` 주석 해제 → 상점 "광고 제거 · 준비 중" 연결 |
-| 8 | 스토어 등록 자료 | ❌ | 새 캐릭터·상점·3개 스테이지 스크린샷(폰 6.5"·태블릿), 설명 문구(ko/en), 그래픽 이미지(`store/feature_graphic.png` 교체 여부) |
+| 8 | 스토어 등록 자료 | ✅ iOS · ✅ Android | App Store 스크린샷 4개 언어 × iPhone 6.9"·iPad 13" × 6장(`store/screenshots/`, 2.0.0(201) 화면) · 소개 문구 ko/en/ja/zh-Hans(`store/app_store_listing.md`). Play: 휴대전화 스크린샷 1080×1920 × 6장 × 4개 언어(`store/screenshots_play/`, 스크린샷 모드로 기기에서 찍어 합성) · 등록 문구 ko-KR/en-US/ja-JP/zh-CN · 512 아이콘(`store/play_store_listing.md`). Play 그래픽 이미지 1024×500 × 4개 언어(`store/feature_graphic/`) |
 | 9 | 버전 · 빌드 | ❌ | `version: 1.4.0+140` · `FORCE_TEST_ADS` 없이 릴리스 빌드 · 서명 확인 |
 | 10 | 시즌 정책 | ✅ 채택 | 아래 정책대로. 1.4.0 출시일에 `Season.starts` 에 시즌 1 시작을 추가 |
 | 11 | 중국어 · 일본어 | ✅ 번역 · ⏳ 검수 | 전체 번역(원어민 검수 전). 검수 뒤 `LanguageManager.showDraftLanguages` 를 켠다 |

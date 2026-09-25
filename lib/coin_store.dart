@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'services/auth_service.dart';
+import 'store_shot.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 코인 — 판마다 버틴 시간 · 추가 기록 · 일일 미션으로 쌓이고, 상점에서 캐릭터·장비·꾸미기·변경권을 산다.
@@ -43,6 +44,7 @@ class CoinStore {
       const {'graze', 'close_dodge', 'save_streak'}.contains(statKey) ? count * Balance.bonusCoinsPerStat : 0;
 
   static Future<void> load() async {
+    if (kStoreShot && _loaded) return; // 스토어 스크린샷 — storeShotReset 값을 유지
     final prefs = await SharedPreferences.getInstance();
     balance.value = prefs.getInt(_keyCoins) ?? 0;
     _owned = (prefs.getStringList(_keyOwned) ?? const []).toSet();
@@ -50,6 +52,14 @@ class CoinStore {
       for (final e in prefs.getStringList(_keyEquipped) ?? const <String>[])
         if (e.contains(':')) e.substring(0, e.indexOf(':')): e.substring(e.indexOf(':') + 1),
     };
+    _loaded = true;
+  }
+
+  /// 스토어 스크린샷 모드 — 처음 시작한 사람처럼(코인 0 · 기본 아이템만). 메모리만 바꾸고 저장하지 않는다
+  static void storeShotReset() {
+    balance.value = 0;
+    _owned = {};
+    _equipped = {};
     _loaded = true;
   }
 

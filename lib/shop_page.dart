@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import 'avatar.dart';
@@ -144,7 +146,7 @@ class _ShopPageState extends State<ShopPage> {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 내 가방 — 위에서 아래로 [ZONE 필터] → [카테고리 · 미리보기 · 카테고리] → [가로 목록].
+  // 내 가방 — 위에서 아래로 [ZONE 필터] → [카테고리 · 미리보기 · 카테고리] → [카테고리별 가로 목록을 세로로 이어 붙인 스크롤].
   //   · 보유한 것을 누르면 **바로 장착**되고, 그게 곧 내 아바타가 된다.
   //   · 아직 없는 것을 누르면 **미리보기만** 된다(사면 그 자리에서 장착).
   //   · 장착 중 = 주황, 미리보기 = 초록.
@@ -164,6 +166,18 @@ class _ShopPageState extends State<ShopPage> {
 
   String get _previewCharId => _tryCharId ?? _selectedCharId;
 
+  /// 아래 목록(카테고리마다 한 칸, 위아래로 스크롤)
+  final ScrollController _listScroll = ScrollController();
+
+  /// 카테고리 버튼을 눌러 그 칸으로 움직이는 중 — 이동 중에는 스크롤 위치로 선택을 바꾸지 않는다
+  bool _jumping = false;
+
+  @override
+  void dispose() {
+    _listScroll.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final lm = LanguageManager.of(context);
@@ -171,6 +185,7 @@ class _ShopPageState extends State<ShopPage> {
     final right = _rightCats(lm);
     final cats = [...left, ...right];
     if (!cats.any((c) => c.id == _cat)) _cat = cats.first.id;
+    _cats = cats;
     return NeonScaffold(
       title: lm.translate('nav_bag'),
       showBackButton: widget.showBack,
@@ -184,44 +199,94 @@ class _ShopPageState extends State<ShopPage> {
       ],
       body: ValueListenableBuilder<int>(
         valueListenable: CoinStore.balance, // 잔액이 바뀌면 "살 수 있음" 표시도 다시 그린다
-        builder: (context, _, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── 존 — 늘 맨 위. 장비는 존마다 다르다 ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-              child: StageFilter(selectedId: _gearZone, onChanged: (id) => setState(() => _gearZone = id)),
-            ),
-            // ── 카테고리(왼쪽) · 미리보기 · 카테고리(오른쪽) — 셋 다 같은 높이 ──
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: SizedBox(
-                height: _previewHeight,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _catColumn(left),
-                    const SizedBox(width: 8),
-                    Expanded(child: _previewBox(lm)),
-                    const SizedBox(width: 8),
-                    _catColumn(right),
-                  ],
+        builder: (context, _, _) => LayoutBuilder(
+          builder: (context, box) {
+            // 미리보기 높이 — 기기 높이에 맞춰(작은 폰은 줄여서 아래 목록 칸이 하나는 다 보이게, 큰 폰은 키운다)
+            final previewH = (box.maxHeight * 0.34).clamp(_previewMin, _previewMax).toDouble();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── 존 — 늘 맨 위. 장비는 존마다 다르다 ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+                  child: StageFilter(selectedId: _gearZone, onChanged: (id) => setState(() => _gearZone = id)),
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            _listHead(lm, cats.firstWhere((c) => c.id == _cat)),
-            // ── 고른 칸의 아이템 — 좌우로 넘긴다. 가진 것이 앞에 온다 ──
-            Expanded(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: SizedBox(height: 176, child: _itemStrip(lm)),
-              ),
-            ),
-          ],
+                // ── 카테고리(왼쪽) · 미리보기 · 카테고리(오른쪽) — 셋 다 같은 높이 ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: SizedBox(
+                    height: previewH,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _catColumn(left),
+                        const SizedBox(width: 8),
+                        Expanded(child: _previewBox(lm, previewH)),
+                        const SizedBox(width: 8),
+                        _catColumn(right),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // ── 카테고리마다 한 칸(이름·보유 수 + 좌우로 넘기는 목록)을 위아래로 이어 붙인다 ──
+                // 고른 칸만 보여 주던 때는 큰 폰에서 아래가 텅 비었다. 버튼을 누르면 그 칸으로 스크롤한다
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _onListScroll,
+                    child: ListView.builder(
+                      controller: _listScroll,
+                      padding: const EdgeInsets.only(bottom: 8),
+                      itemExtent: _sectionExtent,
+                      itemCount: cats.length,
+                      itemBuilder: (context, i) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _listHead(lm, cats[i]),
+                          SizedBox(height: _stripHeight, child: _itemStrip(lm, cats[i])),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  /// 지금 목록에 놓인 칸들(순서 = 왼쪽 버튼들 → 오른쪽 버튼들)
+  List<_BagCat> _cats = const [];
+
+  /// 목록 한 칸 높이 — 머리(34 + 아래 6) + 좌우 목록
+  static const double _headHeight = 40;
+  static const double _stripHeight = 176;
+  static const double _sectionExtent = _headHeight + _stripHeight;
+
+  /// 카테고리 버튼 → 그 칸이 목록 맨 위에 오게 스크롤(끝 칸들은 목록 끝까지만)
+  void _jumpTo(String id) {
+    final i = _cats.indexWhere((c) => c.id == id);
+    setState(() => _cat = id);
+    if (i < 0 || !_listScroll.hasClients) return;
+    final pos = _listScroll.position;
+    final target = min(i * _sectionExtent, pos.maxScrollExtent);
+    _jumping = true;
+    _listScroll
+        .animateTo(target, duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic)
+        .whenComplete(() => _jumping = false);
+  }
+
+  /// 손으로 스크롤하면 맨 위에 걸린 칸의 버튼이 켜진다. 끝까지 내리면 마지막 칸
+  bool _onListScroll(ScrollNotification n) {
+    if (_jumping || n.depth != 0 || n is! ScrollUpdateNotification || _cats.isEmpty) return false;
+    final m = n.metrics;
+    int i = ((m.pixels + _sectionExtent * 0.5) / _sectionExtent).floor();
+    if (m.maxScrollExtent > 0 && m.pixels >= m.maxScrollExtent - 1) i = _cats.length - 1;
+    i = i.clamp(0, _cats.length - 1);
+    if (_cats[i].id != _cat) setState(() => _cat = _cats[i].id);
+    return false;
   }
 
   // ── 카테고리 ──
@@ -239,8 +304,8 @@ class _ShopPageState extends State<ShopPage> {
           _BagCat('gear_${slot.name}', slotIcon(slot), lm.translate(Gear.slotLabelKey(slot))),
       ];
 
-  /// 미리보기 높이 — 좌우 아이콘 줄도 이 높이에 맞춰 고르게 놓인다
-  static const double _previewHeight = 218;
+  /// 미리보기 높이 범위 — 좌우 아이콘 줄도 이 높이에 맞춰 고르게 놓인다(버튼 4개 42×4 가 들어가는 최소)
+  static const double _previewMin = 184, _previewMax = 250;
 
   Widget _catColumn(List<_BagCat> cats) => Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -256,7 +321,7 @@ class _ShopPageState extends State<ShopPage> {
         behavior: HitTestBehavior.opaque,
         onTap: () {
           _tryFx();
-          setState(() => _cat = c.id);
+          _jumpTo(c.id);
         },
         child: Container(
           width: 42,
@@ -274,7 +339,7 @@ class _ShopPageState extends State<ShopPage> {
 
   /// 목록 머리 — 칸 이름 · 보유 수 · (미보유를 고르고 있으면) 구매 버튼
   Widget _listHead(LanguageManager lm, _BagCat cat) {
-    final items = _items(lm);
+    final items = _itemsFor(lm, cat.id);
     final mine = items.where((i) => i.owned).length;
     final picked = items.where((i) => i.previewing && !i.owned).firstOrNull;
     return Padding(
@@ -324,8 +389,8 @@ class _ShopPageState extends State<ShopPage> {
     );
   }
 
-  Widget _itemStrip(LanguageManager lm) {
-    final items = _items(lm);
+  Widget _itemStrip(LanguageManager lm, _BagCat cat) {
+    final items = _itemsFor(lm, cat.id);
     if (items.isEmpty) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
@@ -342,14 +407,14 @@ class _ShopPageState extends State<ShopPage> {
     );
   }
 
-  /// 지금 칸의 물건들 — **가진 것이 앞**, 그다음은 싼 것부터
-  List<_BagItem> _items(LanguageManager lm) {
-    final list = switch (_cat) {
+  /// 칸 [catId] 의 물건들 — **가진 것이 앞**, 그다음은 싼 것부터
+  List<_BagItem> _itemsFor(LanguageManager lm, String catId) {
+    final list = switch (catId) {
       'char' => _charItems(lm),
       'skin' => _cosmeticItems(lm, CosmeticKind.skin),
       'trail' => _cosmeticItems(lm, CosmeticKind.trail),
       'aura' => _cosmeticItems(lm, CosmeticKind.aura),
-      _ => _gearItems(lm),
+      _ => _gearItems(lm, catId),
     };
     list.sort((a, b) {
       if (a.owned != b.owned) return a.owned ? -1 : 1;
@@ -386,8 +451,8 @@ class _ShopPageState extends State<ShopPage> {
           ),
       ];
 
-  List<_BagItem> _gearItems(LanguageManager lm) {
-    final slotName = _cat.substring('gear_'.length);
+  List<_BagItem> _gearItems(LanguageManager lm, String catId) {
+    final slotName = catId.substring('gear_'.length);
     final slot = GearSlot.values.firstWhere((s) => s.name == slotName, orElse: () => GearSlot.head);
     final zone = _gearZone;
     final slotKey = Gear.slotKey(zone, slot);
@@ -627,13 +692,13 @@ class _ShopPageState extends State<ShopPage> {
 
   // ── 미리보기 ──
   /// 지금 존의 바닥 위에 선 내 아바타 — 장착한 것 + 미리 고른 것이 그대로 보인다
-  Widget _previewBox(LanguageManager lm) {
+  Widget _previewBox(LanguageManager lm, double height) {
     final zone = _gearZone;
     final world = WorldData.getWorld(zone);
     return ClipRRect(
       borderRadius: BorderRadius.circular(22),
       child: Container(
-        height: _previewHeight,
+        height: height,
         color: world.floor,
         child: Stack(
           children: [
@@ -643,7 +708,7 @@ class _ShopPageState extends State<ShopPage> {
             ),
             Positioned.fill(child: ColoredBox(color: world.floor.withValues(alpha: 0.35))),
             // 캐릭터 — 항상 가운데. 잔상·오라도 지금 고른 것으로 함께 보인다
-            Center(child: AvatarStage(avatar: _previewAvatar, zone: zone, size: 150)),
+            Center(child: AvatarStage(avatar: _previewAvatar, zone: zone, size: height * 0.69)),
             // 지금 캐릭터 이름
             Positioned(
               left: 10,

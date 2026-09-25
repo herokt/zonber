@@ -87,7 +87,7 @@ class _GameScreen extends StatelessWidget {
                 valueListenable: game.targetNotifier,
                 builder: (context, target, _) {
                   if (target == null) return const SizedBox.shrink();
-                  final guest = FirebaseAuth.instance.currentUser?.isAnonymous ?? true;
+                  final guest = AuthService.isGuest;
                   return ValueListenableBuilder<double>(
                     valueListenable: game.survivalTimeNotifier,
                     builder: (context, t, _) => Padding(
@@ -120,7 +120,7 @@ class _GameScreen extends StatelessWidget {
                 },
               ),
               ),
-              // ── 무대 — ZonberGame 이 가운데 맞춤으로 그린다 ──
+              // ── 경기장 — 세 존 모두 같은 480×768 무대를 이 영역에 가장 크게, 가운데 맞춤으로 그린다(ZonberGame._fitView) ──
               Expanded(
                 child: Stack(
                   children: [
@@ -196,10 +196,11 @@ class _GameScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // 추가 기록 칩 — 경기장 위쪽 가장자리(아래쪽은 골키퍼 골문·피구 내 뒤 외야가 있다)
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 16,
+                      top: 12,
                       child: IgnorePointer(
                         child: ValueListenableBuilder<int>(
                           valueListenable: game.grazeNotifier,
@@ -258,7 +259,7 @@ class _EnergyPips extends StatelessWidget {
             for (int i = 0; i < e.max; i++)
               Container(
                 margin: const EdgeInsets.only(left: 3),
-                width: e.max > 3 ? 7 : 10,
+                width: e.max > 4 ? 5 : e.max > 3 ? 7 : 10, // 자리 44 안에 — 골키퍼 목숨 5칸이 넘쳤다
                 height: 24,
                 decoration: BoxDecoration(
                   color: i < e.current

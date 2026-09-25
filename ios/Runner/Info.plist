@@ -55,22 +55,9 @@
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This app uses advertising to provide a better experience. Your data will be used to provide personalized ads.</string>
 
-	<!-- Internet Access Description -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
-
-	<!-- Photo Library (if needed) -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to your photo library to save screenshots.</string>
-
-	<!-- Camera (if needed) -->
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs access to your camera.</string>
-
-
+	<!-- 암호화 수출 규정: 표준 HTTPS 만 쓴다(면제) — 업로드 때마다 묻지 않도록 명시 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 
 	<!-- Google Sign-In URL Schemes -->
 	<key>CFBundleURLTypes</key>

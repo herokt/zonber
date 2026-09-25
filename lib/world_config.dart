@@ -115,8 +115,7 @@ class WorldConfig {
   final Rect? court;
   /// 캐릭터가 움직일 수 있는 영역. null 이면 무대 전체. 피구: 우리 편 진영(코트 아래 절반)
   final Rect? playArea;
-  /// 화면에 보이는 무대 창(무대 좌표). null 이면 무대 전체(480×768). 피구·골키퍼는 반코트처럼 짧게 보여 준다
-  final Rect? view;
+  // (보이는 창 `view` 는 2026-09-24 뺐다 — 세 존 모두 무대 480×768 전체가 경기장이다)
 
   const WorldConfig({
     required this.id,
@@ -139,7 +138,6 @@ class WorldConfig {
     required this.line,
     this.court,
     this.playArea,
-    this.view,
   });
 
   /// 표시용 대문자 id (번역 누락 시 폴백)
@@ -201,10 +199,10 @@ class WorldData {
       accent: Color(0xFFE5484D),
       floor: Color(0xFFE9CFA6), // 밝은 마루
       line: Color(0xB3FFFFFF),
-      // dodgeball_bg.png(960×1536) 코트 라인을 잰 값 ÷2. 배경을 바꾸면 다시 잴 것.
-      court: Rect.fromLTRB(46, 230, 434, 690),
-      playArea: Rect.fromLTRB(46, 462, 434, 690), // 중앙선(y 460) 아래 = 우리 편 진영
-      view: Rect.fromLTRB(0, 190, 480, 750), // 코트 + 외야 띠만 보이게(세로 560)
+      // dodgeball_bg.png(960×1536) 코트 라인 ÷2 (scripts/make_stage_bg.py). 배경을 바꾸면 다시 잴 것.
+      // 무대(480×768) 가운데 — 위아래 외야 띠 72, 좌우 46. 코트 중심 = 무대 중심(384)
+      court: Rect.fromLTRB(46, 72, 434, 696),
+      playArea: Rect.fromLTRB(46, 386, 434, 696), // 중앙선(y 384) 아래 = 우리 편 진영
     ),
     // ── 3. Keeper — 가운데 골대를 지킨다. 공에 닿으면 세이브, 골대에 들어오면 실점 ──
     WorldConfig(
@@ -263,7 +261,6 @@ class WorldData {
       goalRadius: 64,
       // 페널티 에어리어 = 키퍼 이동 영역 = 나의 존 (KeeperGoal.penaltyBox 와 같은 값)
       playArea: Rect.fromLTRB(12, 420, 468, 720),
-      view: Rect.fromLTRB(0, 250, 480, 768), // 반코트 — 페널티 에어리어와 그 앞 슈터 자리만(세로 518)
       lives: 5,
       accent: Color(0xFF2F6FE4),
       floor: Color(0xFFA8DC8F), // 밝은 잔디

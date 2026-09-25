@@ -26,6 +26,13 @@ class GameSettings extends ChangeNotifier {
     _darkMode = prefs.getBool('dark_mode') ?? false;
   }
 
+  /// 스토어 스크린샷 모드 — 소리·진동을 끄고 라이트 테마로(메모리만, 저장하지 않는다)
+  void storeShotDefaults() {
+    _soundEnabled = false;
+    _vibrationEnabled = false;
+    _darkMode = false;
+  }
+
   Future<void> setSound(bool enabled) async {
     _soundEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();

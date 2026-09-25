@@ -76,7 +76,9 @@ class KeeperGoal {
     // 페널티 에어리어 바로 바깥(아크 주변), 다른 슈터와 너무 붙지 않는 자리
     Vector2 p = Vector2(240, 360);
     for (int tries = 0; tries < 20; tries++) {
-      p = Vector2(50 + _rng.nextDouble() * 380, 280 + _rng.nextDouble() * 115);
+      // 세로는 경기장 위쪽까지(110~395) — 2026-09-24 무대 전체를 경기장으로 쓰면서 넓혔다(예전 280~395).
+      // 멀어진 만큼 슛 속도를 올려 골라인까지 걸리는 시간은 같다(Balance.keeperShotScale)
+      p = Vector2(50 + _rng.nextDouble() * 380, 110 + _rng.nextDouble() * 285);
       if (shooters.every((s) => s.distanceTo(p) > 80)) break;
     }
     if (shooters.isEmpty) p = Vector2(240, 360); // 첫 슈터는 정면, 아크 바로 위
@@ -231,7 +233,6 @@ class _KeeperShooter {
         // 직선·강슛·총알슛·무회전(무회전은 흔들림이 매번 달라 보정하지 않는다)
         game.mapArea.add(Bullet(origin, target, speed: speed, def: def));
     }
-    if (kind == _Kick.rocket) game.shake(2, 0.1);
     AudioManager().playSfx(Sfx.kick, volume: kind == _Kick.rocket ? 0.8 : 0.55, minGapMs: 50);
   }
 }

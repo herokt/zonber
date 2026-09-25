@@ -5,6 +5,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import '../world_config.dart';
+import '../store_shot.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -24,6 +25,7 @@ class AuthService {
   /// (예전 버전이 만든 익명 세션도 게스트로 본다 — 시작할 때 로그아웃시킨다)
   static bool get isGuest {
     if (debugIsGuest != null) return debugIsGuest!;
+    if (kStoreShot) return true; // 스토어 스크린샷 — 늘 처음 시작한 게스트처럼
     final user = FirebaseAuth.instance.currentUser;
     return user == null || user.isAnonymous;
   }

@@ -154,6 +154,15 @@ node scripts/test_rules.mjs
 # 효과음 합성 / 존 배경 생성
 python scripts/make_sfx.py
 python scripts/make_stage_bg.py
+
+# 앱 아이콘 — 원본 assets/images/app_icon.png 에서 Android(모서리 투명)·iOS·Play 512 그림을 만든 뒤 플랫폼 아이콘 생성
+dart run scripts/make_app_icons.dart
+dart run flutter_launcher_icons
+
+# 스토어 스크린샷 — 스크린샷 모드(lib/store_shot.dart) 빌드를 기기에 깔고 캡처 → 합성 (store/play_store_listing.md)
+flutter build apk --release --dart-define=STORE_SHOT=true
+bash scripts/store_shots.sh <기기 시리얼>
+node scripts/compose_store_shots.mjs
 ```
 
 > 옛 익명 SDK 관리 스크립트(seed/check/cleanup·마이그레이션)는 2026-09-22 삭제했다. DB 를 고칠 일이 있으면 `test_rules.mjs` 처럼 gcloud 토큰 + REST 로 새로 만든다.
