@@ -140,6 +140,7 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
         BoSection.ranking => '랭킹 관리',
         BoSection.runs => '플레이 기록',
         BoSection.promos => '이벤트',
+        BoSection.codes => '이벤트 코드',
         BoSection.economy => '경제·아이템',
       };
 

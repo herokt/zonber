@@ -317,14 +317,12 @@ class MockSource implements BoSource {
   final List<BoPromo> _promos = [
     BoPromo(
       Promotion(
-        id: 'launch_code',
+        id: 'sns_codes',
         kind: PromoKind.code,
-        coins: 500,
-        code: 'ZONBER',
-        title: {'ko': '출시 기념 코드', 'en': 'Launch code'},
-        desc: {'ko': '커뮤니티에 뿌린 코드로 코인 500', 'en': '500 coins from the launch code'},
+        title: {'ko': '공식 SNS 코드', 'en': 'Official SNS codes'},
+        desc: {'ko': 'SNS에서 코드 찾아 입력', 'en': 'Find codes on our socials'},
       ),
-      37,
+      0,
     ),
     BoPromo(Promotion(id: 'welcome_pack', kind: PromoKind.welcome, coins: 300, items: ['skin_cloud'], title: {'ko': '환영 선물'}), 120),
   ];
@@ -340,6 +338,61 @@ class MockSource implements BoSource {
 
   @override
   Future<void> deletePromo(String id) => _later(() => _promos.removeWhere((e) => e.promo.id == id));
+
+  // ── 이벤트 코드 ──
+  final List<PromoCode> _codes = [
+    PromoCode(code: 'ZONBER', campaign: 'launch', note: '출시 공지 글', coins: 500, uses: 37, createdAt: DateTime(2026, 9, 25)),
+    PromoCode(
+        code: 'INSTA7K2QXM', campaign: 'insta_launch', coins: 300, items: const ['trail_sparkle'], maxUses: 100, uses: 100,
+        createdAt: DateTime(2026, 9, 26)),
+    PromoCode(
+        code: 'YTZONE', campaign: 'youtube_collab', coins: 1000, maxUses: 500, uses: 12, endAt: DateTime(2026, 10, 31, 23, 59),
+        createdAt: DateTime(2026, 9, 27)),
+    PromoCode(code: 'OLDCODE', campaign: 'beta', coins: 200, enabled: false, uses: 8, createdAt: DateTime(2026, 9, 1)),
+  ];
+
+  @override
+  Future<List<PromoCode>> promoCodes() => _later(() => [..._codes]);
+
+  @override
+  Future<PromoCode?> promoCode(String code) => _later(() {
+        for (final c in _codes) {
+          if (c.code == code) return c;
+        }
+        return null;
+      });
+
+  @override
+  Future<bool> createPromoCode(PromoCode c) => _later(() {
+        if (_codes.any((e) => e.code == c.code)) return false;
+        _codes.add(PromoCode(
+            code: c.code, campaign: c.campaign, note: c.note, coins: c.coins, items: c.items, enabled: c.enabled,
+            startAt: c.startAt, endAt: c.endAt, maxUses: c.maxUses, createdAt: DateTime.now()));
+        return true;
+      });
+
+  @override
+  Future<void> updatePromoCode(PromoCode c) => _later(() {
+        final i = _codes.indexWhere((e) => e.code == c.code);
+        if (i < 0) return;
+        final old = _codes[i];
+        _codes[i] = PromoCode(
+            code: c.code, campaign: c.campaign, note: c.note, coins: c.coins, items: c.items, enabled: c.enabled,
+            startAt: c.startAt, endAt: c.endAt, maxUses: c.maxUses, uses: old.uses, createdAt: old.createdAt);
+      });
+
+  @override
+  Future<void> deletePromoCode(String code) => _later(() => _codes.removeWhere((e) => e.code == code));
+
+  @override
+  Future<List<BoCodeUse>> promoCodeUses(String code, int limit) => _later(() {
+        final n = _codes.where((e) => e.code == code).fold(0, (a, e) => a + e.uses);
+        final uids = _users.map((u) => u.id).toList();
+        return [
+          for (var i = 0; i < min(n, limit) && uids.isNotEmpty; i++)
+            BoCodeUse(uids[i % uids.length], DateTime.now().subtract(Duration(hours: i * 5))),
+        ];
+      });
 
   // ── 관리 도구 ──
   @override

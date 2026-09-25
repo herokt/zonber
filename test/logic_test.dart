@@ -260,21 +260,20 @@ void main() {
     test('문서 ↔ 모델이 오간다(모르는 값은 기본)', () {
       const p = Promotion(
         id: 'autumn',
-        kind: PromoKind.code,
+        kind: PromoKind.bonus,
         coins: 500,
         items: ['skin_cloud'],
-        code: 'ZONBER',
         cooldownHours: 24,
         title: {'ko': '가을 이벤트'},
       );
       final back = Promotion.fromDoc('autumn', p.toDoc());
-      expect(back.kind, PromoKind.code);
+      expect(back.kind, PromoKind.bonus);
       expect(back.coins, 500);
       expect(back.items, ['skin_cloud']);
-      expect(back.code, 'ZONBER');
       expect(back.cooldownHours, 24);
       expect(back.titleOf('ko'), '가을 이벤트');
       expect(back.titleOf('en'), '가을 이벤트'); // 영어가 없으면 한국어로
+      expect(const Promotion(id: 'g', kind: PromoKind.bonus, title: {'ko': '가', 'en': 'A'}).titleOf('ja'), 'A'); // 없는 언어는 영어
       expect(Promotion.fromDoc('x', const {}).kind, PromoKind.bonus);
       expect(Promotion.fromDoc('x', const {}).isLive, isTrue);
     });
@@ -301,23 +300,98 @@ void main() {
       AuthService.debugIsGuest = false;
     });
 
-    test('코드는 대소문자·공백을 무시하고 찾는다', () async {
-      // 서버가 없으면 앱 기본 목록만 — 코드 이벤트는 기본에 없다
-      expect(await PromoService.byCode('ZONBER'), isNull);
-      expect(await PromoService.byCode(''), isNull);
-      // 코드 이벤트가 섞인 목록에서 찾기
-      const p = Promotion(id: 'launch', kind: PromoKind.code, code: 'ZONBER', coins: 500);
-      final found = [p].where((e) => e.kind == PromoKind.code && e.code.toUpperCase() == '  zonber  '.trim().toUpperCase());
-      expect(found.single.id, 'launch');
+    test('코드 입력은 대소문자·공백·하이픈을 정리하고 형식을 본다', () async {
+      expect(PromoCodes.normalize(' zon-ber 7 '), 'ZONBER7');
+      expect(PromoCodes.isValidFormat('ZONBER7'), isTrue);
+      expect(PromoCodes.isValidFormat('ZB'), isFalse); // 너무 짧다
+      expect(PromoCodes.isValidFormat('ZONBER!'), isFalse);
+      expect(PromoCodes.isValidFormat('A' * 21), isFalse);
+      // 형식이 틀리면 서버에 묻지 않고 없는 코드
+      expect((await PromoService.redeem('!!')).$1, RedeemResult.invalid);
+    });
+
+    test('게스트는 코드를 쓸 수 없다', () async {
+      AuthService.debugIsGuest = true;
+      expect((await PromoService.redeem('ZONBER')).$1, RedeemResult.guest);
+      AuthService.debugIsGuest = false;
+    });
+
+    test('자동 생성 코드는 헷갈리는 글자가 없고 접두어가 붙는다', () {
+      final codes = {for (var i = 0; i < 300; i++) PromoCodes.generate(prefix: 'insta-', length: 6)};
+      expect(codes.length, greaterThan(295)); // 거의 겹치지 않는다
+      for (final c in codes) {
+        expect(c.startsWith('INSTA'), isTrue);
+        expect(c.length, 11);
+        expect(PromoCodes.isValidFormat(c), isTrue);
+        expect(RegExp('[0O1IL]').hasMatch(c.substring(5)), isFalse);
+      }
+    });
+
+    test('코드 상태 — 꺼짐·시작 전·기간 끝·한도 소진', () {
+      final now = DateTime(2026, 10, 1);
+      expect(const PromoCode(code: 'A1B2', coins: 100).status(now), PromoCodeStatus.open);
+      expect(const PromoCode(code: 'A1B2', coins: 100, enabled: false).status(now), PromoCodeStatus.disabled);
+      expect(PromoCode(code: 'A1B2', coins: 100, startAt: DateTime(2026, 10, 2)).status(now), PromoCodeStatus.notStarted);
+      expect(PromoCode(code: 'A1B2', coins: 100, endAt: DateTime(2026, 9, 30)).status(now), PromoCodeStatus.expired);
+      expect(const PromoCode(code: 'A1B2', coins: 100, maxUses: 10, uses: 10).status(now), PromoCodeStatus.exhausted);
+      expect(const PromoCode(code: 'A1B2', coins: 100, maxUses: 10, uses: 9).remaining, 1);
+      expect(const PromoCode(code: 'A1B2', coins: 100).remaining, isNull);
+    });
+
+    test('코드 문서 ↔ 모델(사용 수는 저장값에 안 넣는다)', () {
+      final c = PromoCode(
+          code: 'YTZONE', campaign: 'youtube', note: 'n', coins: 300, items: const ['trail_flame'], maxUses: 50,
+          endAt: DateTime(2026, 10, 31));
+      final doc = c.toDoc();
+      expect(doc.containsKey('uses'), isFalse); // 수정해도 사용 수는 그대로
+      final back = PromoCode.fromDoc('YTZONE', {...doc, 'uses': 7});
+      expect(back.campaign, 'youtube');
+      expect(back.coins, 300);
+      expect(back.items, ['trail_flame']);
+      expect(back.maxUses, 50);
+      expect(back.uses, 7);
+      expect(back.endAt, DateTime(2026, 10, 31));
     });
 
     test('앱 기본 이벤트는 id 가 겹치지 않고 보상이 있다', () {
       final ids = Promotions.builtIn.map((p) => p.id).toList();
       expect(ids.toSet().length, ids.length);
       for (final p in Promotions.builtIn) {
-        expect(p.isEmptyReward, isFalse, reason: p.id);
-        expect(p.titleOf('ko').isNotEmpty, isTrue, reason: p.id);
+        // 코드 안내 카드는 보상이 없다(보상은 코드마다)
+        expect(p.isEmptyReward, p.kind == PromoKind.code, reason: p.id);
+        // 글로벌 — 4개 언어 제목·설명을 모두 채운다
+        for (final lang in ['ko', 'en', 'ja', 'zh']) {
+          expect(p.title[lang]?.isNotEmpty, isTrue, reason: '${p.id} title $lang');
+          expect(p.desc[lang]?.isNotEmpty, isTrue, reason: '${p.id} desc $lang');
+        }
+        // 아이템은 게임에 있는 것만
+        for (final id in p.items) {
+          expect(Cosmetics.byId(id) != null || Gear.byId(id) != null || id.startsWith('char_'), isTrue, reason: id);
+        }
       }
+    });
+
+    test('받은 수 카운터만 든 서버 문서는 기본 이벤트를 덮지 않는다', () {
+      // 기본 이벤트를 받으면 promos/{id} 에 claims 만 생긴다 — 그대로 읽으면 빈 이벤트가 된다
+      final welcome = Promotions.fromServer('welcome_pack', const {'claims': 3})!;
+      expect(welcome.kind, PromoKind.welcome);
+      expect(welcome.coins, 300);
+      expect(Promotions.fromServer('nobody', const {'claims': 1}), isNull);
+      // 운영자가 저장한 문서(kind 있음)는 서버 값이 이긴다
+      final edited = Promotions.fromServer('welcome_pack', const {'kind': 'welcome', 'coins': 500, 'claims': 3})!;
+      expect(edited.coins, 500);
+    });
+
+    test('코드 안내 카드는 받을 게 없다', () async {
+      final card = Promotions.builtIn.firstWhere((p) => p.kind == PromoKind.code);
+      expect(await PromoService.isFresh(card), isFalse);
+      expect(await PromoService.claim(card), isFalse);
+    });
+
+    test('기간 이벤트는 그 기간에만 보인다(UTC)', () {
+      final halloween = Promotions.builtIn.firstWhere((p) => p.id == 'halloween_2026');
+      expect(halloween.startAt!.isUtc, isTrue);
+      expect(halloween.endAt!.isAfter(halloween.startAt!), isTrue);
     });
   });
 

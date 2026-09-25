@@ -4,20 +4,49 @@
 // 기록 생성의 서버 시각 검사(timestamp == request.time)는 API 로 값을 만들 수 없어 그 줄만 빼고 시험한다.
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
+import { createRequire } from 'module';
+import { homedir } from 'os';
 
 const PROJECT = 'stayzone-88364';
-const token = execSync('gcloud auth print-access-token', { encoding: 'utf8' }).trim();
-let source = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
+
+// gcloud 가 없으면 firebase CLI(firebase login) 계정 토큰을 쓴다
+async function accessToken() {
+  try {
+    return execSync('gcloud auth print-access-token', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
+    const auth = createRequire(import.meta.url)(`${root}/firebase-tools/lib/auth.js`);
+    const cfg = JSON.parse(readFileSync(`${homedir()}/.config/configstore/firebase-tools.json`, 'utf8'));
+    const t = await auth.getAccessToken(cfg.tokens.refresh_token, []);
+    return t.access_token;
+  }
+}
+const token = await accessToken();
+// 줄바꿈을 LF 로 맞춘 뒤 서버 시각 검사 줄을 뺀다(윈도우 체크아웃은 CRLF 라 정규식이 안 맞았다)
+let source = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 source = source.replace(/\n\s*&& request\.resource\.data\.timestamp == request\.time\);/, ');');
 source = source.replace(/\n\s*&& request\.resource\.data\.timestamp == request\.time\n/, '\n');
+source = source.replace(/\n\s*&& request\.resource\.data\.at == request\.time\n/, '\n'); // 코드 사용 기록의 서버 시각
 
 const P = (p) => `/databases/(default)/documents/${p}`;
 const anon = { uid: 'guest1', token: { firebase: { sign_in_provider: 'anonymous' } } };
 const member = { uid: 'u1', token: { email: 'a@b.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
 const admin = { uid: 'adm', token: { email: 'herokt851103@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
 
+// get()/exists()/getAfter()/existsAfter() 가짜 응답 — [함수, 문서 경로, 값]
+const mock = (fn, path, value) => ({ function: fn, args: [{ exactValue: P(path) }], result: { value } });
+const code = { campaign: 'insta', coins: 500, items: [], enabled: true, maxUses: 10, uses: 3 };
+const redeemMocks = (usedBefore = false, usedAfter = true) => [
+  mock('exists', 'users/u1/codes/ABC', usedBefore),
+  mock('existsAfter', 'users/u1/codes/ABC', usedAfter),
+];
+const counterMocks = (before, after) => [
+  mock('get', 'promo_codes/ABC', { data: { ...code, uses: before } }),
+  mock('getAfter', 'promo_codes/ABC', { data: { ...code, uses: after } }),
+];
+
 const cases = [
-  // [설명, 기대, 요청, 기존 문서 data]
+  // [설명, 기대, 요청, 기존 문서 data, 함수 가짜 응답]
   ['비로그인 랭킹 읽기', 'ALLOW', { path: P('maps/cyber/records/r1'), method: 'get' }, { userId: 'u1', survivalTime: 10 }],
   ['게스트 유저 문서 읽기', 'ALLOW', { auth: anon, path: P('users/u1'), method: 'get' }, { nickname: 'x' }],
   ['회원 본인 기록 생성', 'ALLOW', { auth: member, path: P('maps/cyber/records/n1'), method: 'create', resource: { data: { userId: 'u1', survivalTime: 42.123, flag: '🇰🇷', characterId: 'neon_green' } } }],
@@ -58,12 +87,34 @@ const cases = [
   ['관리자 플레이 기록 읽기', 'ALLOW', { auth: admin, path: P('users/u2/runs/x5'), method: 'get' }, { time: 50 }],
   ['커스텀 맵 본인 삭제', 'ALLOW', { auth: member, path: P('custom_maps/m1'), method: 'delete' }, { authorUid: 'u1' }],
   ['커스텀 맵 남이 삭제', 'DENY', { auth: member, path: P('custom_maps/m1'), method: 'delete' }, { authorUid: 'u2' }],
+  // ── 이벤트 코드(promo_codes · users/{uid}/codes) ──
+  ['회원이 코드 한 건 읽기', 'ALLOW', { auth: member, path: P('promo_codes/ABC'), method: 'get' }, code],
+  ['게스트가 코드 읽기', 'DENY', { auth: anon, path: P('promo_codes/ABC'), method: 'get' }, code],
+  ['회원이 코드 목록 읽기', 'DENY', { auth: member, path: P('promo_codes/ABC'), method: 'list' }, code],
+  ['관리자 코드 목록 읽기', 'ALLOW', { auth: admin, path: P('promo_codes/ABC'), method: 'list' }, code],
+  ['회원이 코드 만들기', 'DENY', { auth: member, path: P('promo_codes/NEW1'), method: 'create', resource: { data: { ...code, uses: 0 } } }],
+  ['관리자 코드 만들기', 'ALLOW', { auth: admin, path: P('promo_codes/NEW1'), method: 'create', resource: { data: { ...code, uses: 0 } } }],
+  ['코드 사용 +1', 'ALLOW', { auth: member, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, uses: 4 } } }, code, redeemMocks()],
+  ['이미 쓴 코드 +1', 'DENY', { auth: member, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, uses: 4 } } }, code, redeemMocks(true, true)],
+  ['사용 기록 없이 +1', 'DENY', { auth: member, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, uses: 4 } } }, code, redeemMocks(false, false)],
+  ['한도 찬 코드 +1', 'DENY', { auth: member, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, uses: 11 } } }, { ...code, uses: 10 }, redeemMocks()],
+  ['꺼진 코드 +1', 'DENY', { auth: member, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, enabled: false, uses: 4 } } }, { ...code, enabled: false }, redeemMocks()],
+  ['코드 사용 +2', 'DENY', { auth: member, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, uses: 5 } } }, code, redeemMocks()],
+  ['회원이 코드 보상 바꾸기', 'DENY', { auth: member, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, coins: 99999, uses: 4 } } }, code, redeemMocks()],
+  ['게스트 코드 사용 +1', 'DENY', { auth: anon, path: P('promo_codes/ABC'), method: 'update', resource: { data: { ...code, uses: 4 } } }, code, redeemMocks()],
+  ['내 코드 사용 기록 생성', 'ALLOW', { auth: member, path: P('users/u1/codes/ABC'), method: 'create', resource: { data: { code: 'ABC', coins: 500 } } }, null, counterMocks(3, 4)],
+  ['사용 수 안 올리고 기록만', 'DENY', { auth: member, path: P('users/u1/codes/ABC'), method: 'create', resource: { data: { code: 'ABC', coins: 500 } } }, null, counterMocks(3, 3)],
+  ['다른 코드 이름으로 기록', 'DENY', { auth: member, path: P('users/u1/codes/ABC'), method: 'create', resource: { data: { code: 'XYZ', coins: 500 } } }, null, counterMocks(3, 4)],
+  ['남의 코드 사용 기록 생성', 'DENY', { auth: member, path: P('users/u2/codes/ABC'), method: 'create', resource: { data: { code: 'ABC' } } }, null, counterMocks(3, 4)],
+  ['코드 사용 기록 수정', 'DENY', { auth: member, path: P('users/u1/codes/ABC'), method: 'update', resource: { data: { code: 'ABC', coins: 9999 } } }, { code: 'ABC', coins: 500 }],
+  ['관리자 코드 사용자 목록', 'ALLOW', { auth: admin, path: P('users/u2/codes/ABC'), method: 'list' }, { code: 'ABC' }],
 ];
 
-const testCases = cases.map(([, expectation, request, existing]) => ({
+const testCases = cases.map(([, expectation, request, existing, functionMocks]) => ({
   expectation,
   request: { time: '2026-09-22T00:00:00Z', ...request },
   ...(existing ? { resource: { data: existing } } : {}),
+  ...(functionMocks ? { functionMocks } : {}),
 }));
 
 const res = await fetch(`https://firebaserules.googleapis.com/v1/projects/${PROJECT}:test`, {

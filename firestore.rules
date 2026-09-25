@@ -89,6 +89,20 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
+      // 내가 쓴 이벤트 코드(lib/promotions.dart PromoService.redeem) — 한 사람 한 번.
+      // 만들 때 같은 요청에서 promo_codes/{code}.uses 가 1 올라가야 한다(코드 쪽 규칙이 한도·기간을 본다).
+      // 이미 있으면 create 가 아니라 update 가 되므로 두 번째 사용은 막힌다
+      match /codes/{code} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create: if isOwner(userId) && isMember()
+          && request.resource.data.code == code
+          && request.resource.data.at == request.time
+          && getAfter(/databases/$(database)/documents/promo_codes/$(code)).data.get('uses', 0)
+               == get(/databases/$(database)/documents/promo_codes/$(code)).data.get('uses', 0) + 1;
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
+
       // 판마다 남기는 플레이 기록(lib/run_history.dart) — 회원 본인이 추가만(게스트는 남기지 않는다), 읽기는 본인·관리자
       match /runs/{runId} {
         allow read: if isAdmin() || isOwner(userId);
@@ -116,6 +130,34 @@ service cloud.firestore {
         || (isMember()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claims'])
             && request.resource.data.claims == resource.data.get('claims', 0) + 1);
+    }
+
+    // 이벤트 코드 — 문서 id 가 코드. 회원은 코드를 알 때만 그 한 건을 읽는다(list 는 관리자만 → 코드가 새지 않는다).
+    // 사용 = 사용 수 +1 만, 켜짐·기간 안·한도 안일 때, 같은 요청에서 내 사용 기록(users/{uid}/codes/{code})이
+    // 새로 생길 때만. 보상 지급은 앱이 한다(코인 값 검증은 validUser 범위까지 — 서버 함수 없음)
+    function codeOpen(d) {
+      return d.get('enabled', true) == true
+        && (d.get('maxUses', 0) == 0 || d.get('uses', 0) < d.get('maxUses', 0))
+        && (d.get('startAt', null) == null || request.time >= d.startAt)
+        && (d.get('endAt', null) == null || request.time <= d.endAt);
+    }
+
+    match /promo_codes/{code} {
+      allow get: if isMember() || isAdmin();
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isMember()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uses'])
+            && request.resource.data.uses == resource.data.get('uses', 0) + 1
+            && codeOpen(resource.data)
+            && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)/codes/$(code))
+            && !exists(/databases/$(database)/documents/users/$(request.auth.uid)/codes/$(code)));
+    }
+
+    // 백오피스 — 코드별 사용자 목록(collection group 'codes')
+    match /{path=**}/codes/{code} {
+      allow read: if isAdmin();
     }
 
     // 커스텀 맵

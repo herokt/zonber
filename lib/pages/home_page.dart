@@ -12,7 +12,7 @@ import '../user_profile.dart';
 import '../world_config.dart';
 import '../daily_rewards.dart';
 import 'daily_sheet.dart';
-import 'promo_sheet.dart';
+import 'promo_page.dart';
 
 /// 홈 — 월드 캐러셀 + 캐릭터 + START. (docs/UI_DESIGN.md §4.1)
 class HomePage extends StatefulWidget {
@@ -26,6 +26,7 @@ class HomePage extends StatefulWidget {
   final VoidCallback onSettings;
   final VoidCallback onRanking;
   final VoidCallback onShop;
+  final VoidCallback onPromo;
 
   const HomePage({
     super.key,
@@ -39,6 +40,7 @@ class HomePage extends StatefulWidget {
     required this.onSettings,
     required this.onRanking,
     required this.onShop,
+    required this.onPromo,
   });
 
   @override
@@ -148,10 +150,10 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 12),
                     _dots(accent),
                     _infoTiles(lm, char, accent),
-                    // 이벤트 — 진행 중일 때만 한 줄 뜬다(promotions.dart)
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(24, 10, 24, 0),
-                      child: PromoBanner(),
+                    // 이벤트 — 진행 중일 때만 한 줄 뜬다(promotions.dart). 누르면 이벤트 페이지
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                      child: PromoBanner(onTap: widget.onPromo),
                     ),
                     const SizedBox(height: 12),
                   ],

@@ -84,6 +84,9 @@ class LanguageManager extends ChangeNotifier {
   static const String _wordJoiner = '\u2060';
   static final RegExp _hangul = RegExp('[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7A3]');
 
+  /// [keepWords] \uAC00 \uB123\uC740 WORD JOINER \uB97C \uBE80\uB2E4 \u2014 \uACF5\uC720\u00B7\uD074\uB9BD\uBCF4\uB4DC\uCC98\uB7FC \uC571 \uBC16\uC73C\uB85C \uB098\uAC00\uB294 \uBB38\uC790\uC5F4\uC6A9
+  static String stripJoiners(String s) => s.replaceAll(_wordJoiner, '');
+
   /// 한글은 기본적으로 글자마다 줄바꿈이 허용돼 어절 한가운데서 잘린다.
   /// 어절 안의 글자 사이에 WORD JOINER(U+2060, 폭 0)를 넣어 공백에서만 줄이 바뀌게 한다.
   /// `{name}` 같은 치환자 안에는 넣지 않는다(replaceAll 이 깨지지 않게).

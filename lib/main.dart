@@ -44,6 +44,7 @@ import 'pages/ranking_page.dart';
 import 'pages/result_page.dart';
 import 'pages/badges_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/promo_page.dart';
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
 import 'statistics_page.dart'; // Added by instruction
@@ -767,6 +768,8 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         );
       case 'Statistics':
         return StatisticsPage(onBack: () => _navigateTo('MyProfile'));
+      case 'Promo':
+        return PromoPage(onBack: () => _navigateTo('Menu'));
       case 'Menu':
       default:
         return HomePage(
@@ -781,6 +784,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           onSettings: () => _navigateTo('MyProfile'),
           onRanking: () => _navigateTo('Ranking'),
           onShop: () => _navigateTo('Shop'),
+          onPromo: () => _navigateTo('Promo'),
         );
     }
   }
