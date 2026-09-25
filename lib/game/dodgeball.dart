@@ -6,14 +6,15 @@ part of '../main.dart';
 // 피구 투구 — 상대 코트(위쪽)에서 캐릭터를 향해 **한 턴에 한 번** 던진다.
 // docs/STAGES.md §2. 사방 스폰(갤럭시)과 달리 방향이 하나라 "무엇이 오나"를 읽는 게임.
 //
-// 턴 간격과 공 속도는 시간에 따라 줄고/늘고, 던지는 패턴은 단계(tier)로 어려워진다.
-//   0  워밍업   ~12s   한 개씩 천천히
-//   1  분열     ~30s   한 개 + 가끔 날아오다 3개로 갈라지는 공
-//   2  분열+   ~50s   분열 3 비중 ↑ (세로로 줄지어 오는 일렬 투구는 없다)
-//   3  벽       ~75s   가로 한 줄 3개(나란히 평행 비행) 추가
-//   4  압박     ~100s  분열 5 · 가로 4 · 빠른 공(주황)
-//   5  연타     ~130s  두 곳에서 동시 투구, 가로 5
-//   6  극악     130s~  예측 조준(가는 방향 앞을 노림) + 동시 투구 + 최단 턴
+// 턴 간격·공 속도·패턴 단계는 모두 레벨(15초마다 1, 최고 15)로 정한다 — lib/balance.dart (2026-09-26).
+//   단계  시작 레벨(시각)
+//   0  워밍업   L1 (0s)     한 개씩 천천히
+//   1  분열     L2 (15s)    한 개 + 가끔 날아오다 3개로 갈라지는 공
+//   2  분열+   L4 (45s)    분열 3 비중 ↑ (세로로 줄지어 오는 일렬 투구는 없다)
+//   3  벽       L6 (75s)    가로 한 줄 3개(나란히 평행 비행) 추가
+//   4  압박     L8 (105s)   분열 5 · 가로 4 · 빠른 공(주황)
+//   5  연타     L10 (135s)  두 곳에서 동시 투구 25%, 가로 5
+//   6  극악     L13 (180s)  예측 조준(가는 방향 0.25초 앞) + 동시 투구 40%. 최고 레벨 L15(210s)에서 멈춘다
 // ⚠️ 수치를 바꾸면 피구 리더보드 기록의 의미가 달라진다(시즌 리셋 검토).
 // ─────────────────────────────────────────────────────────────
 enum _Throw { single, fastSingle, split3, split5, row3, row4, row5 }
@@ -29,21 +30,8 @@ class _DodgeballThrower {
   double _sincePass = 0;
   double _nextPass = 7;
 
-  static int tierAt(double t) {
-    if (t < 12) return 0;
-    if (t < 30) return 1;
-    if (t < 50) return 2;
-    if (t < 75) return 3;
-    if (t < 100) return 4;
-    if (t < 130) return 5;
-    return 6;
-  }
-
-  /// 턴 간격(초): 2.0s 에서 시작해 1초에 1%씩 짧아지고 0.4s 가 하한 (~160s 도달)
-  static double beatAt(double t) => Balance.dodgeBeatAt(t);
-
-  /// 기본 공 속도(px/s): 150 → 초당 +2.2, 상한 460
-  static double speedAt(double t) => Balance.dodgeSpeedAt(t);
+  /// 패턴 단계(0~6) — 레벨로 정한다(Balance.tierLevels)
+  static int tierAt(double t) => Balance.tierOf(Balance.levelAt(t));
 
   static const Map<int, Map<_Throw, int>> _weights = {
     0: {_Throw.single: 1},
@@ -85,13 +73,13 @@ class _DodgeballThrower {
     _sinceThrow += dt;
     if (_sinceThrow < _nextBeat) return;
     _sinceThrow = 0;
-    final t = game.survivalTime;
-    _nextBeat = beatAt(t);
-    final tier = tierAt(t);
-    _throw(game, _pick(tier), tier, t);
-    // 5단계부터 가끔 다른 자리에서 한 번 더 (동시 투구). 극악은 절반 확률.
-    if ((tier == 5 && _rng.nextDouble() < 0.3) || (tier == 6 && _rng.nextDouble() < 0.5)) {
-      _throw(game, _pick(tier - 2), tier, t);
+    final level = Balance.levelAt(game.survivalTime);
+    _nextBeat = Balance.dodgeBeat(level);
+    final tier = Balance.tierOf(level);
+    _throw(game, _pick(tier), tier, level);
+    // 5단계부터 가끔 다른 자리에서 한 번 더 (동시 투구)
+    if (_rng.nextDouble() < Balance.dodgeTwin[tier]) {
+      _throw(game, _pick(tier - 2), tier, level);
     }
   }
 
@@ -113,12 +101,12 @@ class _DodgeballThrower {
       pts.add(outs[s]); // 같은 Vector2 객체 — 선수가 움직이면 패스 목표도 움직인다
     }
     final def = world.projectiles.length > 1 ? world.projectiles[1] : world.projectiles.first;
-    final shot = min(700.0, max(380.0, speedAt(game.survivalTime) * 1.7));
+    final shot = min(700.0, max(380.0, Balance.dodgeSpeed(Balance.levelAt(game.survivalTime)) * 1.7));
     _pass = _PassBall(points: pts, def: def, shotSpeed: shot);
     game.mapArea.add(_pass!);
   }
 
-  void _throw(ZonberGame game, _Throw kind, int tier, double t) {
+  void _throw(ZonberGame game, _Throw kind, int tier, int level) {
     if (game.isGameOver || !game.player.isMounted) return;
     final world = game.worldConfig;
     final ball = world.projectiles.first;
@@ -137,11 +125,11 @@ class _DodgeballThrower {
     }
     Vector2 target = game.player.position.clone();
     // 극악: 캐릭터가 움직이는 방향 앞을 노린다
-    if (tier >= 6) target += game.player.recentVelocity * 0.35;
+    if (tier >= 6) target += game.player.recentVelocity * Balance.dodgeLead;
     final dir = (target - origin).normalized();
     final perp = Vector2(-dir.y, dir.x);
     // 코트가 길어진 만큼 빠르게 — 공이 오는 시간은 예전 코트와 같다(Balance.dodgeThrowScale)
-    final speed = speedAt(t) * Balance.dodgeThrowScale;
+    final speed = Balance.dodgeSpeed(level) * Balance.dodgeThrowScale;
 
     void add(Vector2 from, ProjectileDef def, double v, {int splitInto = 0}) {
       final b = Bullet(from, from + dir * 100, speed: v * def.speedMult, def: def);

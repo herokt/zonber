@@ -48,7 +48,6 @@ import 'pages/promo_page.dart';
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
 import 'statistics_page.dart'; // Added by instruction
-import 'game_config.dart'; // [NEW] Added for Stage Config
 import 'backoffice/admin_gate.dart';
 import 'backoffice/backoffice_home.dart'; // Added for Secret Admin
 import 'firebase_options.dart'; // Added by instruction

@@ -40,15 +40,8 @@ class KeeperGoal {
   final List<double> _drift = [];
   final List<double> _appear = [];
 
-  static int tierAt(double t) {
-    if (t < 15) return 0;
-    if (t < 30) return 1;
-    if (t < 50) return 2;
-    if (t < 70) return 3;
-    if (t < 95) return 4;
-    if (t < 125) return 5;
-    return 6;
-  }
+  /// 단계(0~6) — 레벨로 정한다(Balance.tierLevels: L1·L2·L4·L6·L8·L10·L13 = 0·15·45·75·105·135·180초)
+  static int tierAt(double t) => Balance.tierOf(Balance.levelAt(t));
 
   Vector2 postPos(bool leftPost) => Vector2(leftPost ? left : right, lineY);
 
@@ -97,33 +90,35 @@ class _KeeperShooter {
   double _since = 0;
   double _nextBeat = 1.4;
 
-  /// 턴 간격: 2.0s 에서 1초에 1%씩 짧아지고 0.55s 하한
-  static double beatAt(double t) => Balance.keeperBeatAt(t);
+  /// 턴 간격 2.0s → 0.65s — 레벨마다 조금씩(Balance.keeperBeat)
+  static double beatAt(double t) => Balance.keeperBeat(Balance.levelAt(t));
 
-  /// 슛 속도: 200 → 초당 +2.2, 상한 480 (총알슛은 여기에 1.6배). 2026-09-22 꼬불꼬불 슛 구간부터 너무 빨라 조금 낮춤
-  static double speedAt(double t) => Balance.keeperSpeedAt(t);
+  /// 슛 속도 200 → 440 × 1.22 — 레벨마다 조금씩(Balance.keeperSpeed). 총알슛은 여기에 1.6배
+  static double speedAt(double t) => Balance.keeperSpeed(Balance.levelAt(t));
 
   /// 공이 골라인에 닿는 시각(예상)들 — 여러 공이 한꺼번에 도착하지 않게 이 간격 이상 벌린다(간발의 차는 허용)
   final List<double> _arrivals = [];
   static const double _arrivalGap = Balance.keeperArrivalGap;
 
   /// 키퍼 반대쪽을 노리는 비율
-  static const List<double> _smart = [0.2, 0.35, 0.5, 0.6, 0.7, 0.8, 0.85];
+  static const List<double> _smart = [0.2, 0.35, 0.5, 0.6, 0.7, 0.75, 0.8];
 
   /// 단계별 슛 비중
   static const Map<int, Map<_Kick, int>> _weights = {
     0: {_Kick.straight: 1},
     1: {_Kick.straight: 6, _Kick.power: 3},
     2: {_Kick.straight: 3, _Kick.power: 3, _Kick.curl: 4},
-    3: {_Kick.straight: 1, _Kick.power: 2, _Kick.curl: 3, _Kick.wave: 4},
+    3: {_Kick.straight: 2, _Kick.power: 2, _Kick.curl: 3, _Kick.wave: 2},
     4: {_Kick.power: 2, _Kick.curl: 3, _Kick.wave: 3, _Kick.rocket: 3},
     5: {_Kick.power: 1, _Kick.curl: 3, _Kick.wave: 2, _Kick.rocket: 3, _Kick.knuckle: 4},
     6: {_Kick.curl: 3, _Kick.wave: 3, _Kick.rocket: 4, _Kick.knuckle: 4},
   };
 
-  /// 여러 명이 동시에 찰 확률(두 명 · 세 명)
-  static const List<double> _twin = [0, 0, 0, 0.3, 0.3, 0.3, 0.35];
-  static const List<double> _trio = [0, 0, 0, 0, 0.1, 0.2, 0.3];
+  /// 여러 명이 동시에 찰 확률(두 명 · 세 명).
+  /// 2026-09-26 50초(3단계)에 동시 슛 30% + 꼬불꼬불 40% 가 한꺼번에 들어와 벽이 됐다(많이 한 유저 13판 중 10판이 49~62초에서 끝).
+  /// 동시 슛을 단계마다 나눠 늘리고 3단계 꼬불꼬불 비중을 낮췄다. 극악(6단계)도 버틸 수는 있게 3명 동시를 30% → 20%.
+  static const List<double> _twin = [0, 0, 0, 0.15, 0.25, 0.3, 0.3];
+  static const List<double> _trio = [0, 0, 0, 0, 0.05, 0.15, 0.2];
 
   _Kick _pick(int tier) {
     final w = _weights[tier]!;

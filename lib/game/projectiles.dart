@@ -564,24 +564,9 @@ class Bullet extends PositionComponent
 }
 
 class BulletSpawner extends Component with HasGameReference<ZonberGame> {
-  // ── 난이도 곡선 튜닝 상수 ──────────────────────────────
-  // ⚠️ 이 값을 바꾸면 기존 리더보드 기록과 난이도가 달라진다.
-  //    변경 시 시즌 리셋을 함께 검토할 것.
-  static const double _levelDuration = 25.0; // 레벨업 간격(초)
-  static const int _startLevel = 1;          // 시작 레벨 (0이면 초반 무위험 구간이 길어짐)
-  static const double _intervalDecay = 0.9;  // 레벨당 스폰 간격 배수
-  static const double _minInterval = 0.02;   // 스폰 간격 하한
-  static const double _speedPerLevel = 15.0; // 레벨당 탄속 증가
-  static const int _limitPerLevel = 10;      // 레벨당 동시 탄환 상한 증가
-  // ──────────────────────────────────────────────────────
-
-  // Manual Timer Logic
+  // 난이도는 전부 레벨로 정한다(Balance.levelAt — 15초마다 1, 최고 15). 수치는 lib/balance.dart.
+  // ⚠️ 바꾸면 기존 리더보드 기록과 난이도가 달라진다 — 시즌 리셋을 함께 검토할 것.
   double _timeSinceLastSpawn = 0.0;
-
-  // Base Config
-  double _baseInterval = 0.1;
-  double _baseSpeed = 150.0;
-  int _baseLimit = 100;
 
   final Random _random = Random();
 
@@ -591,24 +576,8 @@ class BulletSpawner extends Component with HasGameReference<ZonberGame> {
   /// 골키퍼(shooter) — 열린 입구를 노리고 턴마다 찬다
   final _KeeperShooter _shooter = _KeeperShooter();
 
-  /// 현재 난이도 레벨 (경과 시간 기반)
-  int get currentLevel =>
-      _startLevel + (game.survivalTime / _levelDuration).floor();
-
-  @override
-  void onMount() {
-    super.onMount();
-    StageConfig? config = GameConfig.getStage(game.mapId);
-    if (config != null) {
-      _baseInterval = config.spawnInterval;
-      _baseSpeed = config.bulletSpeed;
-    }
-    // 월드가 정하는 값이 우선 — 동시 탄 상한, 스폰 간격, 기본 탄속
-    final world = game.worldConfig;
-    _baseLimit = world.maxBullets;
-    _baseInterval = world.spawnInterval ?? _baseInterval;
-    _baseSpeed = world.bulletSpeed ?? _baseSpeed;
-  }
+  /// 현재 난이도 레벨(세 존 공통) — 레벨업 소리·결과 화면·판 기록이 같이 쓴다
+  int get currentLevel => Balance.levelAt(game.survivalTime);
 
   @override
   void update(double dt) {
@@ -623,12 +592,9 @@ class BulletSpawner extends Component with HasGameReference<ZonberGame> {
     }
     _timeSinceLastSpawn += dt;
 
+    // 갤럭시 — 레벨마다 초당 탄 수가 같은 폭으로 는다(Balance.cyberRate)
     final int level = currentLevel;
-
-    double currentInterval = _baseInterval * pow(_intervalDecay, level);
-    if (currentInterval < _minInterval) currentInterval = _minInterval;
-
-    if (_timeSinceLastSpawn >= currentInterval) {
+    if (_timeSinceLastSpawn >= 1 / Balance.cyberRate(level)) {
       _timeSinceLastSpawn = 0;
       _spawnBullet(level);
     }
@@ -645,17 +611,14 @@ class BulletSpawner extends Component with HasGameReference<ZonberGame> {
         ? Vector2(ZonberGame.mapWidth / 2, ZonberGame.mapHeight / 2)
         : game.player.position;
 
-    // RAMPING: Increase bullet cap slightly over time
-    int currentLimit = _baseLimit + (level * _limitPerLevel);
-
-    if (game.mapArea.children.whereType<Bullet>().length > currentLimit) {
+    // 화면에 동시에 있는 탄 상한 — 레벨마다 조금씩
+    if (game.mapArea.children.whereType<Bullet>().length > Balance.cyberCap(level)) {
       return;
     }
 
-    // RAMPING: 레벨당 속도 +15, 기본값의 2배에서 상한
+    // 탄속 — 레벨마다 조금씩, 최고 레벨에서 멈춘다
     // (slowTime 감속은 Bullet.update()에서 실시간 적용 — 여기서 곱하지 않는다)
-    double currentSpeed =
-        (_baseSpeed + (level * _speedPerLevel)).clamp(0, _baseSpeed * 2);
+    final double currentSpeed = Balance.cyberSpeed(level);
 
     final world = game.worldConfig;
     final def = world.projectiles[_random.nextInt(world.projectiles.length)];

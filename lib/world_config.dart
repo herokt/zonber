@@ -87,7 +87,7 @@ class WorldConfig {
   final String nameKey;
   /// translations 키: 한 줄 판타지
   final String taglineKey;
-  /// `GameConfig.stages` 의 장애물 레이아웃 id
+  /// 레이아웃 id — 모든 월드가 `zone_1_classic`(장애물 없음). 난이도 수치는 lib/balance.dart(레벨)
   final String layoutId;
   /// Firestore `maps/{rankingMapId}` — 스테이지별 리더보드(신규)
   final String rankingMapId;
@@ -95,12 +95,6 @@ class WorldConfig {
   final SpawnStrategy spawner;
   /// ring 스포너: 스폰 반경(dodge = 플레이어 중심, keeper = 골대 중심)
   final double spawnRadius;
-  /// 동시 탄 상한 기본값(램프가 더한다)
-  final int maxBullets;
-  /// 스폰 간격(초) 시작값. null 이면 레이아웃(StageConfig) 기본값(0.10). 램프가 0.9^level 을 곱한다.
-  final double? spawnInterval;
-  /// 기본 탄속. null 이면 StageConfig 기본값(150). 램프가 +15/level, 상한 2배.
-  final double? bulletSpeed;
   /// keeper: 골대 반지름(px)
   final double goalRadius;
   /// keeper: 허용 골 수. 이만큼 먹히면 게임 오버
@@ -128,9 +122,6 @@ class WorldConfig {
     required this.projectiles,
     this.spawner = SpawnStrategy.ring,
     this.spawnRadius = 450,
-    this.maxBullets = 60,
-    this.spawnInterval,
-    this.bulletSpeed,
     this.goalRadius = 0,
     this.lives = 0,
     required this.accent,
@@ -166,7 +157,6 @@ class WorldData {
       ],
       spawner: SpawnStrategy.ring,
       spawnRadius: 450,
-      maxBullets: 60,
       accent: Color(0xFF0A9DBD),
       floor: Color(0xFF141A33), // 네온 탄이 읽히도록 짙은 남색 무대는 유지
       line: Color(0x6619E6FF),
@@ -193,9 +183,8 @@ class WorldData {
           color: Color(0xFFFF7A1A), seams: true,
         ),
       ],
-      // 턴 간격·속도·패턴은 _DodgeballThrower 가 시간으로 정한다(spawnInterval/bulletSpeed 미사용)
+      // 턴 간격·속도·패턴은 레벨로 정한다(lib/balance.dart · _DodgeballThrower)
       spawner: SpawnStrategy.thrower,
-      maxBullets: 40,
       accent: Color(0xFFE5484D),
       floor: Color(0xFFE9CFA6), // 밝은 마루
       line: Color(0xB3FFFFFF),
@@ -257,7 +246,6 @@ class WorldData {
       // 페널티킥형 — 골문·슈터·턴·속도는 KeeperGoal / _KeeperShooter 가 정한다(goalRadius·spawnRadius 미사용)
       spawner: SpawnStrategy.shooter,
       spawnRadius: 430,
-      maxBullets: 24,
       goalRadius: 64,
       // 페널티 에어리어 = 키퍼 이동 영역 = 나의 존 (KeeperGoal.penaltyBox 와 같은 값)
       playArea: Rect.fromLTRB(12, 420, 468, 720),
