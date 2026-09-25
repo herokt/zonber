@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'bo_charts.dart';
 import 'bo_common.dart';
+import 'runs_page.dart' show kNoRunsHint;
 
 // ─────────────────────────────────────────────────────────────
 // 대시보드 — KPI 줄 → 차트 2열(일별 플레이 · 스테이지 비교 · 신규 가입 · 캐릭터 사용) → 최근 플레이 표.
@@ -432,7 +433,7 @@ class _DashboardPageState extends State<DashboardPage> with BoReloadable {
         columns: cols,
         rowCount: _feed.length,
         onRowTap: (i) => BoNav.openUser(_feed[i].uid),
-        empty: const BoEmpty('플레이 기록이 아직 없습니다'),
+        empty: const BoEmpty('플레이 기록이 아직 없습니다', hint: kNoRunsHint),
         cells: (i) {
           final r = _feed[i];
           final u = BoData.cached(r.uid);

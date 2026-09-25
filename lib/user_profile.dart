@@ -14,6 +14,7 @@ import 'progress_store.dart';
 import 'coin_store.dart';
 import 'daily_rewards.dart';
 import 'badges.dart';
+import 'promotions.dart';
 import 'services/auth_service.dart';
 
 class UserProfileManager {
@@ -196,6 +197,7 @@ class UserProfileManager {
             await CoinStore.mergeFromRemote(data);
             await DailyRewards.mergeFromRemote(data);
             await BadgeStatsStore.mergeFromRemote(data);
+            await PromoService.syncFromRemote(); // 이벤트 수령 기록(다시 깔아도 두 번 못 받게)
           }
 
           // Update platform and login info on sync
@@ -310,6 +312,7 @@ class UserProfileManager {
     await prefs.remove(_keyFirstEdit);
     await AchievementManager.clearLocal();
     await BadgeStatsStore.clearLocal();
+    await PromoService.clearLocal();
   }
 
   // First Edit (Free edit for first-time users)

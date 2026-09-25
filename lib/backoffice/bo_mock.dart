@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../badges.dart';
 import '../gear.dart';
+import '../promotions.dart';
 import 'bo_catalog.dart';
 import 'bo_data.dart';
 
@@ -59,7 +60,7 @@ class MockSource implements BoSource {
   DateTime _ago(double days) => DateTime.now().subtract(Duration(minutes: (days * 1440).round()));
 
   void _build() {
-    final chars = kCharNames.keys.toList();
+    final chars = kCharIds;
     final items = allGrantableItems();
     final engagement = <String, double>{};
 
@@ -311,6 +312,34 @@ class MockSource implements BoSource {
 
   @override
   Future<void> deleteRecord(BoRec r) => _later(() => _recs[r.mapId]?.removeWhere((e) => e.id == r.id));
+
+  // ── 이벤트(프로모션) ──
+  final List<BoPromo> _promos = [
+    BoPromo(
+      Promotion(
+        id: 'launch_code',
+        kind: PromoKind.code,
+        coins: 500,
+        code: 'ZONBER',
+        title: {'ko': '출시 기념 코드', 'en': 'Launch code'},
+        desc: {'ko': '커뮤니티에 뿌린 코드로 코인 500', 'en': '500 coins from the launch code'},
+      ),
+      37,
+    ),
+    BoPromo(Promotion(id: 'welcome_pack', kind: PromoKind.welcome, coins: 300, items: ['skin_cloud'], title: {'ko': '환영 선물'}), 120),
+  ];
+
+  @override
+  Future<List<BoPromo>> promos() => _later(() => [..._promos]);
+
+  @override
+  Future<void> savePromo(Promotion p) => _later(() {
+        _promos.removeWhere((e) => e.promo.id == p.id);
+        _promos.add(BoPromo(p, 0));
+      });
+
+  @override
+  Future<void> deletePromo(String id) => _later(() => _promos.removeWhere((e) => e.promo.id == id));
 
   // ── 관리 도구 ──
   @override

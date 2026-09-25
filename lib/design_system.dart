@@ -4,6 +4,8 @@ import 'package:country_flags/country_flags.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'avatar.dart';
+export 'flag_util.dart' show flagToIso;
+import 'flag_util.dart';
 import 'badges.dart';
 import 'audio_manager.dart';
 import 'haptics.dart';
@@ -179,18 +181,6 @@ String formatCount(int n) {
 }
 
 /// 국기 이모지(regional indicator 2자) → ISO 2자 코드. 변환 불가면 빈 문자열.
-/// 국기 값 → ISO 코드(KR). 이모지 국기가 기본이고,
-/// 옛 기록·백오피스가 남긴 'KR' 같은 코드도 국기 이미지로 보이게 받아 준다(2026-09-23)
-String flagToIso(String flag) {
-  final s = flag.trim();
-  final runes = s.runes.toList();
-  if (runes.length == 2 && runes.every((r) => r >= 0x1F1E6 && r <= 0x1F1FF)) {
-    return String.fromCharCodes([for (final r in runes) r - 0x1F1E6 + 0x41]);
-  }
-  if (s.length == 2 && RegExp(r'^[A-Za-z]{2}$').hasMatch(s)) return s.toUpperCase();
-  return '';
-}
-
 // ── 레이아웃 ────────────────────────────────────────────────
 
 class NeonScaffold extends StatelessWidget {

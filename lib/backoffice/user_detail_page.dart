@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../gear.dart';
 import 'bo_charts.dart';
 import 'bo_common.dart';
+import 'runs_page.dart' show kNoRunsHint;
 import 'runs_table.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -138,6 +139,7 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
         BoSection.users => '유저',
         BoSection.ranking => '랭킹 관리',
         BoSection.runs => '플레이 기록',
+        BoSection.promos => '이벤트',
         BoSection.economy => '경제·아이템',
       };
 
@@ -223,7 +225,7 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                BoAvatar(charId: d['characterId'] as String?, name: _exists ? nickOf(d) : '?', size: 60),
+                BoAvatar.ofUser(_exists ? d : null, size: 60),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -234,7 +236,7 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
                         runSpacing: 6,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          if (flag.isNotEmpty) Text(flag, style: const TextStyle(fontSize: 20)),
+                          if (flag.isNotEmpty) BoFlag(flag, height: 16),
                           Text(_exists ? nickOf(d) : '(문서 없음)', style: Bo.h1.copyWith(fontSize: 20)),
                           if (_exists) BoProviderBadge(provider),
                           if (d['adsRemoved'] == true) BoBadge('광고 제거', color: Bo.green, dense: true, icon: Icons.check_rounded),
@@ -343,7 +345,11 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
       title: '프로필',
       child: Column(children: [
         BoKv('닉네임', v: nickOf(d)),
-        BoKv('국가', v: '${flagOf(d)} ${d['countryName'] ?? '-'}'.trim()),
+        BoKv('국가',
+            child: Row(children: [
+              if (flagOf(d).isNotEmpty) ...[BoFlag(flagOf(d)), const SizedBox(width: 6)],
+              Text('${d['countryName'] ?? '-'}', style: Bo.cell),
+            ])),
         BoKv('UID', v: widget.uid, mono: true, copy: true),
         BoKv('이메일',
             v: email.isEmpty ? '(미등록)' : email,
@@ -904,7 +910,7 @@ class _RunsTabState extends State<_RunsTab> with AutomaticKeepAliveClientMixin, 
                 RunsTable(
                   runs: _runs,
                   showUser: false,
-                  empty: const BoEmpty('플레이 기록이 없습니다 (회원 판만 기록됩니다)'),
+                  empty: const BoEmpty('플레이 기록이 없습니다', hint: kNoRunsHint),
                   footer: _runs.isEmpty
                       ? null
                       : BoTableFooter(

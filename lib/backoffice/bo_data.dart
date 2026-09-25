@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../promotions.dart';
 import 'bo_catalog.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -30,6 +31,13 @@ class BoRec {
   String get userId => (data['userId'] as String? ?? '').trim();
   double get time => dblOf(data['survivalTime']);
   DateTime? get at => tsOf(data['timestamp']);
+}
+
+/// 이벤트 한 건 — 정의 + 받은 사람 수(promos/{id}.claims)
+class BoPromo {
+  final Promotion promo;
+  final int claims;
+  const BoPromo(this.promo, this.claims);
 }
 
 /// 커서 기반 페이지(더 보기)
@@ -79,6 +87,12 @@ abstract class BoSource {
   Future<List<BoRec>> records(String mapId, DateTime? since, int limit);
   Future<List<BoRec>> userRecords(String mapId, String uid, int limit);
   Future<void> deleteRecord(BoRec r);
+
+  // ── 이벤트(프로모션) ──
+  /// promos 컬렉션 전체(앱 기본 이벤트는 여기 없을 수 있다 — promotions.dart 의 builtIn)
+  Future<List<BoPromo>> promos();
+  Future<void> savePromo(Promotion p);
+  Future<void> deletePromo(String id);
 
   // ── 관리 도구 ──
   /// flag 없는 유저 → 대한민국. 바꾼 수
@@ -162,7 +176,7 @@ class BoData {
 // ─────────────────────────────────────────────────────────────
 // 화면 이동 — 왼쪽 메뉴 섹션 + (있으면) 그 위에 유저 상세
 // ─────────────────────────────────────────────────────────────
-enum BoSection { dashboard, users, ranking, runs, economy }
+enum BoSection { dashboard, users, ranking, runs, promos, economy }
 
 class BoNav {
   static final ValueNotifier<BoSection> section = ValueNotifier(BoSection.dashboard);

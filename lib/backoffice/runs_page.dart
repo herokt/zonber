@@ -18,6 +18,12 @@ class RunsPage extends StatefulWidget {
 
 enum _Range { today, d7, d30 }
 
+/// 판이 하나도 안 보일 때 — 원인 세 가지를 순서대로 짚어 준다(2026-09-25)
+const String kNoRunsHint = '회원(로그인) 상태로 플레이한 판만 users/{uid}/runs 에 남습니다 — '
+    '게스트 플레이·웹 플레이는 저장하지 않습니다.\n'
+    '기록이 있어야 하는데 비어 있다면 Firestore 규칙·색인이 배포됐는지 확인하세요: '
+    'firebase deploy --only firestore:rules,firestore:indexes';
+
 const _rangeNames = {_Range.today: '오늘', _Range.d7: '7일', _Range.d30: '30일'};
 
 class _RunsPageState extends State<RunsPage> with BoReloadable {
@@ -132,8 +138,11 @@ class _RunsPageState extends State<RunsPage> with BoReloadable {
                           : RunsTable(
                               runs: rows,
                               scroll: true,
-                              empty: BoEmpty(_hasMore ? '불러온 판 중 조건에 맞는 판이 없습니다 — 더 보기' : '조건에 맞는 판이 없습니다',
-                                  icon: Icons.history_toggle_off_rounded),
+                              empty: BoEmpty(
+                                _hasMore ? '불러온 판 중 조건에 맞는 판이 없습니다 — 더 보기' : '조건에 맞는 판이 없습니다',
+                                hint: _hasMore || _runs.isNotEmpty ? null : kNoRunsHint,
+                                icon: Icons.history_toggle_off_rounded,
+                              ),
                               footer: BoTableFooter(
                                 text: _hasMore
                                     ? '${fmtNum(_runs.length)}판 불러옴 · 최신순 · 행을 누르면 유저 상세'

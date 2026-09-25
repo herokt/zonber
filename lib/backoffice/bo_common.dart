@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:country_flags/country_flags.dart';
+
+import '../avatar.dart';
 import '../badges.dart';
+import '../flag_util.dart';
 import 'bo_catalog.dart';
 import 'bo_data.dart';
 
@@ -620,52 +624,62 @@ class BoProviderBadge extends StatelessWidget {
   Widget build(BuildContext context) => BoBadge(providerLabel(provider), color: Bo.providerColor(provider), dense: true);
 }
 
+/// 목록용 작은 아바타 — 게임과 같은 그림(avatar.dart)
 class CharDot extends StatelessWidget {
   final String? charId;
   final double size;
-  const CharDot(this.charId, {super.key, this.size = 10});
+  const CharDot(this.charId, {super.key, this.size = 20});
 
   @override
   Widget build(BuildContext context) => Tooltip(
         message: charName(charId),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: charColor(charId),
-            shape: BoxShape.circle,
-            border: Border.all(color: Bo.line),
-          ),
-        ),
+        child: AvatarView(avatar: Avatar(characterId: charId ?? Avatar.defaultCharacterId), size: size),
       );
 }
 
-/// 캐릭터 색 원 + 닉네임 첫 글자
+/// 유저 아바타 — 그 유저가 입고 있는 그대로(캐릭터·스킨·그 존 장비). users 문서에서 만든다
 class BoAvatar extends StatelessWidget {
-  final String? charId;
-  final String name;
+  final Avatar avatar;
+  final String? zone;
   final double size;
-  const BoAvatar({super.key, required this.charId, required this.name, this.size = 56});
+  const BoAvatar({super.key, required this.avatar, this.zone, this.size = 56});
+
+  /// users/{uid} 문서 한 장으로
+  factory BoAvatar.ofUser(Map<String, dynamic>? d, {double size = 56, String? zone}) =>
+      BoAvatar(avatar: d == null ? Avatar.fallback : Avatar.fromUserDoc(d), zone: zone, size: size);
 
   @override
   Widget build(BuildContext context) {
-    final c = charColor(charId);
-    final letter = name.trim().isEmpty ? '?' : name.trim().characters.first.toUpperCase();
+    final c = avatar.color;
     return Container(
       width: size,
       height: size,
-      alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color.lerp(c, Colors.white, 0.15)!, Color.lerp(c, Colors.black, 0.12)!],
-        ),
         border: Border.all(color: Bo.surface, width: 3),
         boxShadow: [BoxShadow(color: c.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 2))],
       ),
-      child: Text(letter, style: TextStyle(color: Colors.white, fontSize: size * 0.4, fontWeight: FontWeight.w700)),
+      child: AvatarView(avatar: avatar, zone: zone, size: size),
+    );
+  }
+}
+
+/// 국기 — 저장 값이 이모지든 'KR' 이든 늘 이미지로 그린다(윈도우·웹에서 이모지 국기가 글자로 보인다)
+class BoFlag extends StatelessWidget {
+  final String flag;
+  final double height;
+  const BoFlag(this.flag, {super.key, this.height = 12});
+
+  @override
+  Widget build(BuildContext context) {
+    final iso = flagToIso(flag);
+    if (iso.isEmpty) return const SizedBox.shrink();
+    return Tooltip(
+      message: iso,
+      child: CountryFlag.fromCountryCode(
+        iso,
+        theme: ImageTheme(width: height * 1.5, height: height, shape: const RoundedRectangle(2)),
+      ),
     );
   }
 }
@@ -1164,9 +1178,12 @@ class BoPager extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 class BoEmpty extends StatelessWidget {
   final String text;
+
+  /// 왜 비었는지 · 무엇을 확인해야 하는지(선택)
+  final String? hint;
   final IconData icon;
   final double padding;
-  const BoEmpty(this.text, {super.key, this.icon = Icons.inbox_outlined, this.padding = 28});
+  const BoEmpty(this.text, {super.key, this.hint, this.icon = Icons.inbox_outlined, this.padding = 28});
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1176,6 +1193,14 @@ class BoEmpty extends StatelessWidget {
             Icon(icon, size: 26, color: Bo.text3),
             const SizedBox(height: 6),
             Text(text, style: Bo.muted.copyWith(color: Bo.text3), textAlign: TextAlign.center),
+            if (hint != null) ...[
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: SelectableText(hint!,
+                    style: Bo.muted.copyWith(color: Bo.text3, height: 1.5), textAlign: TextAlign.center),
+              ),
+            ],
           ]),
         ),
       );
@@ -1675,7 +1700,7 @@ class BoUserCell extends StatelessWidget {
     return Row(children: [
       CharDot(charId ?? data?['characterId'] as String?),
       const SizedBox(width: 8),
-      if (flag.isNotEmpty) ...[Text(flag, style: const TextStyle(fontSize: 13)), const SizedBox(width: 4)],
+      if (flag.isNotEmpty) ...[BoFlag(flag), const SizedBox(width: 6)],
       Flexible(
         child: Text(data == null ? (fallbackName ?? '(유저 문서 없음)') : nickOf(data),
             style: data == null ? Bo.muted.copyWith(color: Bo.text3) : Bo.cellStrong, overflow: TextOverflow.ellipsis),
