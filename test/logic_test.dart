@@ -9,6 +9,7 @@ import 'package:zonber/cosmetics.dart';
 import 'package:zonber/daily_rewards.dart';
 import 'package:zonber/design_system.dart';
 import 'package:zonber/player_profile.dart';
+import 'package:zonber/promotions.dart';
 import 'package:zonber/gear.dart';
 import 'package:zonber/season.dart';
 import 'package:zonber/services/auth_service.dart';
@@ -237,6 +238,86 @@ void main() {
       expect(p.topBadge, isNull);
       expect(p.avatar, Avatar.fallback);
       expect(p.joinedAt, isNull);
+    });
+  });
+
+  group('이벤트(프로모션)', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+      PromoService.invalidate();
+    });
+
+    test('기간·켜짐으로 진행 여부가 갈린다', () {
+      final now = DateTime.now();
+      const always = Promotion(id: 'a', kind: PromoKind.bonus, coins: 10);
+      expect(always.isLive, isTrue);
+      expect(const Promotion(id: 'b', kind: PromoKind.bonus, enabled: false).isLive, isFalse);
+      expect(Promotion(id: 'c', kind: PromoKind.bonus, startAt: now.add(const Duration(days: 1))).isLive, isFalse);
+      expect(Promotion(id: 'd', kind: PromoKind.bonus, endAt: now.subtract(const Duration(days: 1))).isLive, isFalse);
+      expect(Promotion(id: 'e', kind: PromoKind.bonus, startAt: now.subtract(const Duration(days: 1)), endAt: now.add(const Duration(days: 2))).isLive, isTrue);
+    });
+
+    test('문서 ↔ 모델이 오간다(모르는 값은 기본)', () {
+      const p = Promotion(
+        id: 'autumn',
+        kind: PromoKind.code,
+        coins: 500,
+        items: ['skin_cloud'],
+        code: 'ZONBER',
+        cooldownHours: 24,
+        title: {'ko': '가을 이벤트'},
+      );
+      final back = Promotion.fromDoc('autumn', p.toDoc());
+      expect(back.kind, PromoKind.code);
+      expect(back.coins, 500);
+      expect(back.items, ['skin_cloud']);
+      expect(back.code, 'ZONBER');
+      expect(back.cooldownHours, 24);
+      expect(back.titleOf('ko'), '가을 이벤트');
+      expect(back.titleOf('en'), '가을 이벤트'); // 영어가 없으면 한국어로
+      expect(Promotion.fromDoc('x', const {}).kind, PromoKind.bonus);
+      expect(Promotion.fromDoc('x', const {}).isLive, isTrue);
+    });
+
+    test('한 번짜리는 다시 못 받고, 쿨다운은 시간이 지나야 받는다', () async {
+      const once = Promotion(id: 'once', kind: PromoKind.bonus, coins: 100);
+      expect(await PromoService.canClaim(once), isTrue);
+      expect(await PromoService.claim(once), isTrue);
+      expect(await PromoService.canClaim(once), isFalse);
+      expect(await PromoService.claim(once), isFalse); // 두 번 눌러도 한 번
+      expect(CoinStore.balance.value, 100);
+
+      const daily = Promotion(id: 'daily', kind: PromoKind.share, coins: 50, cooldownHours: 24);
+      expect(await PromoService.claim(daily), isTrue);
+      expect(await PromoService.canClaim(daily), isFalse); // 오늘은 끝
+      expect(CoinStore.balance.value, 150);
+    });
+
+    test('게스트는 받지 못한다', () async {
+      AuthService.debugIsGuest = true;
+      const p = Promotion(id: 'guest', kind: PromoKind.bonus, coins: 100);
+      expect(await PromoService.canClaim(p), isFalse);
+      expect(await PromoService.claim(p), isFalse);
+      AuthService.debugIsGuest = false;
+    });
+
+    test('코드는 대소문자·공백을 무시하고 찾는다', () async {
+      // 서버가 없으면 앱 기본 목록만 — 코드 이벤트는 기본에 없다
+      expect(await PromoService.byCode('ZONBER'), isNull);
+      expect(await PromoService.byCode(''), isNull);
+      // 코드 이벤트가 섞인 목록에서 찾기
+      const p = Promotion(id: 'launch', kind: PromoKind.code, code: 'ZONBER', coins: 500);
+      final found = [p].where((e) => e.kind == PromoKind.code && e.code.toUpperCase() == '  zonber  '.trim().toUpperCase());
+      expect(found.single.id, 'launch');
+    });
+
+    test('앱 기본 이벤트는 id 가 겹치지 않고 보상이 있다', () {
+      final ids = Promotions.builtIn.map((p) => p.id).toList();
+      expect(ids.toSet().length, ids.length);
+      for (final p in Promotions.builtIn) {
+        expect(p.isEmptyReward, isFalse, reason: p.id);
+        expect(p.titleOf('ko').isNotEmpty, isTrue, reason: p.id);
+      }
     });
   });
 
