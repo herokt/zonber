@@ -869,6 +869,7 @@ public: hosting_root
 | `backoffice/user_list_page.dart` · `user_detail_page.dart` | 유저 목록 · 상세/관리 |
 | `backoffice/ranking_page.dart` · `runs_page.dart` · `economy_page.dart` | 랭킹 기록 · 플레이 기록 · 경제/아이템 |
 | `backoffice/promo_page.dart` | 이벤트(프로모션) 추가·수정·켜고 끄기 — 저장하면 앱에 바로 반영 |
+| `backoffice/promo_codes_page.dart` | 이벤트 코드 만들기(직접·자동 여러 개)·수정·켜고 끄기·코드 확인·사용한 사람 — `promo_codes/{코드}` |
 
 ### 싱글톤 목록
 `GameSettings()` · `AudioManager()` · `AdManager()` · `IAPService()` · `LanguageManager()` — 전부 `factory` 패턴. `UserProfileManager`와 `AchievementManager`는 인스턴스 없이 **static 메서드**만 제공한다.

@@ -4,6 +4,7 @@ import 'bo_common.dart';
 import 'dashboard_page.dart';
 import 'economy_page.dart';
 import 'ranking_page.dart';
+import 'promo_codes_page.dart';
 import 'promo_page.dart';
 import 'runs_page.dart';
 import 'user_detail_page.dart';
@@ -37,6 +38,7 @@ const _groups = <(String, List<_NavItem>)>[
       _NavItem(BoSection.ranking, Icons.emoji_events_outlined, Icons.emoji_events_rounded, '랭킹 관리'),
       _NavItem(BoSection.runs, Icons.history_rounded, Icons.history_rounded, '플레이 기록'),
       _NavItem(BoSection.promos, Icons.celebration_outlined, Icons.celebration_rounded, '이벤트'),
+      _NavItem(BoSection.codes, Icons.confirmation_number_outlined, Icons.confirmation_number_rounded, '이벤트 코드'),
     ]
   ),
   ('분석', [_NavItem(BoSection.economy, Icons.insights_outlined, Icons.insights_rounded, '경제·아이템')]),
@@ -52,6 +54,7 @@ class _BackofficeHomeState extends State<BackofficeHome> {
         BoSection.ranking => const RankingPage(),
         BoSection.runs => const RunsPage(),
         BoSection.promos => const PromoPage(),
+        BoSection.codes => const PromoCodesPage(),
         BoSection.economy => const EconomyPage(),
       };
 

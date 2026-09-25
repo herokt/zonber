@@ -143,7 +143,8 @@ class FirestoreSource implements BoSource {
   Future<List<BoPromo>> promos() async {
     final snap = await _db.collection(PromoService.collection).get();
     return [
-      for (final d in snap.docs) BoPromo(Promotion.fromDoc(d.id, d.data()), intOf(d.data()['claims'])),
+      for (final d in snap.docs)
+        if (Promotions.fromServer(d.id, d.data()) case final p?) BoPromo(p, intOf(d.data()['claims'])),
     ];
   }
 
@@ -153,6 +154,44 @@ class FirestoreSource implements BoSource {
 
   @override
   Future<void> deletePromo(String id) => _db.collection(PromoService.collection).doc(id).delete();
+
+  // ── 이벤트 코드 ──
+  CollectionReference<Map<String, dynamic>> get _codes => _db.collection(PromoCodes.collection);
+
+  @override
+  Future<List<PromoCode>> promoCodes() async {
+    final snap = await _codes.get();
+    return [for (final d in snap.docs) PromoCode.fromDoc(d.id, d.data())];
+  }
+
+  @override
+  Future<PromoCode?> promoCode(String code) async {
+    final d = await _codes.doc(code).get();
+    return d.exists ? PromoCode.fromDoc(d.id, d.data()!) : null;
+  }
+
+  @override
+  Future<bool> createPromoCode(PromoCode c) => _db.runTransaction((tx) async {
+        final ref = _codes.doc(c.code);
+        if ((await tx.get(ref)).exists) return false;
+        tx.set(ref, PromoCodes.createDoc(c));
+        return true;
+      });
+
+  @override
+  Future<void> updatePromoCode(PromoCode c) => _codes.doc(c.code).update(c.toDoc());
+
+  @override
+  Future<void> deletePromoCode(String code) => _codes.doc(code).delete();
+
+  @override
+  Future<List<BoCodeUse>> promoCodeUses(String code, int limit) async {
+    // collection group 'codes' 의 code 필드 색인(firestore.indexes.json). 정렬은 여기서(복합 색인 없이)
+    final snap = await _db.collectionGroup(PromoCodes.usedCollection).where('code', isEqualTo: code).limit(limit).get();
+    final list = [for (final d in snap.docs) BoCodeUse(d.reference.parent.parent?.id ?? '', tsOf(d.data()['at']))];
+    list.sort((a, b) => (b.at ?? DateTime(0)).compareTo(a.at ?? DateTime(0)));
+    return list;
+  }
 
   // ── 관리 도구 ──
   @override

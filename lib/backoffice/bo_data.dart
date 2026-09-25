@@ -40,6 +40,13 @@ class BoPromo {
   const BoPromo(this.promo, this.claims);
 }
 
+/// 코드 사용 한 건 — 누가 언제
+class BoCodeUse {
+  final String uid;
+  final DateTime? at;
+  const BoCodeUse(this.uid, this.at);
+}
+
 /// 커서 기반 페이지(더 보기)
 class BoChunk<T> {
   final List<T> items;
@@ -93,6 +100,20 @@ abstract class BoSource {
   Future<List<BoPromo>> promos();
   Future<void> savePromo(Promotion p);
   Future<void> deletePromo(String id);
+
+  // ── 이벤트 코드(promo_codes) ──
+  Future<List<PromoCode>> promoCodes();
+  Future<PromoCode?> promoCode(String code);
+
+  /// 새 코드 — 같은 코드가 이미 있으면 false(덮어쓰지 않는다)
+  Future<bool> createPromoCode(PromoCode c);
+
+  /// 보상·캠페인·메모·한도·기간·켜짐만 바꾼다(사용 수는 그대로)
+  Future<void> updatePromoCode(PromoCode c);
+  Future<void> deletePromoCode(String code);
+
+  /// 이 코드를 쓴 사람(users/{uid}/codes/{code}) — 최근 순
+  Future<List<BoCodeUse>> promoCodeUses(String code, int limit);
 
   // ── 관리 도구 ──
   /// flag 없는 유저 → 대한민국. 바꾼 수
@@ -176,7 +197,7 @@ class BoData {
 // ─────────────────────────────────────────────────────────────
 // 화면 이동 — 왼쪽 메뉴 섹션 + (있으면) 그 위에 유저 상세
 // ─────────────────────────────────────────────────────────────
-enum BoSection { dashboard, users, ranking, runs, promos, economy }
+enum BoSection { dashboard, users, ranking, runs, promos, codes, economy }
 
 class BoNav {
   static final ValueNotifier<BoSection> section = ValueNotifier(BoSection.dashboard);

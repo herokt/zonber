@@ -61,7 +61,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 `main.dart`:
 - 앱 초기화 (Firebase, AdMob, GameSettings, AudioManager)
 - `ZonberApp` 위젯에서 `_currentPage` 상태로 페이지 라우팅
-- 페이지: Menu(=HomePage), Ranking, MyProfile(=ProfilePage) ← 하단 탭 3개 / Game, Result, Badges, Profile(최초 설정), Login, Shop, Statistics (캐릭터 고르기 = 상점 캐릭터 탭, CharacterSelect 페이지는 2026-09-22 제거). 맵 에디터·커스텀 맵·Hall of Fame 은 2026-09-22 코드째 제거
+- 페이지: Menu(=HomePage), Ranking, MyProfile(=ProfilePage) ← 하단 탭 3개 / Game, Result, Badges, Profile(최초 설정), Login, Shop, Statistics, Promo(이벤트 — 홈 이벤트 배너로 진입) (캐릭터 고르기 = 상점 캐릭터 탭, CharacterSelect 페이지는 2026-09-22 제거). 맵 에디터·커스텀 맵·Hall of Fame 은 2026-09-22 코드째 제거
 - 월드 상태: `_currentWorldId` · `_bestTimes` · `_rankCache`. 랭킹 mapId는 `_currentWorld.rankingMapId`
 
 ### 게임 코어 (Flame 엔진)
@@ -103,8 +103,8 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `services/analytics_service.dart` | Firebase Analytics 래퍼. **이벤트 이름·파라미터는 이 파일에만** 둔다 (모바일 외 no-op) |
 | `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
-| `promotions.dart` | **이벤트(프로모션) 단일 출처** — `Promotion` 모델 · `Promotions.builtIn`(앱 기본) · `PromoService`(서버 목록 병합·받기·중복 차단). 새 이벤트는 백오피스에서 `promos/{id}` 추가 = 앱 업데이트 없이 반영. 기획·운영법은 [docs/PROMOTIONS.md](docs/PROMOTIONS.md) |
-| `pages/promo_sheet.dart` | 홈 이벤트 배너 + 이벤트 창(받기 · 코드 입력 · 자랑하기 문구 복사) |
+| `promotions.dart` | **이벤트(프로모션) 단일 출처** — `Promotion` 모델 · `Promotions.builtIn`(앱 기본 7종, 4개 언어) · `PromoCode`/`PromoCodes`(이벤트 코드: 정리·형식·자동 생성) · `PromoService`(서버 목록 병합·받기·중복 차단·`redeem` 코드 사용). 새 이벤트는 백오피스에서 `promos/{id}` 추가 = 앱 업데이트 없이 반영. 기획·운영법은 [docs/PROMOTIONS.md](docs/PROMOTIONS.md) |
+| `pages/promo_page.dart` | 홈 이벤트 배너 + 이벤트 페이지 `'Promo'`(한 줄 = 제목 · 설명 한 줄 · 버튼 / 받기 · 코드 입력 · 자랑하기 = OS 공유 창, `share_plus`) |
 
 ### 백오피스 (별도 관리자 앱)
 `lib/backoffice/`에 위치. 진입점: `lib/backoffice/main_backoffice.dart`.
@@ -115,6 +115,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 - `dashboard_page.dart` — 실시간 유저/플레이 지표 및 스테이지 성과
 - `user_list_page.dart` — 유저 관리 UI
 - `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
+- `promo_page.dart` · `promo_codes_page.dart` — 이벤트 · 이벤트 코드(만들기·검증·사용한 사람)
 - 이름표(캐릭터·장비·뱃지 한글명)는 `bo_catalog.dart`
 
 ### 디자인 시스템
@@ -233,6 +234,10 @@ maps/
   └── {mapId}/
       └── records/          # 리더보드 항목
           └── {recordId}    # userId, nickname, flag, survivalTime, characterId, timestamp
+
+promos/{promoId}            # 이벤트 정의(백오피스) + claims(받은 수). 누구나 읽음
+promo_codes/{CODE}          # 이벤트 코드 — 보상·campaign·maxUses·uses·기간. 회원은 한 건 get 만(list 는 관리자)
+users/{uid}/codes/{CODE}    # 내가 쓴 코드(1인 1회 — 규칙이 promo_codes.uses +1 과 함께만 생성 허용)
 
 custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규칙만 남음)
 ```
