@@ -87,7 +87,7 @@ graph TB
 
 | 레이어 | 대표 파일 | 상태 보유 | 규칙 |
 |---|---|---|---|
-| **도메인/설정** | `game_config.dart`, `character_data.dart`, `achievement_manager.dart`(정의부) | 없음 (`const`) | 순수 데이터. Flutter 위젯/Firebase 의존 금지 (`Color`/`IconData`만 예외) |
+| **도메인/설정** | `balance.dart`, `character_data.dart`, `achievement_manager.dart`(정의부) | 없음 (`const`) | 순수 데이터. Flutter 위젯/Firebase 의존 금지 (`Color`/`IconData`만 예외) |
 | **서비스** | `user_profile.dart`, `ranking_system.dart`, `achievement_manager.dart`(Manager), `audio_manager.dart`, `ad_manager.dart` | 싱글톤 또는 스태틱 | I/O 담당. 위젯 미의존 |
 | **게임** | `main.dart` + `lib/game/*.dart`(part)의 Flame 컴포넌트들 | Flame 컴포넌트 트리 | `ValueNotifier`로만 UI에 상태 노출 |
 | **UI** | `*_page.dart`, `*_widget.dart`, `design_system.dart` | `StatefulWidget` | 모든 문자열은 `LanguageManager.translate()` 경유 |
@@ -375,13 +375,13 @@ HUD는 캐릭터 최대치와 무관하게 **항상 5칸**을 그린다. `i >= m
 
 ### 6.5 월드 (`world_config.dart`) — 2026-09-18 골격
 
-`WorldData.worlds`가 스테이지 목록의 단일 진실 공급원(난이도 순 3개, 항상 열림). 월드 = `difficulty` + `mode`(dodge/keeper) + `layoutId`(§6.5-1 레이아웃 기본값) + `projectiles`(`ProjectileDef`: 속도 배수·히트박스 반지름·시각 크기·straight/curve/homing/bounce·vanish/reflect·maxBounces·색) + `spawner`(ring = 플레이어/골대 중심 원주, sideline = 맵 4변 바깥 36px) + `spawnInterval`/`bulletSpeed` 오버라이드 + 테마(accent/floor/line) + `rankingMapId`(월드별 완전 분리·신규). **Keeper 모드:** `GoalZone`이 맵 중앙 `goalRadius` 원을 그리고, `Bullet.update()`가 원 안에 들어온 공을 `Player.concedeGoal()`로 실점 처리(목숨 = `lives` 5, 회복 없음). 플레이어가 공에 닿으면 `Player.onCollisionStart`가 세이브로 처리(카운터는 `grazeNotifier` 재사용, HUD 라벨 SAVES). 스포너는 골대 중심 반경에서 골대를 조준한다. **예고:** `BulletWarningOverlay`가 맵 밖 탄의 진입 지점에 그림자 타원을 그린다(막대·색·와인드업 없음). **아트 슬롯:** `assets/images/worlds/{id}_bg.png`(게임 배경, `_addStageBackground`)·`{id}_hero.png`(홈 카드) — 없으면 코드 드로잉. 현재 실아트(2026-09-18). 상세 기획: [docs/STAGES.md](docs/STAGES.md), 리소스: [docs/RESOURCES.md](docs/RESOURCES.md).
+`WorldData.worlds`가 스테이지 목록의 단일 진실 공급원(난이도 순 3개, 항상 열림). 월드 = `difficulty` + `mode`(dodge/keeper) + `layoutId`(모두 `zone_1_classic`) + `projectiles`(`ProjectileDef`: 속도 배수·히트박스 반지름·시각 크기·straight/curve/homing/bounce·vanish/reflect·maxBounces·색) + `spawner`(ring = 플레이어/골대 중심 원주, sideline = 맵 4변 바깥 36px) + 테마(accent/floor/line) + `rankingMapId`(월드별 완전 분리·신규). **Keeper 모드:** `GoalZone`이 맵 중앙 `goalRadius` 원을 그리고, `Bullet.update()`가 원 안에 들어온 공을 `Player.concedeGoal()`로 실점 처리(목숨 = `lives` 5, 회복 없음). 플레이어가 공에 닿으면 `Player.onCollisionStart`가 세이브로 처리(카운터는 `grazeNotifier` 재사용, HUD 라벨 SAVES). 스포너는 골대 중심 반경에서 골대를 조준한다. **예고:** `BulletWarningOverlay`가 맵 밖 탄의 진입 지점에 그림자 타원을 그린다(막대·색·와인드업 없음). **아트 슬롯:** `assets/images/worlds/{id}_bg.png`(게임 배경, `_addStageBackground`)·`{id}_hero.png`(홈 카드) — 없으면 코드 드로잉. 현재 실아트(2026-09-18). 상세 기획: [docs/STAGES.md](docs/STAGES.md), 리소스: [docs/RESOURCES.md](docs/RESOURCES.md).
 
 진행 데이터(`progress_store.dart`): 월드별 최고 기록(`world_best_times`, 해금 판정) · 순위 캐시(`world_rank_cache`, 결과 화면이 채움) — 로컬 + `users/{uid}.bestTimes`. 옛 명패(`world_plates`/`plates`)는 로그인 때 뱃지로 옮긴다. 순위는 `RankingSystem.getGlobalRank()`의 **count 집계**(전체 기간, 기록 단위)로 계산해 복합 인덱스를 피한다.
 
-### 6.5-1 레이아웃 기본값 (`game_config.dart`)
+### 6.5-1 난이도 — 레벨 (`balance.dart`)
 
-모든 월드의 `layoutId`는 `zone_1_classic`(장애물 없음)이다. `GameConfig.getStage()`는 스포너의 기본 탄속(150)·스폰 간격(0.10)만 주고, 월드가 값을 정하면 월드 값이 우선한다.
+세 존 공통 레벨 `Balance.levelAt(t)` = 15초마다 1, 최고 15(210초)에서 멈춘다. 존별 난이도 값은 모두 레벨로 정하고 `Balance.byLevel(level, 레벨1 값, 최고 값)`으로 같은 폭씩 오른다 — 갤럭시 초당 탄 수 7→20·탄속 160→270·동시 상한 60→140, 피구 턴 1.6→0.45s·속도 170→440, 골키퍼 턴 2.0→0.65s·속도 200→440(×1.22). 패턴 단계(0~6)는 `Balance.tierLevels`(L1·2·4·6·8·10·13). 레벨업 소리·결과 화면·판 기록의 level 이 같은 값이다. 모든 월드의 `layoutId`는 `zone_1_classic`(장애물 없음) — 2026-09-26 `game_config.dart`(기본 탄속·간격)는 레벨 수치로 대체되어 삭제했다.
 
 > 2026-09-22 장애물 레이아웃(`zone_2_obstacles` 4기둥 · `zone_5_maze` 미로 + `maze_generator.dart`), 맵 에디터(`editor_game.dart`), 커스텀 맵(`map_service.dart`, `custom_*` mapId 로드)을 코드째 제거했다.
 > 장애물 시스템(`Obstacle`, 탄환 서브스텝 벽 반사·`WallBehavior`, 플레이어 밀어내기)도 함께 제거했다. Firestore `custom_maps` 규칙은 `firestore.rules`에 그대로 있다.
@@ -710,7 +710,7 @@ flutter build ios --release
 | 트리거 | 동작 |
 |---|---|
 | `translations.dart` 수정 | `check_translations.mjs` 자동 실행 |
-| `game_config.dart` 수정 | 스테이지 추가 체크리스트 표시 |
+| `balance.dart` 수정 | 스테이지 추가 체크리스트 표시 |
 | `character_data.dart` 수정 | 캐릭터 추가 체크리스트 표시 |
 
 ### 12.4 Firebase Hosting (`firebase.json`)
@@ -823,7 +823,7 @@ public: hosting_root
 | 파일 | 줄 | 역할 |
 |---|--:|---|
 | `main.dart` | 2687 | 진입점 · 라우팅 · 메인메뉴 · Flame 게임 코어 · HUD · 결과 화면 · 파워업 · 진입 경고 |
-| `game_config.dart` | 63 | 스테이지 정의 (SSOT) |
+| `balance.dart` | 100 | 난이도(레벨)·코인·스테이지별 밸런스 수치 (SSOT) |
 | `character_data.dart` | 185 | 캐릭터 6종 + 4축 스탯 + 해금 조건 |
 
 ### 메타 시스템

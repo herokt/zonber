@@ -77,7 +77,6 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | 파일 | 역할 |
 |------|------|
 | `world_config.dart` | **스테이지 3종, 항상 열림** (`WorldConfig`/`ProjectileDef`/`SpawnStrategy`/`WorldMode`) — 1 Cyber · 2 Dodgeball(sideline 스포너) · 3 Keeper(mode keeper: 골대 반지름·lives 5). 리더보드는 전부 신규 mapId. 기획 [docs/STAGES.md](docs/STAGES.md) |
-| `game_config.dart` | 레이아웃 기본값(`zone_1_classic`: 탄속·스폰 간격) — 월드의 `layoutId`가 참조. 모든 월드가 `zone_1_classic`(장애물 없음) |
 | `progress_store.dart` | 월드별 최고 기록·순위 캐시. SharedPreferences + Firestore `users/{uid}.bestTimes` (옛 `plates` 는 로그인 때 뱃지로 옮김) |
 | `pages/home_page.dart` | 홈 — 월드 캐러셀·캐릭터·START |
 | `pages/ranking_page.dart` | 랭킹 탭 — 월드 탭 × 기간 × 세계/국가, 포디움, 내 행 고정 |
@@ -170,7 +169,6 @@ node scripts/compose_store_shots.mjs
 
 **자동 훅** (`.claude/settings.local.json`에 설정됨 — 개인 로컬 파일, git 추적 안 함):
 - `translations.dart` 수정 후 → `check_translations.mjs` 자동 실행
-- `game_config.dart` 수정 후 → 스테이지 개발 체크리스트 표시
 - `character_data.dart` 수정 후 → 캐릭터 개발 체크리스트 표시
 
 ## 기능 개발 체크리스트
@@ -212,7 +210,7 @@ node scripts/compose_store_shots.mjs
 ## 맵 / 스테이지 시스템
 
 스테이지는 `world_config.dart`의 월드 3종(cyber · dodgeball · keeper)이고, 리더보드 mapId 는 월드의 `rankingMapId`다.
-`game_config.dart`의 `zone_1_classic`은 탄속·스폰 간격 기본값만 준다(월드 값이 우선).
+난이도는 **세 존 공통 레벨**(`balance.dart` — 15초마다 1, 최고 15에서 멈춤)로 정한다. 레벨마다 같은 폭으로 오르고, 존별 값(갤럭시 초당 탄 수·탄속, 피구·골키퍼 턴 간격·속도·패턴 단계)은 `Balance.byLevel`로 레벨 1 ↔ 최고 레벨 사이를 잇는다(2026-09-26, `game_config.dart` 삭제).
 
 > 맵 에디터(UGC)·커스텀 맵(`editor_game.dart`·`map_service.dart`)은 2026-09-22 코드째 제거했다.
 > Firestore `custom_maps` 컬렉션 규칙은 `firestore.rules`에 그대로 남아 있다.

@@ -430,6 +430,50 @@ void main() {
     });
   });
 
+  group('난이도 레벨', () {
+    test('15초마다 1씩 오르고 최고 레벨에서 멈춘다', () {
+      expect(Balance.levelAt(0), 1);
+      expect(Balance.levelAt(14.9), 1);
+      expect(Balance.levelAt(15), 2);
+      final top = (Balance.maxLevel - 1) * Balance.levelSeconds;
+      expect(Balance.levelAt(top), Balance.maxLevel);
+      expect(Balance.levelAt(top * 5), Balance.maxLevel); // 그 뒤로는 그대로
+    });
+
+    test('레벨마다 같은 폭으로 조금씩 어려워진다(급한 계단 없음)', () {
+      // 존별 "빈도"(초당 탄·투구·슛)와 속도 — 매 레벨 오르고, 한 번에 전체 폭의 1/(최고-1) 만큼만
+      final curves = <String, double Function(int)>{
+        'cyberRate': Balance.cyberRate,
+        'cyberSpeed': Balance.cyberSpeed,
+        'dodgeRate': (l) => 1 / Balance.dodgeBeat(l),
+        'dodgeSpeed': Balance.dodgeSpeed,
+        'keeperRate': (l) => 1 / Balance.keeperBeat(l),
+        'keeperSpeed': Balance.keeperSpeed,
+      };
+      for (final e in curves.entries) {
+        final f = e.value;
+        final step = (f(Balance.maxLevel) - f(1)) / (Balance.maxLevel - 1);
+        for (var l = 2; l <= Balance.maxLevel; l++) {
+          expect(f(l) - f(l - 1), closeTo(step, 1e-9), reason: '${e.key} L$l');
+          expect(f(l) > f(l - 1), isTrue, reason: e.key);
+        }
+        expect(f(Balance.maxLevel + 5), f(Balance.maxLevel), reason: '${e.key} 최고 레벨 이후 그대로');
+      }
+    });
+
+    test('패턴 단계는 레벨 순서대로 0~6', () {
+      var last = 0;
+      for (var l = 1; l <= Balance.maxLevel; l++) {
+        final t = Balance.tierOf(l);
+        expect(t >= last && t - last <= 1, isTrue, reason: 'L$l');
+        last = t;
+      }
+      expect(Balance.tierOf(1), 0);
+      expect(Balance.tierOf(Balance.maxLevel), 6);
+      expect(Balance.dodgeTwin.length, 7);
+    });
+  });
+
   group('시즌', () {
     test('현재 시즌 번호 = 마지막 시작', () {
       expect(Season.current, Season.starts.length - 1);

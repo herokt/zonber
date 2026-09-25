@@ -3,7 +3,7 @@ part of '../main.dart';
 // ZonberGame(Flame) — 무대·카메라·연출·게임 오버, 맵·장애물·배경 (main.dart 에서 나눔 · 2026-09-22)
 
 class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
-  /// 장애물 레이아웃 id (`GameConfig.stages`) — 월드의 layoutId
+  /// 레이아웃 id — 월드의 layoutId(모두 zone_1_classic)
   final String mapId;
   /// 월드 — 투사체·스포너·테마
   final WorldConfig worldConfig;
@@ -197,7 +197,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   }
 
   void _updateFeedback(double dt) {
-    // 레벨업(30초마다 빨라진다)
+    // 레벨업(15초마다 조금씩 어려워진다 — Balance.levelAt, 최고 15)
     final lv = spawner.currentLevel;
     if (lv > _lastLevel && survivalTime > 1) {
       AudioManager().playSfx(Sfx.levelUp, volume: 0.6);
