@@ -81,6 +81,14 @@ service cloud.firestore {
         allow write: if isAdmin() || (isOwner(userId) && isMember());
       }
 
+      // 받은 이벤트 보상(lib/promotions.dart) — 본인이 한 번 쓰고 지우지 않는다. 읽기는 본인·관리자
+      match /promos/{promoId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create: if isOwner(userId) && isMember();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
+
       // 판마다 남기는 플레이 기록(lib/run_history.dart) — 회원 본인이 추가만(게스트는 남기지 않는다), 읽기는 본인·관리자
       match /runs/{runId} {
         allow read: if isAdmin() || isOwner(userId);
@@ -97,6 +105,17 @@ service cloud.firestore {
     // 백오피스 — 모든 유저의 플레이 기록을 한 번에(collection group 'runs')
     match /{path=**}/runs/{runId} {
       allow read: if isAdmin();
+    }
+
+    // 이벤트(프로모션) — 앱이 읽어서 보여 준다. 만들고 고치는 건 백오피스(관리자)만.
+    // 회원은 '받은 사람 수'만 1 올릴 수 있다(보상 자체는 users/{uid}/promos 에 남는다)
+    match /promos/{promoId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isMember()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claims'])
+            && request.resource.data.claims == resource.data.get('claims', 0) + 1);
     }
 
     // 커스텀 맵

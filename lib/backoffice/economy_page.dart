@@ -89,7 +89,7 @@ class _EconomyPageState extends State<EconomyPage> with BoReloadable {
     final median = sorted.isEmpty ? 0 : sorted[sorted.length ~/ 2];
 
     final groups = <(String, List<String>)>[
-      ('캐릭터', [for (final c in kCharNames.keys) 'char_$c']),
+      ('캐릭터', [for (final c in kCharIds) 'char_$c']),
       for (final s in kStages) ('장비 · ${s.label}', [for (final g in Gear.all.where((g) => g.zone == s.id)) g.id]),
       for (final k in const ['skin', 'trail', 'aura'])
         (kCosmeticKindNames[k]!, [for (final c in kCosmetics.where((c) => c.kind == k)) c.id]),
@@ -320,7 +320,8 @@ class _EconomyPageState extends State<EconomyPage> with BoReloadable {
     final g = Gear.byId(id);
     if (g != null) {
       final tag = g.price > 0 ? ' (${g.price})' : (g.needsBadge != null ? ' (뱃지: ${badgeName(g.needsBadge!)})' : '');
-      return '${kSlotNames[g.slot]} · ${itemName(id)}$tag';
+      final bonus = gearBonusText(g);
+      return '${kSlotNames[g.slot]} · ${itemName(id)}$tag${bonus.isEmpty ? '' : ' · $bonus'}';
     }
     final c = cosmeticById(id);
     if (c != null) return '${c.name}${c.price > 0 ? ' (${c.price})' : ''}';

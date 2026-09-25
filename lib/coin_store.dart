@@ -67,9 +67,10 @@ class CoinStore {
   }
 
   static Future<void> _syncRemote() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.isAnonymous) return;
     try {
+      // Firebase 가 없거나(초기화 실패·테스트) 로그인 전이면 기기에만 둔다
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.isAnonymous) return;
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'coins': balance.value,
         'ownedItems': _owned.toList(),

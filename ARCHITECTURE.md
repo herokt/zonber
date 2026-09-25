@@ -627,25 +627,59 @@ AppColors.textDim       = #B0BEC5
 
 ## 11. 백오피스 (`lib/backoffice/`)
 
-게임과 **코드베이스는 공유하되 진입점이 분리**된 관리자 앱이다.
+게임과 **코드베이스는 공유하되 진입점이 분리**된 관리자 앱이다. (2026-09-25 최신화)
 
 - 진입점: `lib/backoffice/main_backoffice.dart` (`flutter run -t ...`)
 - 게임 앱 내부에서도 웹 URL에 `/secret_admin`이 포함되면 `BackofficeHome`으로 진입
-- 인증: **익명 로그인**으로 보안 규칙을 통과 (별도 관리자 인증 없음)
-- 배포: Firebase Hosting `hosting_root/secret_admin/`, 캐시 비활성 헤더
+- 인증: **`AdminGate`** — Google 로그인 + 이메일 허용 목록(`kAdminEmails`). `firestore.rules` 의 `isAdmin()` 과 **같은 목록**을 쓴다
+- 주소: `https://stayzone-88364.web.app/secret_admin/` (사이트 루트도 302로 여기로)
+- 배포: **`deploy_admin.bat`** — 번들 빌드 → `firestore:rules,firestore:indexes` → `hosting` 순서로 한 번에
+- 미리보기: `--dart-define=BO_PREVIEW=true` 로 빌드하면 Firebase·로그인 없이 가짜 데이터(`bo_mock.dart`)로 화면만 확인한다
+
+### 11.1 데이터 계층
+
+화면은 Firestore 를 직접 부르지 않는다 — `BoData.src`(`BoSource`)를 거친다.
+
+| 파일 | 역할 |
+|---|---|
+| `bo_data.dart` | `BoSource` 인터페이스 · users 캐시 · 전역 새로고침(epoch) · 화면 이동(`BoNav`) |
+| `bo_firestore.dart` | 실제 Firestore 쿼리 |
+| `bo_mock.dart` | 미리보기용 가짜 데이터 |
+| `bo_catalog.dart` | 게임 데이터의 한글 이름·포맷·`RunRow` |
+| `bo_common.dart` | 공통 위젯(`BoTable`·`BoKpi`·`BoAvatar`·`BoFlag`·`confirmCode` 등) |
+| `bo_charts.dart` | 막대·선·도넛 차트 |
+
+> **카탈로그는 게임 파일에서 파생한다**(2026-09-25). 캐릭터는 `character_data.dart`, 장비는 `gear.dart`,
+> 꾸미기는 `cosmetics.dart`, 뱃지는 `badges.dart`, 한글 이름은 `translations.dart`(ko) 에서 읽는다.
+> 목록을 백오피스에 베껴 두면 게임에 아이템이 늘 때 조용히 뒤처진다 — 실제로 그렇게 어긋난 적이 있다.
+> 아바타도 게임과 같은 `avatar.dart`(`Avatar`·`AvatarView`)로 그리고, 국기는 저장 값이 이모지든 `KR` 이든 이미지로 그린다(`BoFlag`).
+
+### 11.2 화면
 
 | 페이지 | 기능 |
 |---|---|
-| `dashboard_page.dart` | 총 유저 / 총 플레이(스테이지별 분해) / DAU / 플랫폼 분포. **마이그레이션 도구 2종** |
-| `user_list_page.dart` | 유저 검색·조회·편집(`EditUserDialog`) |
-| `stage_stats_page.dart` | 스테이지별 성과 분석 |
-| `play_stats_page.dart` | 스테이지 × 캐릭터 교차 플레이 통계 |
+| `dashboard_page.dart` | 유저 수 · 신규 · DAU/WAU · 오늘 판 수 · 코인 총량 · 일별 플레이 · 스테이지 비교 · 캐릭터 사용 · 최근 판 |
+| `user_list_page.dart` | 유저 검색(닉네임·UID·이메일)·국가 필터·정렬·페이지 |
+| `user_detail_page.dart` | 개요(프로필·착용·뱃지 누적·일일 미션) / 뱃지·기록 / 플레이 기록 / 관리(정보 수정·아이템 지급·코인 지급·삭제) |
+| `ranking_page.dart` | 스테이지별 랭킹 기록 조회·삭제 |
+| `runs_page.dart` | 전체 회원의 판(`runs` collection group) 최신순 · 기간/스테이지 필터 · 서버 집계 판 수 |
+| `economy_page.dart` | 코인 분포·상위 보유자 · 뱃지 보유율 · 아이템별 보유/착용 수(장비는 능력치까지) |
 
-**마이그레이션 도구** (`dashboard_page.dart`) — 둘 다 500건 단위 배치 커밋:
-1. **국가 기본값** — `flag`가 빈 유저를 🇰🇷 South Korea로 일괄 설정
-2. **레코드 국가** — `flag`가 빈 레코드를 `userId` → (실패 시) `nickname`으로 유저를 역추적해 채움
+### 11.3 데이터 수정 안전장치
 
----
+값을 바꾸는 모든 동작(정보 수정 · 아이템/코인 지급 · 기록/유저 삭제)은 `confirmCode()` 가
+**0~9 사이 난수 한 자리를 직접 입력**받는다(붙여넣기 메뉴 차단). 실수 클릭으로 운영 데이터가 바뀌지 않게.
+
+### 11.4 플레이 기록이 비어 보일 때
+
+`users/{uid}/runs` 는 **회원(로그인) 상태의 모바일 플레이만** 남는다(게스트·웹은 저장하지 않는다 — `run_history.dart`).
+그 위에 두 가지 배포가 필요하다:
+
+1. **규칙** — `users/{uid}/runs` create(본인·회원) 와 `match /{path=**}/runs/{runId}` read(관리자)
+2. **색인** — collection group `runs.timestamp`(`firestore.indexes.json` 의 fieldOverrides)
+
+둘 중 하나라도 안 올라가 있으면 판이 아예 저장되지 않거나(permission-denied),
+백오피스 조회가 실패한다(failed-precondition). `deploy_admin.bat` 이 둘 다 함께 올린다.
 
 ## 12. 빌드 · 배포 · 운영
 
@@ -714,13 +748,11 @@ public: hosting_root
 
 ### 새 캐릭터
 1. `character_data.dart` — `availableCharacters`에 `Character` 추가
-   - `CharacterStats` 4축 밸런싱. **maxEnergy × iframeDuration(무적 시간 총합)이 2.5~5.0 범위에 들어오는지** 확인할 것
-   - `unlockKey`에 해금 업적 지정 (기본 해금이면 생략)
-2. 그림 — 코드 드로잉(`zonber_painter.dart`). 이미지 에셋 없음
-3. `translations.dart` — `char_{id}` 이름/설명 키 EN + KO
-4. `statistics_page.dart` `_characterName()` / `_characterIcon()`에 분기 추가
-5. `backoffice/play_stats_page.dart` `_characterNames`에 추가
-6. 유료 캐릭터라면 `iap_service.dart` + `shop_page.dart` (현재 IAP 비활성)
+   - 능력치는 전부 `CharacterStats.standard` 로 같다(캐릭터는 외형·표정만 다르다 — 랭킹이 순수 실력 경쟁이 되게)
+   - `unlockKey`(뱃지 키) + `price` 지정. `unlockKey` 가 없으면 기본 해금이라 코인으로 팔 수 없다
+2. 그림 — 코드 드로잉(`zonber_painter.dart`). **표정 3종(평소·아야·신남)을 `_normalFace`/`_hurtFace`/`_happyFace` 에 추가**
+3. `translations.dart` — `char_{id}` 이름 키 4개 언어
+4. 백오피스·통계·가방은 목록에서 자동으로 따라온다(`CharacterData` 가 정본 — 따로 손댈 곳 없음)
 
 
 ### 새 업적
@@ -824,15 +856,19 @@ public: hosting_root
 | `services/auth_service.dart` | 103 | Firebase Auth 래퍼 (웹 팝업 분기 포함) |
 | `firebase_options.dart` | 62 | FlutterFire 생성 파일 |
 
-### 백오피스
-| 파일 | 줄 | 역할 |
-|---|--:|---|
-| `backoffice/main_backoffice.dart` | 85 | 진입점 (익명 인증) |
-| `backoffice/backoffice_home.dart` | 71 | NavigationRail 셸 |
-| `backoffice/dashboard_page.dart` | 740 | 지표 + 마이그레이션 도구 |
-| `backoffice/user_list_page.dart` | 1047 | 유저 관리 |
-| `backoffice/stage_stats_page.dart` | 344 | 스테이지 통계 |
-| `backoffice/play_stats_page.dart` | 272 | 스테이지 × 캐릭터 통계 |
+### 백오피스 (2026-09-25 기준)
+| 파일 | 역할 |
+|---|---|
+| `backoffice/main_backoffice.dart` | 진입점 — Firebase 초기화 + `AdminGate` |
+| `backoffice/admin_gate.dart` | Google 로그인 + 관리자 이메일 허용 목록 |
+| `backoffice/backoffice_home.dart` | 좌측 메뉴 셸 · 전역 새로고침 |
+| `backoffice/bo_data.dart` · `bo_firestore.dart` · `bo_mock.dart` | 데이터 계층(실제/미리보기) |
+| `backoffice/bo_catalog.dart` | 게임 데이터 한글 이름·포맷·`RunRow`(게임 파일에서 파생) |
+| `backoffice/bo_common.dart` · `bo_charts.dart` | 공통 위젯 · 차트 |
+| `backoffice/dashboard_page.dart` | 지표 대시보드 |
+| `backoffice/user_list_page.dart` · `user_detail_page.dart` | 유저 목록 · 상세/관리 |
+| `backoffice/ranking_page.dart` · `runs_page.dart` · `economy_page.dart` | 랭킹 기록 · 플레이 기록 · 경제/아이템 |
+| `backoffice/promo_page.dart` | 이벤트(프로모션) 추가·수정·켜고 끄기 — 저장하면 앱에 바로 반영 |
 
 ### 싱글톤 목록
 `GameSettings()` · `AudioManager()` · `AdManager()` · `IAPService()` · `LanguageManager()` — 전부 `factory` 패턴. `UserProfileManager`와 `AchievementManager`는 인스턴스 없이 **static 메서드**만 제공한다.

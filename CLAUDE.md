@@ -103,10 +103,15 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `services/analytics_service.dart` | Firebase Analytics 래퍼. **이벤트 이름·파라미터는 이 파일에만** 둔다 (모바일 외 no-op) |
 | `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
+| `promotions.dart` | **이벤트(프로모션) 단일 출처** — `Promotion` 모델 · `Promotions.builtIn`(앱 기본) · `PromoService`(서버 목록 병합·받기·중복 차단). 새 이벤트는 백오피스에서 `promos/{id}` 추가 = 앱 업데이트 없이 반영. 기획·운영법은 [docs/PROMOTIONS.md](docs/PROMOTIONS.md) |
+| `pages/promo_sheet.dart` | 홈 이벤트 배너 + 이벤트 창(받기 · 코드 입력 · 자랑하기 문구 복사) |
 
 ### 백오피스 (별도 관리자 앱)
 `lib/backoffice/`에 위치. 진입점: `lib/backoffice/main_backoffice.dart`.
-Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고).
+Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) — 주소 `https://stayzone-88364.web.app/secret_admin/`.
+배포는 `deploy_admin.bat` 하나로: 백오피스 웹 번들 + **Firestore 규칙·색인**까지 같이 올린다.
+규칙·색인을 빼먹으면 플레이 기록(`users/{uid}/runs` 쓰기 · collection group 읽기)이 조용히 막힌다.
+백오피스 카탈로그(`bo_catalog.dart`)는 캐릭터·장비·꾸미기 목록을 **게임 파일에서 그대로 읽는다** — 목록을 베껴 두지 않는다(아이템이 늘면 저절로 따라온다).
 - `dashboard_page.dart` — 실시간 유저/플레이 지표 및 스테이지 성과
 - `user_list_page.dart` — 유저 관리 UI
 - `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제

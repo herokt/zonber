@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../promotions.dart';
 import 'bo_catalog.dart';
 import 'bo_data.dart';
 
@@ -136,6 +137,22 @@ class FirestoreSource implements BoSource {
 
   @override
   Future<void> deleteRecord(BoRec r) => _records(r.mapId).doc(r.id).delete();
+
+  // ── 이벤트(프로모션) ──
+  @override
+  Future<List<BoPromo>> promos() async {
+    final snap = await _db.collection(PromoService.collection).get();
+    return [
+      for (final d in snap.docs) BoPromo(Promotion.fromDoc(d.id, d.data()), intOf(d.data()['claims'])),
+    ];
+  }
+
+  @override
+  Future<void> savePromo(Promotion p) =>
+      _db.collection(PromoService.collection).doc(p.id).set(p.toDoc(), SetOptions(merge: true));
+
+  @override
+  Future<void> deletePromo(String id) => _db.collection(PromoService.collection).doc(id).delete();
 
   // ── 관리 도구 ──
   @override

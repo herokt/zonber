@@ -2,13 +2,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../badges.dart';
+import '../character_data.dart';
+import '../cosmetics.dart';
 import '../gear.dart';
 import '../translations.dart';
 import '../world_config.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 백오피스 카탈로그 — 게임 데이터의 한글 이름(스테이지·캐릭터·아이템·뱃지)과 포맷 함수, 판(run) 한 줄 모델.
-// 장비 목록은 gear.dart, 뱃지 정의는 badges.dart, 뱃지 이름은 translations.dart(ko) 에서 읽는다.
+//
+// 목록을 여기에 **베껴 두지 않는다**(2026-09-25) — 게임에 아이템이 늘면 백오피스가 조용히 뒤처진다.
+//   스테이지 world_config · 캐릭터 character_data · 장비 gear.dart · 꾸미기 cosmetics.dart · 뱃지 badges.dart
+//   한글 이름은 전부 translations.dart 의 ko 사전(char_* · gear_* · cos_* · 뱃지 키)에서 읽는다.
 // ─────────────────────────────────────────────────────────────
 
 // ── 스테이지 ── (WorldData.worlds 3개가 전부. 옛 존 체계 랭킹은 더 다루지 않는다)
@@ -61,45 +66,40 @@ const Map<String, String> kStatNames = {
 };
 String statName(String? k) => kStatNames[k] ?? (k ?? '');
 
-// ── 캐릭터 ──
-const Map<String, String> kCharNames = {
-  'neon_green': '민트',
-  'electric_blue': '잽',
-  'plasma_purple': '루나',
-  'cyber_red': '블레이즈',
-  'solar_gold': '써니',
-  'void_dark': '레이스',
-};
-const Map<String, Color> kCharColors = {
-  'neon_green': Color(0xFF3FBF97),
-  'electric_blue': Color(0xFF3B8EF0),
-  'plasma_purple': Color(0xFFA66BF2),
-  'cyber_red': Color(0xFFF2503D),
-  'solar_gold': Color(0xFFFFC928),
-  'void_dark': Color(0xFF5B6272),
-};
-String charName(String? id) => kCharNames[id] ?? (id == null || id.isEmpty ? '-' : id);
-Color charColor(String? id) => kCharColors[id] ?? const Color(0xFFD1D5DB);
+/// 게임 한글 이름 — 없으면 ''
+String koName(String key) {
+  final v = appTranslations['ko']?[key];
+  return (v == null || v.isEmpty) ? '' : v;
+}
 
-// ── 장비·꾸미기 이름 ──
-const Map<String, String> kGearNames = {
-  'wings_white': '천사 날개', 'wings_star': '별빛 날개', 'wings_gold': '황금 날개',
-  'rocket_red': '로켓 부츠', 'rocket_plasma': '플라즈마 로켓',
-  'band_red': '빨간 머리띠', 'band_blue': '파란 머리띠', 'band_flame': '불꽃 머리띠',
-  'sneakers_white': '운동화', 'sneakers_neon': '형광 운동화',
-  'cap_blue': '파란 모자', 'cap_red': '빨간 모자',
-  'gloves_basic': '키퍼 장갑', 'gloves_pro': '프로 장갑', 'gloves_gold': '황금 장갑',
-  'boots_black': '축구화', 'boots_orange': '형광 축구화',
-  'antenna_basic': '우주 헤드셋', 'goggles_space': '별빛 고글', 'helmet_bubble': '버블 헬멧',
-  'mitts_space': '우주 장갑', 'gauntlet_neon': '네온 건틀릿',
-  'wings_bat': '박쥐 날개', 'wings_mech': '기계 날개', 'rocket_chrome': '크롬 로켓',
-  'band_stripe': '줄무늬 머리띠', 'wrist_white': '손목 밴드', 'wrist_red': '빨간 손목 밴드',
-  'wrist_rainbow': '무지개 손목 밴드', 'sneakers_hightop': '하이탑', 'sneakers_gold': '황금 운동화',
-  'cap_black': '검은 모자', 'beanie_stripe': '줄무늬 털모자', 'gloves_fire': '불꽃 장갑',
-  'boots_mint': '민트 축구화', 'boots_white': '흰 축구화',
-};
+// ── 캐릭터 ── character_data.dart 가 정본(늘어나면 여기도 저절로 늘어난다)
+List<Character> get kCharacters => CharacterData.availableCharacters;
+List<String> get kCharIds => [for (final c in kCharacters) c.id];
 
-/// 꾸미기(cosmetics.dart 의 id 순서·가격)
+String charName(String? id) {
+  if (id == null || id.isEmpty) return '-';
+  final n = koName('char_$id');
+  return n.isEmpty ? id : n;
+}
+
+Color charColor(String? id) {
+  for (final c in kCharacters) {
+    if (c.id == id) return c.color;
+  }
+  return const Color(0xFFD1D5DB);
+}
+
+// ── 장비 ── gear.dart 가 정본. 이름은 번역(ko)에서
+String gearName(String id) {
+  final n = koName('gear_$id');
+  return n.isEmpty ? id : n;
+}
+
+/// 장비 능력치 한 줄 — '속도 +5% · 에너지 +1'(없으면 '')
+String gearBonusText(GearItem g) =>
+    g.bonus.isZero ? '' : g.bonus.labels.map((l) => koName(l.$1).replaceAll('{n}', l.$2)).join(' · ');
+
+/// 꾸미기 — cosmetics.dart 가 정본
 class BoCosmetic {
   final String id;
   final String kind; // skin | trail | aura
@@ -108,28 +108,10 @@ class BoCosmetic {
   const BoCosmetic(this.id, this.kind, this.name, this.price);
 }
 
-const List<BoCosmetic> kCosmetics = [
-  BoCosmetic('skin_none', 'skin', '기본', 0),
-  BoCosmetic('skin_silver', 'skin', '실버', 400),
-  BoCosmetic('skin_candy', 'skin', '사탕', 450),
-  BoCosmetic('skin_ice', 'skin', '얼음', 500),
-  BoCosmetic('skin_gold', 'skin', '골드', 650),
-  BoCosmetic('skin_lava', 'skin', '용암', 700),
-  BoCosmetic('skin_galaxy', 'skin', '은하', 750),
-  BoCosmetic('skin_rainbow', 'skin', '무지개', 900),
-  BoCosmetic('trail_basic', 'trail', '기본', 0),
-  BoCosmetic('trail_sparkle', 'trail', '별가루', 200),
-  BoCosmetic('trail_bubble', 'trail', '비눗방울', 250),
-  BoCosmetic('trail_heart', 'trail', '하트', 300),
-  BoCosmetic('trail_flame', 'trail', '불꽃', 350),
-  BoCosmetic('trail_rainbow', 'trail', '무지개', 500),
-  BoCosmetic('aura_none', 'aura', '없음', 0),
-  BoCosmetic('aura_ring', 'aura', '네온 링', 200),
-  BoCosmetic('aura_orbit', 'aura', '궤도 위성', 350),
-  BoCosmetic('aura_electric', 'aura', '번개', 450),
-  BoCosmetic('aura_halo', 'aura', '천사 고리', 500),
-  BoCosmetic('aura_crown', 'aura', '왕관', 700),
-];
+List<BoCosmetic> get kCosmetics => [
+      for (final c in Cosmetics.all)
+        BoCosmetic(c.id, c.kind.name, koName(c.nameKey).isEmpty ? c.id : koName(c.nameKey), c.price),
+    ];
 
 const Map<String, String> kCosmeticKindNames = {'skin': '몸통 스킨', 'trail': '트레일', 'aura': '오라'};
 
@@ -150,8 +132,7 @@ BoCosmetic? cosmeticById(String id) {
 /// 아이템 id → 한글 이름 (모르면 id 그대로)
 String itemName(String id) {
   if (id.startsWith('char_')) return '캐릭터 ${charName(id.substring(5))}';
-  final g = Gear.byId(id);
-  if (g != null) return kGearNames[id] ?? id;
+  if (Gear.byId(id) != null) return gearName(id);
   final c = cosmeticById(id);
   if (c != null) return c.name;
   return id;
@@ -173,11 +154,11 @@ String itemGroupLabel(String group) {
   return kCosmeticKindNames[group] ?? '기타';
 }
 
-/// 지급 가능한 전체 아이템(분류 순서대로)
+/// 지급 가능한 전체 아이템(분류 순서대로) — 게임 목록 그대로
 List<String> allGrantableItems() => [
-      for (final c in kCharNames.keys) 'char_$c',
+      for (final c in kCharIds) 'char_$c',
       for (final g in Gear.all) g.id,
-      for (final c in kCosmetics) c.id,
+      for (final c in Cosmetics.all) c.id,
     ];
 
 // ── 뱃지 ──
