@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
+import '../promotions.dart';
 import '../world_config.dart';
 import '../store_shot.dart';
 
@@ -124,6 +125,13 @@ class AuthService {
         } catch (e) {
           debugPrint('⚠️ Error deleting ranking records (${w.rankingMapId}): $e');
         }
+      }
+
+      // 친구 코드 — 유저 문서를 지우기 전에(거기서 내 코드를 읽는다)
+      try {
+        await FriendService.deleteMine(user.uid);
+      } catch (e) {
+        debugPrint('⚠️ Error deleting friend code: $e');
       }
 
       // Delete user data from Firestore (비공개 문서 먼저 — 하위 문서는 부모와 같이 지워지지 않는다)

@@ -105,7 +105,7 @@ abstract class BoSource {
   Future<List<PromoCode>> promoCodes();
   Future<PromoCode?> promoCode(String code);
 
-  /// 새 코드 — 같은 코드가 이미 있으면 false(덮어쓰지 않는다)
+  /// 새 코드 — 같은 코드가 이미 있거나 유저 친구 코드와 같으면 false(덮어쓰지 않는다)
   Future<bool> createPromoCode(PromoCode c);
 
   /// 보상·캠페인·메모·한도·기간·켜짐만 바꾼다(사용 수는 그대로)

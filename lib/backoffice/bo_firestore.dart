@@ -174,6 +174,8 @@ class FirestoreSource implements BoSource {
   Future<bool> createPromoCode(PromoCode c) => _db.runTransaction((tx) async {
         final ref = _codes.doc(c.code);
         if ((await tx.get(ref)).exists) return false;
+        // 유저 친구 코드(4~5자)와 같은 이름이면 그 친구 코드가 가려진다 — 만들지 않는다
+        if ((await tx.get(_db.collection(FriendCodes.collection).doc(c.code))).exists) return false;
         tx.set(ref, PromoCodes.createDoc(c));
         return true;
       });

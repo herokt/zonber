@@ -21,7 +21,7 @@ const Map<PromoKind, String> kPromoKindNames = {
   PromoKind.welcome: '환영 선물',
   PromoKind.bonus: '보상 이벤트',
   PromoKind.code: '코드 안내',
-  PromoKind.share: 'SNS 공유',
+  PromoKind.share: '공유하기',
 };
 
 class _PromoPageState extends State<PromoPage> with BoReloadable {
@@ -249,7 +249,7 @@ class _PromoDialogState extends State<PromoDialog> {
   static const _kindHelp = {
     PromoKind.bonus: '들어오면 받는 선물 — 한 번 또는 매일·매주',
     PromoKind.welcome: '처음 온 유저가 한 번 받는 선물',
-    PromoKind.share: 'SNS로 기록을 공유하면 받는 선물',
+    PromoKind.share: '내 친구 코드를 SNS·메신저로 공유하면 받는 선물',
     PromoKind.code: '코드 입력 안내 카드만 — 보상은 [이벤트 코드]에서',
   };
   static const _langs = ['ko', 'en', 'ja', 'zh'];

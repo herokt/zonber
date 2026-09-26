@@ -24,6 +24,8 @@ import 'services/auth_service.dart';
 // 이벤트 코드는 따로 논다 — [PromoCode] · promo_codes/{코드}. 코드마다 보상·캠페인·한도·기간이 있고,
 // 코드를 아는 사람만 그 문서 한 건을 읽을 수 있다(목록 읽기는 관리자만 → 앱을 뜯어도 코드가 새지 않는다).
 // 사용은 트랜잭션 한 번(내 사용 기록 생성 + 사용 수 +1)이고, 1인 1회·한도·기간은 firestore.rules 가 검사한다.
+//
+// 친구 코드도 같은 입력칸으로 들어온다 — [FriendCodes] · friend_codes/{코드}. 회원마다 하나, 공유하기 문구에 실린다.
 // ─────────────────────────────────────────────────────────────
 
 /// 이벤트 종류 — 받는 방법이 다를 뿐, 보상 주는 길은 하나다
@@ -37,7 +39,7 @@ enum PromoKind {
   /// 코드 안내 카드 — 보상은 코드마다 따로(promo_codes). 카드는 "코드 입력"으로 안내만 한다
   code,
 
-  /// 친구에게 자랑(SNS 공유)하면 받는 보상 — 하루 한 번
+  /// 공유하기 — 내 친구 코드를 SNS·메신저로 공유하면 받는 보상(하루 한 번). 친구 코드는 [FriendCodes]
   share,
 }
 
@@ -210,8 +212,8 @@ class Promotions {
       kind: PromoKind.share,
       coins: 50,
       cooldownHours: 24,
-      title: {'ko': '친구에게 자랑하기', 'en': 'Brag to a friend', 'zh': '向朋友炫耀', 'ja': '友だちに自慢'},
-      desc: {'ko': '기록 공유하면 매일 코인 50', 'en': 'Share your record — 50 coins daily', 'zh': '分享纪录 每天 50 金币', 'ja': '記録をシェアで毎日コイン50'},
+      title: {'ko': '공유하기', 'en': 'Share', 'zh': '分享', 'ja': 'シェア'},
+      desc: {'ko': '내 코드 공유하면 매일 코인 50', 'en': 'Share your code — 50 coins daily', 'zh': '分享代码 每天 50 金币', 'ja': 'コードをシェアで毎日コイン50'},
     ),
   ];
 
@@ -364,8 +366,153 @@ class PromoCodes {
       };
 }
 
-/// 코드 입력 결과
-enum RedeemResult { ok, guest, invalid, already, disabled, notStarted, expired, exhausted, error }
+// ── 친구 코드 ────────────────────────────────────────────────
+// 회원마다 하나 — 영문 대문자·숫자 4~5자(헷갈리는 글자 0 O 1 I L 없음).
+//   friend_codes/{코드} = {uid} (코드 → 주인) · users/{uid}.friendCode (내 코드)
+// 공유하기 문구에 들어가고, 친구가 이벤트 화면 코드 입력칸(이벤트 코드와 같은 칸)에 넣으면 둘 다 코인을 받는다.
+//   · 넣은 사람 — 바로 [FriendCodes.newcomerCoins]. 계정당 한 번(friend_invites/{내 uid} 가 한 번만 생긴다)
+//   · 코드 주인 — 다음에 이벤트 화면을 열 때 친구 한 명당 [FriendCodes.inviterCoins], 최대 [FriendCodes.maxRewarded]명
+// 이벤트 코드와 이름이 겹치지 않는다 — 친구 코드를 만들 때 promo_codes 를, 백오피스가 코드를 만들 때 friend_codes 를 본다.
+// ─────────────────────────────────────────────────────────────
+
+class FriendCodes {
+  /// 코드 → 주인 — friend_codes/{code} {uid}
+  static const String collection = 'friend_codes';
+
+  /// 누가 누구 코드를 넣었나 — friend_invites/{넣은 사람 uid} {code, inviter, rewarded}
+  static const String invites = 'friend_invites';
+
+  /// 내 코드 — users/{uid}.friendCode
+  static const String userField = 'friendCode';
+
+  static const int newcomerCoins = 200;
+  static const int inviterCoins = 200;
+
+  /// 코드 주인이 보상받는 친구 수 한도(부계정 돌려막기 방지)
+  static const int maxRewarded = 10;
+
+  static const int minLength = 4;
+  static const int maxLength = 5;
+  static final RegExp _format = RegExp('^[A-Z0-9]{$minLength,$maxLength}\$');
+
+  static bool isValidFormat(String code) => _format.hasMatch(code);
+
+  /// 새 코드 — 짧은 4자를 먼저 몇 번 시도하고, 겹치면 5자로
+  static const List<int> tryLengths = [4, 4, 4, 5, 5, 5, 5, 5];
+
+  static String generate(int length, {Random? random}) => PromoCodes.generate(length: length, random: random);
+}
+
+class FriendService {
+  static String? _cacheUid;
+  static String? _cacheCode;
+
+  /// 내 친구 코드 — 없으면 만든다. 게스트·오프라인이면 null
+  static Future<String?> myCode() async {
+    final uid = PromoService._uid;
+    if (uid == null) return null;
+    if (_cacheUid == uid && _cacheCode != null) return _cacheCode;
+    final db = FirebaseFirestore.instance;
+    final userRef = db.collection('users').doc(uid);
+    try {
+      final have = (await userRef.get()).data()?[FriendCodes.userField] as String?;
+      if (have != null && FriendCodes.isValidFormat(have)) return _remember(uid, have);
+      for (final len in FriendCodes.tryLengths) {
+        final code = FriendCodes.generate(len);
+        final ref = db.collection(FriendCodes.collection).doc(code);
+        final made = await db.runTransaction<bool>((tx) async {
+          if ((await tx.get(ref)).exists) return false;
+          if ((await tx.get(db.collection(PromoCodes.collection).doc(code))).exists) return false;
+          tx.set(ref, {'uid': uid, 'at': FieldValue.serverTimestamp()});
+          tx.set(userRef, {FriendCodes.userField: code}, SetOptions(merge: true));
+          return true;
+        });
+        if (made) return _remember(uid, code);
+      }
+    } catch (e) {
+      debugPrint('friend code failed: $e');
+    }
+    return null;
+  }
+
+  static String _remember(String uid, String code) {
+    _cacheUid = uid;
+    _cacheCode = code;
+    return code;
+  }
+
+  /// 친구 코드 넣기 — [PromoService.redeem] 이 이벤트 코드가 아닐 때 부른다. 성공하면 보상은 이미 들어가 있다.
+  /// 돌려주는 PromoCode 는 안내 문구용(보상만 채운 가짜)
+  static Future<(RedeemResult, PromoCode?)> redeem(String code) async {
+    final uid = PromoService._uid;
+    if (uid == null) return (RedeemResult.guest, null);
+    final db = FirebaseFirestore.instance;
+    final codeRef = db.collection(FriendCodes.collection).doc(code);
+    final mine = db.collection(FriendCodes.invites).doc(uid);
+    try {
+      final result = await db.runTransaction<RedeemResult>((tx) async {
+        final snap = await tx.get(codeRef);
+        final owner = snap.data()?['uid'] as String?;
+        if (owner == null) return RedeemResult.invalid;
+        if (owner == uid) return RedeemResult.friendSelf;
+        if ((await tx.get(mine)).exists) return RedeemResult.friendUsed;
+        tx.set(mine, {'code': code, 'inviter': owner, 'rewarded': false, 'at': FieldValue.serverTimestamp()});
+        return RedeemResult.ok;
+      });
+      if (result != RedeemResult.ok) return (result, null);
+      await PromoService._grant(FriendCodes.newcomerCoins, const []);
+      return (RedeemResult.ok, PromoCode(code: code, campaign: 'friend', coins: FriendCodes.newcomerCoins));
+    } catch (e) {
+      debugPrint('friend redeem failed: $e');
+      // 규칙이 막음 = 그 사이 다른 기기에서 이미 넣었다
+      try {
+        if ((await mine.get()).exists) return (RedeemResult.friendUsed, null);
+      } catch (_) {}
+      return (RedeemResult.error, null);
+    }
+  }
+
+  /// 내 코드를 넣은 친구 보상 받기 — 받은 친구 수(이번에 새로). 이벤트 화면을 열 때 부른다
+  static Future<int> collectRewards() async {
+    final uid = PromoService._uid;
+    if (uid == null) return 0;
+    final db = FirebaseFirestore.instance;
+    int got = 0;
+    try {
+      final snap = await db.collection(FriendCodes.invites).where('inviter', isEqualTo: uid).get();
+      var done = snap.docs.where((d) => d.data()['rewarded'] == true).length;
+      for (final d in snap.docs) {
+        if (done >= FriendCodes.maxRewarded) break;
+        if (d.data()['rewarded'] != false) continue;
+        // 두 기기에서 동시에 열어도 한 번만 — rewarded false → true 를 트랜잭션으로
+        final ok = await db.runTransaction<bool>((tx) async {
+          if ((await tx.get(d.reference)).data()?['rewarded'] != false) return false;
+          tx.update(d.reference, {'rewarded': true});
+          return true;
+        });
+        if (ok) {
+          done++;
+          got++;
+        }
+      }
+    } catch (e) {
+      debugPrint('friend rewards failed: $e');
+    }
+    if (got > 0) await PromoService._grant(got * FriendCodes.inviterCoins, const []);
+    return got;
+  }
+
+  /// 탈퇴 — 내 코드를 지운다(더는 아무도 못 넣는다)
+  static Future<void> deleteMine(String uid) async {
+    final db = FirebaseFirestore.instance;
+    final code = (await db.collection('users').doc(uid).get()).data()?[FriendCodes.userField] as String?;
+    if (code != null && code.isNotEmpty) await db.collection(FriendCodes.collection).doc(code).delete();
+    _cacheUid = _cacheCode = null;
+  }
+}
+
+/// 코드 입력 결과 — friendSelf: 내 친구 코드를 넣음 · friendUsed: 친구 코드를 이미 넣은 계정
+enum RedeemResult { ok, guest, invalid, already, disabled, notStarted, expired, exhausted, friendSelf, friendUsed, error }
 
 RedeemResult _resultOf(PromoCodeStatus s) => switch (s) {
       PromoCodeStatus.open => RedeemResult.ok,
@@ -556,6 +703,8 @@ class PromoService {
         tx.update(ref, {'uses': FieldValue.increment(1)});
         return (RedeemResult.ok, pc);
       });
+      // 이벤트 코드가 없으면 친구 코드(4~5자)인지 본다 — 두 이름은 겹치지 않게 만든다
+      if (result == RedeemResult.invalid && FriendCodes.isValidFormat(code)) return await FriendService.redeem(code);
       if (result == RedeemResult.ok && pc != null) await _grant(pc.coins, pc.items);
       return (result, pc);
     } on FirebaseException catch (e) {

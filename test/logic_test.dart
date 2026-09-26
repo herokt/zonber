@@ -327,6 +327,29 @@ void main() {
       }
     });
 
+    test('친구 코드는 영문 대문자·숫자 4~5자이고 헷갈리는 글자가 없다', () {
+      for (final len in FriendCodes.tryLengths) {
+        final c = FriendCodes.generate(len);
+        expect(c.length, len);
+        expect(FriendCodes.isValidFormat(c), isTrue, reason: c);
+        expect(PromoCodes.isValidFormat(c), isTrue, reason: c); // 같은 입력칸(이벤트 코드 형식)도 통과
+        expect(RegExp('[0O1IL]').hasMatch(c), isFalse, reason: c);
+      }
+      expect(FriendCodes.tryLengths.first, 4); // 짧은 것부터
+      expect(FriendCodes.isValidFormat('ABC'), isFalse);
+      expect(FriendCodes.isValidFormat('ABCDEF'), isFalse);
+      expect(FriendCodes.isValidFormat('ab3k'), isFalse); // 정리(normalize) 뒤에 본다
+      expect(FriendCodes.isValidFormat(PromoCodes.normalize(' ab-3k ')), isTrue);
+    });
+
+    test('게스트는 친구 코드가 없고 넣을 수도 없다', () async {
+      AuthService.debugIsGuest = true;
+      expect(await FriendService.myCode(), isNull);
+      expect((await FriendService.redeem('AB3K')).$1, RedeemResult.guest);
+      expect(await FriendService.collectRewards(), 0);
+      AuthService.debugIsGuest = false;
+    });
+
     test('코드 상태 — 꺼짐·시작 전·기간 끝·한도 소진', () {
       final now = DateTime(2026, 10, 1);
       expect(const PromoCode(code: 'A1B2', coins: 100).status(now), PromoCodeStatus.open);

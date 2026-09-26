@@ -26,11 +26,12 @@ const token = await accessToken();
 let source = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 source = source.replace(/\n\s*&& request\.resource\.data\.timestamp == request\.time\);/, ');');
 source = source.replace(/\n\s*&& request\.resource\.data\.timestamp == request\.time\n/, '\n');
-source = source.replace(/\n\s*&& request\.resource\.data\.at == request\.time\n/, '\n'); // 코드 사용 기록의 서버 시각
+source = source.replace(/\n\s*&& request\.resource\.data\.at == request\.time\n/g, '\n'); // 코드 사용 기록·친구 코드 입력의 서버 시각
 
 const P = (p) => `/databases/(default)/documents/${p}`;
 const anon = { uid: 'guest1', token: { firebase: { sign_in_provider: 'anonymous' } } };
 const member = { uid: 'u1', token: { email: 'a@b.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
+const member2 = { uid: 'u2', token: { email: 'c@d.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
 const admin = { uid: 'adm', token: { email: 'herokt851103@gmail.com', email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
 
 // get()/exists()/getAfter()/existsAfter() 가짜 응답 — [함수, 문서 경로, 값]
@@ -44,6 +45,17 @@ const counterMocks = (before, after) => [
   mock('get', 'promo_codes/ABC', { data: { ...code, uses: before } }),
   mock('getAfter', 'promo_codes/ABC', { data: { ...code, uses: after } }),
 ];
+
+// 친구 코드 만들기 — [이벤트 코드와 겹침, 내 유저 문서의 기존 friendCode, 같은 요청 뒤의 friendCode]
+const makeFriendMocks = (code, { promoExists = false, before = '', after = code } = {}) => [
+  mock('exists', `promo_codes/${code}`, promoExists),
+  mock('exists', 'users/u1', true),
+  mock('get', 'users/u1', { data: before ? { friendCode: before } : { nickname: 'me' } }),
+  mock('getAfter', 'users/u1', { data: { friendCode: after } }),
+];
+// 친구 코드 K7PQ 의 주인
+const friendOwner = (uid) => [mock('get', 'friend_codes/K7PQ', { data: { uid } })];
+const invite = { code: 'K7PQ', inviter: 'u2', rewarded: false };
 
 const cases = [
   // [설명, 기대, 요청, 기존 문서 data, 함수 가짜 응답]
@@ -107,6 +119,37 @@ const cases = [
   ['다른 코드 이름으로 기록', 'DENY', { auth: member, path: P('users/u1/codes/ABC'), method: 'create', resource: { data: { code: 'XYZ', coins: 500 } } }, null, counterMocks(3, 4)],
   ['남의 코드 사용 기록 생성', 'DENY', { auth: member, path: P('users/u2/codes/ABC'), method: 'create', resource: { data: { code: 'ABC' } } }, null, counterMocks(3, 4)],
   ['코드 사용 기록 수정', 'DENY', { auth: member, path: P('users/u1/codes/ABC'), method: 'update', resource: { data: { code: 'ABC', coins: 9999 } } }, { code: 'ABC', coins: 500 }],
+  // ── 친구 코드(friend_codes · friend_invites) ──
+  ['회원 친구 코드 만들기', 'ALLOW', { auth: member, path: P('friend_codes/K7PQ'), method: 'create', resource: { data: { uid: 'u1' } } }, null, makeFriendMocks('K7PQ')],
+  ['5자 친구 코드 만들기', 'ALLOW', { auth: member, path: P('friend_codes/K7PQ2'), method: 'create', resource: { data: { uid: 'u1' } } }, null, makeFriendMocks('K7PQ2')],
+  ['6자 친구 코드', 'DENY', { auth: member, path: P('friend_codes/K7PQ22'), method: 'create', resource: { data: { uid: 'u1' } } }, null, makeFriendMocks('K7PQ22')],
+  ['소문자 친구 코드', 'DENY', { auth: member, path: P('friend_codes/k7pq'), method: 'create', resource: { data: { uid: 'u1' } } }, null, makeFriendMocks('k7pq')],
+  ['남의 uid 로 친구 코드', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'create', resource: { data: { uid: 'u2' } } }, null, makeFriendMocks('K7PQ')],
+  ['친구 코드 두 번째 만들기', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'create', resource: { data: { uid: 'u1' } } }, null, makeFriendMocks('K7PQ', { before: 'AAAA' })],
+  ['유저 문서에 안 적고 코드만', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'create', resource: { data: { uid: 'u1' } } }, null, makeFriendMocks('K7PQ', { after: '' })],
+  ['이벤트 코드와 같은 친구 코드', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'create', resource: { data: { uid: 'u1' } } }, null, makeFriendMocks('K7PQ', { promoExists: true })],
+  ['친구 코드에 다른 필드', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'create', resource: { data: { uid: 'u1', coins: 999 } } }, null, makeFriendMocks('K7PQ')],
+  ['게스트 친구 코드 만들기', 'DENY', { auth: anon, path: P('friend_codes/K7PQ'), method: 'create', resource: { data: { uid: 'guest1' } } }, null, makeFriendMocks('K7PQ')],
+  ['회원 친구 코드 한 건 읽기', 'ALLOW', { auth: member, path: P('friend_codes/K7PQ'), method: 'get' }, { uid: 'u2' }],
+  ['게스트 친구 코드 읽기', 'DENY', { auth: anon, path: P('friend_codes/K7PQ'), method: 'get' }, { uid: 'u2' }],
+  ['회원 친구 코드 목록', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'list' }, { uid: 'u2' }],
+  ['친구 코드 주인 바꾸기', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'update', resource: { data: { uid: 'u1' } } }, { uid: 'u2' }],
+  ['내 친구 코드 지우기(탈퇴)', 'ALLOW', { auth: member, path: P('friend_codes/K7PQ'), method: 'delete' }, { uid: 'u1' }],
+  ['남의 친구 코드 지우기', 'DENY', { auth: member, path: P('friend_codes/K7PQ'), method: 'delete' }, { uid: 'u2' }],
+  ['친구 코드 넣기', 'ALLOW', { auth: member, path: P('friend_invites/u1'), method: 'create', resource: { data: invite } }, null, friendOwner('u2')],
+  ['주인을 속여 넣기', 'DENY', { auth: member, path: P('friend_invites/u1'), method: 'create', resource: { data: { ...invite, inviter: 'u3' } } }, null, friendOwner('u2')],
+  ['내 코드 넣기', 'DENY', { auth: member, path: P('friend_invites/u1'), method: 'create', resource: { data: { ...invite, inviter: 'u1' } } }, null, friendOwner('u1')],
+  ['남 대신 친구 코드 넣기', 'DENY', { auth: member, path: P('friend_invites/u3'), method: 'create', resource: { data: invite } }, null, friendOwner('u2')],
+  ['보상받은 상태로 넣기', 'DENY', { auth: member, path: P('friend_invites/u1'), method: 'create', resource: { data: { ...invite, rewarded: true } } }, null, friendOwner('u2')],
+  ['게스트 친구 코드 넣기', 'DENY', { auth: anon, path: P('friend_invites/guest1'), method: 'create', resource: { data: invite } }, null, friendOwner('u2')],
+  ['넣은 사람이 다시 넣기(수정)', 'DENY', { auth: member, path: P('friend_invites/u1'), method: 'update', resource: { data: { ...invite, code: 'ZZZZ' } } }, invite],
+  ['넣은 사람이 기록 지우기', 'DENY', { auth: member, path: P('friend_invites/u1'), method: 'delete' }, invite],
+  ['코드 주인 보상 표시', 'ALLOW', { auth: member2, path: P('friend_invites/u1'), method: 'update', resource: { data: { ...invite, rewarded: true } } }, invite],
+  ['코드 주인 보상 두 번', 'DENY', { auth: member2, path: P('friend_invites/u1'), method: 'update', resource: { data: { ...invite, rewarded: true } } }, { ...invite, rewarded: true }],
+  ['코드 주인이 다른 필드 수정', 'DENY', { auth: member2, path: P('friend_invites/u1'), method: 'update', resource: { data: { ...invite, rewarded: true, code: 'ZZZZ' } } }, invite],
+  ['남이 보상 표시', 'DENY', { auth: member, path: P('friend_invites/u3'), method: 'update', resource: { data: { ...invite, rewarded: true } } }, invite],
+  ['코드 주인이 내 친구 목록', 'ALLOW', { auth: member2, path: P('friend_invites/u1'), method: 'list' }, invite],
+  ['남이 친구 목록', 'DENY', { auth: { ...member, uid: 'u9' }, path: P('friend_invites/u1'), method: 'list' }, invite],
   ['관리자 코드 사용자 목록', 'ALLOW', { auth: admin, path: P('users/u2/codes/ABC'), method: 'list' }, { code: 'ABC' }],
 ];
 
