@@ -164,8 +164,8 @@ Color skinPartColor(String? skin, Color base, double t) => switch (skin) {
       'skin_galaxy' => const Color(0xFF8B78E0),
       'skin_candy' => const Color(0xFFFF9EC7),
       'skin_ice' => const Color(0xFFA5DDF5),
-      'skin_lava' => const Color(0xFF4A3036),
-      'skin_cloud' => const Color(0xFF9FD8F5),
+      'skin_lava' => const Color(0xFFB8392C),
+      'skin_cloud' => const Color(0xFFF2F7FF),
       'skin_sunset' => const Color(0xFFFF9A6B),
       'skin_ocean' => const Color(0xFF3FA8D8),
       'skin_neon' => const Color(0xFF3B2C63),
@@ -246,21 +246,32 @@ void _paintSkin(Canvas c, double r, Path mochi, String? skin, Color base, double
       c.restore();
       _volume(c, r, mochi);
     case 'skin_cloud':
-      // 구름 — 맑은 하늘 바탕에 흰 뭉게구름이 느리게 흐른다
-      c.drawPath(mochi, Paint()..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r), const [Color(0xFFBFE6FF), Color(0xFF7FC4F0)]));
+      // 구름 — 몸 전체가 폭신한 뭉게구름. 흰 윗면 · 하늘빛 그늘이 진 몽글몽글한 아랫면(2026-09-26 얼룩져 보여 교체)
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r),
+            const [Color(0xFFFFFFFF), Color(0xFFF3F7FF), Color(0xFFD3E3F8)], const [0, 0.5, 1]));
       c.save();
       c.clipPath(mochi);
-      final puff = Paint()..color = Colors.white.withValues(alpha: 0.92);
-      const puffs = [(-0.3, 0.18, 0.34), (0.42, -0.42, 0.22), (0.15, 0.62, 0.26)];
-      for (final (px, py, ps) in puffs) {
-        final o = Offset(r * px, r * py + sin(t * 0.9 + px * 4) * r * 0.03);
-        final s = r * ps;
-        c.drawCircle(o, s, puff);
-        c.drawCircle(o + Offset(s * 0.85, s * 0.25), s * 0.68, puff);
-        c.drawCircle(o + Offset(-s * 0.85, s * 0.3), s * 0.6, puff);
+      // 가장자리로 갈수록 살짝 푸르게 — 부푼 느낌
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.radial(Offset(-r * 0.15, -r * 0.25), r * 1.25,
+            [Colors.transparent, const Color(0xFFB7CFF0).withValues(alpha: 0.45)], const [0.6, 1]));
+      // 아랫면 그늘 — 몽글몽글한 구름 배(천천히 흔들린다)
+      final drift = sin(t * 0.8) * r * 0.05;
+      final belly = Paint()
+        ..color = const Color(0xFF9FBCEA).withValues(alpha: 0.75)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.03);
+      for (int i = 0; i < 6; i++) {
+        c.drawCircle(Offset(-r * 1.2 + i * r * 0.48 + drift, r * (i.isOdd ? 1.02 : 0.95)), r * 0.32, belly);
+      }
+      // 윗면 뭉게 볼록 — 흐린 흰 빛
+      final puff = Paint()
+        ..color = Colors.white.withValues(alpha: 0.9)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.12);
+      for (final (px, py, ps) in const [(-0.55, -0.5, 0.3), (0.05, -0.7, 0.34), (0.6, -0.45, 0.28)]) {
+        c.drawCircle(Offset(r * px, r * py), r * ps, puff);
       }
       c.restore();
-      _volume(c, r, mochi);
     case 'skin_sunset':
       // 노을 — 보라에서 금빛으로 번지는 하늘 · 지는 해 · 구름 띠
       c.drawPath(mochi, Paint()
@@ -351,43 +362,33 @@ void _paintSkin(Canvas c, double r, Path mochi, String? skin, Color base, double
             ..strokeWidth = max(0.8, r * 0.04));
       c.restore();
     case 'skin_lava':
-      // 용암 — 검붉은 바위에 빛나는 균열(맥박처럼 밝아졌다 어두워진다)
+      // 용암 — 위는 식은 검붉은 껍질, 아래로 갈수록 끓어오르는 주황 · 출렁이는 용암 물결 · 양옆으로 떠오르는 불씨
+      // (2026-09-26 균열 무늬가 얼룩져 보여 교체)
       c.drawPath(mochi, Paint()
-        ..shader = ui.Gradient.radial(Offset(-r * 0.3, -r * 0.3), r * 1.5, const [Color(0xFF5A3A40), Color(0xFF2E1D22)]));
+        ..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r),
+            const [Color(0xFF3A1E2A), Color(0xFF6E2330), Color(0xFFC2402C), Color(0xFFFF8A3D)], const [0, 0.4, 0.72, 1]));
       c.save();
       c.clipPath(mochi);
-      final glow = 0.6 + 0.4 * sin(t * 3);
-      final crack = Paint()
-        ..color = Color.lerp(const Color(0xFFFF4D2E), const Color(0xFFFFC23D), glow)!
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = max(1.0, r * 0.07)
-        ..strokeJoin = StrokeJoin.round
-        ..strokeCap = StrokeCap.round;
-      final halo = Paint()
-        ..color = const Color(0xFFFF6A2E).withValues(alpha: 0.5 * glow)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = r * 0.2
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.1);
-      final cracks = [
-        Path()
-          ..moveTo(-r * 0.95, r * 0.2)
-          ..lineTo(-r * 0.5, r * 0.35)
-          ..lineTo(-r * 0.35, r * 0.75)
-          ..moveTo(-r * 0.5, r * 0.35)
-          ..lineTo(-r * 0.2, r * 0.18),
-        Path()
-          ..moveTo(r * 1.0, -r * 0.1)
-          ..lineTo(r * 0.58, r * 0.15)
-          ..lineTo(r * 0.62, r * 0.55)
-          ..lineTo(r * 0.28, r * 0.9),
-        Path()
-          ..moveTo(-r * 0.2, -r * 0.9)
-          ..lineTo(-r * 0.05, -r * 0.62)
-          ..lineTo(-r * 0.32, -r * 0.5),
-      ];
-      for (final p in cracks) {
-        c.drawPath(p, halo);
-        c.drawPath(p, crack);
+      final glow = 0.5 + 0.5 * sin(t * 2.4);
+      final lava = Path()..moveTo(-r * 1.2, r * 1.2);
+      for (double x = -r * 1.2; x <= r * 1.2; x += r * 0.1) {
+        lava.lineTo(x, r * 0.55 + sin(x / r * 3.2 + t * 1.8) * r * 0.06);
+      }
+      lava
+        ..lineTo(r * 1.2, r * 1.2)
+        ..close();
+      c.drawPath(lava, Paint()
+        ..color = const Color(0xFFFF7A2E).withValues(alpha: 0.35 + 0.3 * glow)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.16));
+      c.drawPath(lava, Paint()
+        ..shader = ui.Gradient.linear(Offset(0, r * 0.5), Offset(0, r), const [Color(0xFFFFA940), Color(0xFFFFE08A)]));
+      // 불씨 — 얼굴을 피해 양옆으로 올라가며 사라진다
+      for (int i = 0; i < 4; i++) {
+        final p = (t * 0.35 + i * 0.27) % 1.0;
+        final x = r * const [-0.78, -0.5, 0.52, 0.8][i] + sin(t * 1.5 + i * 2) * r * 0.05;
+        c.drawCircle(Offset(x, r * 0.5 - p * r * 1.2), r * (0.055 - p * 0.025), Paint()
+          ..color = const Color(0xFFFFC266).withValues(alpha: 0.9 * sin(p * pi))
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.02));
       }
       c.restore();
     default:
