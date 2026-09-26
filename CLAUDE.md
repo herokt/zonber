@@ -103,7 +103,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
 | `promotions.dart` | **이벤트(프로모션) 단일 출처** — `Promotion` 모델 · `Promotions.builtIn`(앱 기본 7종, 4개 언어) · `PromoCode`/`PromoCodes`(이벤트 코드: 정리·형식·자동 생성) · `PromoService`(서버 목록 병합·받기·중복 차단·`redeem` 코드 사용). 새 이벤트는 백오피스에서 `promos/{id}` 추가 = 앱 업데이트 없이 반영. 기획·운영법은 [docs/PROMOTIONS.md](docs/PROMOTIONS.md) |
-| `pages/promo_page.dart` | 홈 이벤트 배너 + 이벤트 페이지 `'Promo'`(한 줄 = 제목 · 설명 한 줄 · 버튼 / 받기 · 코드 입력 · 자랑하기 = OS 공유 창, `share_plus`) |
+| `pages/promo_page.dart` | 홈 이벤트 배너 + 이벤트 페이지 `'Promo'`(한 줄 = 제목 · 설명 한 줄 · 버튼 / 받기 · 이벤트·친구 코드 입력 · 공유하기 = 내 친구 코드(4~5자)를 실은 OS 공유 창, `share_plus`) |
 
 ### 백오피스 (별도 관리자 앱)
 `lib/backoffice/`에 위치. 진입점: `lib/backoffice/main_backoffice.dart`.
@@ -236,6 +236,8 @@ maps/
 promos/{promoId}            # 이벤트 정의(백오피스) + claims(받은 수). 누구나 읽음
 promo_codes/{CODE}          # 이벤트 코드 — 보상·campaign·maxUses·uses·기간. 회원은 한 건 get 만(list 는 관리자)
 users/{uid}/codes/{CODE}    # 내가 쓴 코드(1인 1회 — 규칙이 promo_codes.uses +1 과 함께만 생성 허용)
+friend_codes/{CODE}         # 친구 코드(회원마다 하나, 영문·숫자 4~5자) → {uid}. users/{uid}.friendCode 에도 적는다
+friend_invites/{uid}        # 친구 코드 입력 기록(계정당 한 번) {code, inviter, rewarded} — 코드 주인이 보상받으면 rewarded=true
 
 custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규칙만 남음)
 ```

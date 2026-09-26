@@ -20,7 +20,8 @@ import '../world_config.dart';
 //   · 한 줄 = 제목 + 설명 한 줄(왼쪽) · 버튼(오른쪽). 설명이 길면 글자를 줄여 한 줄에 맞춘다
 //   · 홈 배너([PromoBanner])는 진행 중인 게 있을 때만 나오고, 누르면 이 페이지('Promo')로 온다
 //   · 코드 입력칸은 아래에 붙어 있다 — 키보드가 올라오면 화면이 줄어 입력칸이 키보드 바로 위에 선다
-//   · 자랑하기는 OS 공유 창(SNS·메신저)을 바로 띄우고, 공유하면 하루 한 번 보상
+//   · 공유하기는 내 친구 코드(4~5자)를 넣은 문구로 OS 공유 창(SNS·메신저)을 바로 띄우고, 공유하면 하루 한 번 보상.
+//     친구가 그 코드를 아래 입력칸에 넣으면 둘 다 코인(FriendCodes). 내 코드는 공유하기 줄에 보이고 누르면 복사된다
 // 새 이벤트를 열어도 이 화면은 손댈 필요가 없다 — 목록만 늘어난다.
 // ─────────────────────────────────────────────────────────────
 
@@ -132,11 +133,38 @@ class _PromoPageState extends State<PromoPage> {
   final Map<String, bool> _can = {};
   bool _loading = true;
   bool _busy = false;
+  /// 내 친구 코드(게스트·오프라인이면 null)
+  String? _myCode;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadFriend();
+  }
+
+  /// 내 친구 코드를 가져오고(없으면 만든다), 내 코드를 넣은 친구 보상을 받는다
+  Future<void> _loadFriend() async {
+    if (AuthService.isGuest) return;
+    final code = await FriendService.myCode();
+    if (mounted) setState(() => _myCode = code);
+    final n = await FriendService.collectRewards();
+    if (n <= 0 || !mounted) return;
+    final lm = LanguageManager.of(context, listen: false);
+    AudioManager().playSfx(Sfx.coin, volume: 0.8);
+    Haptics.medium();
+    _toast(lm
+        .translate('friend_reward_got')
+        .replaceAll('{n}', '$n')
+        .replaceAll('{reward}', rewardText(lm, n * FriendCodes.inviterCoins, const [])));
+  }
+
+  Future<void> _copyMyCode() async {
+    final code = _myCode;
+    if (code == null) return;
+    await Clipboard.setData(ClipboardData(text: code));
+    Haptics.light();
+    if (mounted) _toast(LanguageManager.of(context, listen: false).translate('friend_code_copied'));
   }
 
   @override
@@ -195,10 +223,14 @@ class _PromoPageState extends State<PromoPage> {
     await _load();
   }
 
-  /// 자랑하기 — 내 최고 기록 문구로 OS 공유 창(SNS·메신저)을 띄운다. 공유하면 보상(하루 한 번).
-  /// 보상을 이미 받은 날에도 공유는 된다. 공유 창을 못 띄우는 기기는 문구를 복사해 준다
+  /// 공유하기 — 내 친구 코드 + 최고 기록 문구로 OS 공유 창(SNS·메신저)을 띄운다. 공유하면 보상(하루 한 번).
+  /// 보상을 이미 받은 날에도 공유는 된다. 공유 창을 못 띄우는 기기는 문구를 복사해 준다.
+  /// 게스트는 코드가 없어 기록·링크만 나간다
   Future<void> _share(Promotion p, Rect? origin) async {
     final lm = LanguageManager.of(context, listen: false);
+    final code = _myCode ?? (AuthService.isGuest ? null : await FriendService.myCode());
+    if (!mounted) return;
+    if (code != null && _myCode == null) setState(() => _myCode = code);
     final best = await ProgressStore.getBestTimes();
     final lines = <String>[];
     for (final w in WorldData.worlds) {
@@ -210,6 +242,11 @@ class _PromoPageState extends State<PromoPage> {
     final text = LanguageManager.stripJoiners([
       lm.translate('promo_share_text'),
       if (lines.isNotEmpty) lines.join(' · '),
+      if (code != null)
+        lm
+            .translate('friend_share_line')
+            .replaceAll('{code}', code)
+            .replaceAll('{reward}', rewardText(lm, FriendCodes.newcomerCoins, const [])),
       lm.translate('promo_share_link'),
     ].join('\n'));
     ShareResultStatus status;
@@ -250,6 +287,8 @@ class _PromoPageState extends State<PromoPage> {
       RedeemResult.notStarted => 'promo_code_not_started',
       RedeemResult.expired => 'promo_code_expired',
       RedeemResult.exhausted => 'promo_code_exhausted',
+      RedeemResult.friendSelf => 'friend_code_self',
+      RedeemResult.friendUsed => 'friend_code_used',
       RedeemResult.error => 'promo_code_error',
       RedeemResult.invalid || RedeemResult.ok => 'promo_code_bad',
     }));
@@ -314,6 +353,11 @@ class _PromoPageState extends State<PromoPage> {
                       child: Text(p.titleOf(lang),
                           maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.text(14, weight: FontWeight.w900)),
                     ),
+                    // 공유하기 — 내 친구 코드(누르면 복사)
+                    if (p.kind == PromoKind.share && _myCode != null) ...[
+                      const SizedBox(width: 8),
+                      _codeChip(_myCode!),
+                    ],
                     if (days != null && days <= 7) ...[
                       const SizedBox(width: 6),
                       Text(lm.translate('promo_days_left').replaceAll('{n}', '${days < 0 ? 0 : days}'),
@@ -336,7 +380,7 @@ class _PromoPageState extends State<PromoPage> {
   Widget _button(LanguageManager lm, Promotion p, bool can) => switch (p.kind) {
         // 코드 이벤트 — 누르면 아래 입력칸으로(키보드가 뜬다)
         PromoKind.code => _pill(lm.translate('promo_code_only'), onTap: () => _codeFocus.requestFocus(), filled: false),
-        // 자랑하기 — 받은 날에도 공유는 된다(보상만 없다)
+        // 공유하기 — 받은 날에도 공유는 된다(보상만 없다)
         PromoKind.share => Builder(
             builder: (b) => _pill(lm.translate('promo_share'), filled: can, onTap: () {
               final box = b.findRenderObject() as RenderBox?;
@@ -347,6 +391,28 @@ class _PromoPageState extends State<PromoPage> {
             ? _pill(lm.translate('promo_claim'), onTap: () => _claim(p))
             : _pill(lm.translate(p.cooldownHours > 0 ? 'promo_done_today' : 'promo_claimed'), filled: false),
       };
+
+  /// 내 친구 코드 칩 — "내 코드 K7PQ" · 누르면 복사
+  Widget _codeChip(String code) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _copyMyCode,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(code, style: AppTextStyles.text(12, color: AppColors.primary, weight: FontWeight.w900)),
+              const SizedBox(width: 4),
+              Icon(Icons.copy_rounded, size: 11, color: AppColors.primary),
+            ],
+          ),
+        ),
+      );
 
   /// 오른쪽 버튼 — 채움(받을 게 있음) / 테두리(할 수는 있음) / 흐림(onTap 없음 = 끝남)
   Widget _pill(String label, {VoidCallback? onTap, bool filled = true}) {

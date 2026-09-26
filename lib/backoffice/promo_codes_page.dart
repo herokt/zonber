@@ -130,7 +130,7 @@ class _PromoCodesPageState extends State<PromoCodesPage> with BoReloadable {
     await reload();
     if (!mounted) return;
     if (made.isEmpty) {
-      toast(context, dup.isEmpty ? '만들지 못했습니다' : '이미 있는 코드입니다: ${dup.join(', ')}', error: true);
+      toast(context, dup.isEmpty ? '만들지 못했습니다' : '이미 있는 코드(또는 유저 친구 코드)입니다: ${dup.join(', ')}', error: true);
       return;
     }
     await showDialog<void>(context: context, builder: (_) => _CreatedDialog(made: made, dup: dup, template: draft.template));

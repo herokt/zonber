@@ -14,21 +14,41 @@
 | `halloween_2026` | **할로윈 파티** | `bonus` · 1회 | 코인 300 + 불꽃 잔상 | 2026-10-24 ~ 11-02 | 세계 공통 시즌 |
 | `holiday_2026` | **연말 선물** | `bonus` · 1회 | 코인 500 + 눈송이 잔상 | 2026-12-20 ~ 2027-01-04 | 크리스마스·새해 |
 | `sns_codes` | **공식 SNS 코드** | `code` · 안내 카드 | 코드마다 다름(§2) | 늘 | SNS 팔로우 → 코드 입력 유도 |
-| `share_daily` | **친구에게 자랑하기** | `share` · 하루 1회 | 코인 50 | 늘 | **유입 경로 자체** — OS 공유 창으로 기록 + 스토어 링크 |
+| `share_daily` | **공유하기** | `share` · 하루 1회 | 코인 50 | 늘 | **유입 경로 자체** — OS 공유 창으로 내 친구 코드 + 기록 + 스토어 링크 |
 
 기간이 있는 이벤트는 그 기간에만 보인다(기간은 UTC — 어느 나라에서나 같은 순간에 열리고 닫힌다).
 기본 이벤트의 보상·기간·문구는 백오피스에서 같은 id 로 저장하면 **서버 값이 이긴다**(앱 업데이트 없이 수정).
 
-### 자랑하기가 공유하는 문구
+### 공유하기가 보내는 문구
 
 ```
 나 ZONBER에서 이만큼 버텼다!
 ZONE 1 갤럭시 128.456s · ZONE 2 피구 96.212s
+내 코드 K7PQ — 이벤트 화면에서 입력하면 코인 200!
 https://play.google.com/store/apps/details?id=com.zonber.game
 ```
 
 `공유하기`를 누르면 OS 공유 창(`share_plus`)이 바로 떠서 카톡·인스타·X·디스코드 등 SNS로 보낸다.
 공유 창을 닫기만 하면 보상은 없고, 이미 받은 날에도 공유 자체는 된다. 공유 창을 못 띄우는 기기는 문구를 클립보드에 복사해 준다.
+게스트는 친구 코드가 없어서 코드 줄 없이 기록·링크만 나간다.
+
+### 친구 코드 (`FriendCodes` · `FriendService`)
+
+회원마다 **고유 코드 하나** — 영문 대문자·숫자 **4~5자**(헷갈리는 글자 0 O 1 I L 없음). 처음 이벤트 화면을 열 때 만든다
+(4자로 3번 시도 → 겹치면 5자). 공유하기 줄 제목 옆에 `K7PQ ⧉` 칩으로 보이고 누르면 복사된다.
+
+| 누가 | 보상 | 언제 |
+|---|---|---|
+| 코드를 **넣은** 친구 | 코인 200 (`newcomerCoins`) | 이벤트 화면 코드 입력칸에 넣자마자. **계정당 친구 코드 한 번** |
+| 코드 **주인** | 친구 1명당 코인 200 (`inviterCoins`), **최대 10명**(`maxRewarded`) | 다음에 이벤트 화면을 열 때 "친구 n명이 내 코드를 입력했어요!" |
+
+- 입력칸은 이벤트 코드와 **같은 칸** — 이벤트 코드(`promo_codes`)를 먼저 찾고, 없고 4~5자면 친구 코드로 본다.
+  이름이 겹치지 않게 친구 코드를 만들 때 이벤트 코드를, 백오피스가 이벤트 코드를 만들 때 친구 코드를 확인한다.
+- 자기 코드 → "내 코드는 입력할 수 없어요" · 두 번째 친구 코드 → "친구 코드는 한 번만 입력할 수 있어요"
+- 저장: `friend_codes/{코드}` {uid} · `users/{uid}.friendCode` · `friend_invites/{넣은 사람 uid}` {code, inviter, rewarded}
+- 규칙(`firestore.rules`): 코드는 한 사람 하나(유저 문서에 처음 적을 때만), 입력 기록은 문서 id 가 넣은 사람 uid 라
+  계정당 한 번이고 넣은 사람은 지우지 못한다(지우고 다시 넣기 방지). 코드 주인은 `rewarded` 를 false → true 로만 바꾼다.
+- 탈퇴하면 내 친구 코드를 지운다(더는 아무도 못 넣는다). 보상 수치는 `promotions.dart` 의 `FriendCodes` 상수.
 
 ### 이벤트 화면 규칙
 
@@ -96,10 +116,11 @@ https://play.google.com/store/apps/details?id=com.zonber.game
 
 ```
 lib/promotions.dart              Promotion · Promotions.builtIn · PromoCode/PromoCodes(정리·형식·생성) · PromoService(받기·redeem)
-lib/pages/promo_page.dart        PromoBanner(홈 한 줄) · PromoPage(이벤트 페이지 'Promo' — 받기·코드 입력·SNS 공유)
+                                 · FriendCodes/FriendService(내 친구 코드·친구 코드 넣기·주인 보상)
+lib/pages/promo_page.dart        PromoBanner(홈 한 줄) · PromoPage(이벤트 페이지 'Promo' — 받기·코드 입력·공유하기·내 코드 칩)
 lib/backoffice/promo_page.dart   이벤트(추가·수정·켜고 끄기·받은 수)
 lib/backoffice/promo_codes_page.dart  이벤트 코드(만들기·수정·켜고 끄기·코드 확인·사용한 사람)
-firestore.rules                  promos · promo_codes · users/{uid}/promos · users/{uid}/codes
+firestore.rules                  promos · promo_codes · users/{uid}/promos · users/{uid}/codes · friend_codes · friend_invites
 ```
 
 - **새 이벤트를 여는 두 가지 길**
@@ -118,7 +139,8 @@ firestore.rules                  promos · promo_codes · users/{uid}/promos · 
 |---|---|
 | 코드별 사용 수 = 채널별 유입 | 백오피스 이벤트 코드 목록의 **사용 / 한도** (캠페인으로 검색) |
 | 신규 가입 추이 | 대시보드 신규 가입 차트 |
-| 자랑하기 수령 수 = 공유 횟수 | 이벤트 목록(`share_daily`) |
+| 공유하기 수령 수 = 공유 횟수 | 이벤트 목록(`share_daily`) |
+| 친구 코드로 들어온 사람 | `friend_invites` 문서 수(inviter 별) |
 | 들어와서 한 판 했는지 | 플레이 기록(회원 판) |
 
 ⚠️ 보상 수치를 바꾸면 이 문서와 백오피스 값을 같이 맞춘다. 코인 경제 수치는 [SHOP.md](SHOP.md) 가 정본.
