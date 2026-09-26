@@ -38,6 +38,10 @@ class AdminGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snap) {
+        // 저장된 로그인 세션을 되살리는 중 — 로그인 창을 잠깐 띄웠다 바꾸지 않고 기다린다
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Scaffold(backgroundColor: Bo.bg, body: const BoLoading());
+        }
         final user = snap.data;
         if (isAdminUser(user)) return child;
         final signedInOther = user != null && !user.isAnonymous;
