@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import 'avatar.dart';
 import 'badges.dart';
+import 'store_shot.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 플레이어 프로필 — 누구나 볼 수 있는 한 사람의 공개 정보 한 벌.
@@ -98,6 +99,7 @@ class PlayerProfileService {
 
   static Future<PlayerProfile?> fetch(String uid, {bool refresh = false}) async {
     if (uid.isEmpty) return null;
+    if (kStoreShot) return PlayerProfile.fromUserDoc(uid, StoreShot.userDoc(uid)); // 스크린샷 모드 — 가짜 랭커
     final hit = _cache[uid];
     if (!refresh && hit != null && DateTime.now().difference(hit.at) < _ttl) return hit.profile;
     try {

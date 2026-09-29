@@ -14,10 +14,10 @@ Play 정책상 이름·간단한 설명에는 "무료·1위·할인·선물" 같
 |---|---|---|
 | 앱 아이콘 | 512×512 PNG(32비트, 알파 가능) | `store/play_icon_512.png` |
 | 그래픽 이미지 | 1024×500 JPG/PNG(알파 없음) · 언어별 | `store/feature_graphic/{ko,en,ja,zh}.png` — `node scripts/make_feature_graphic.mjs` (아이콘 · ZONBER · 한 줄 문구 + 세 존 경기장 카드) |
-| 휴대전화 스크린샷 | 2~8장 · 9:16 · 1080×1920 이상 권장(긴 변 ≤ 짧은 변 × 2) | `store/screenshots_play/{ko,en,ja,zh}/phone/` 6장 (`index.html` 로 한눈에 보기) |
+| 휴대전화 스크린샷 | 2~8장 · 9:16 · 1080×1920 이상 권장(긴 변 ≤ 짧은 변 × 2) | `store/screenshots_play/{ko,en,ja,zh}/phone/` 8장 (`index.html` 로 한눈에 보기 · App Store 10장 중 뱃지·홈 뺌) |
 | 태블릿 스크린샷(선택) | 7·10인치 · 긴 변 ≤ 짧은 변 × 2 | iPad 이미지 `store/screenshots/{lang}/ipad/`(2064×2752)가 규격에 맞는다 |
 
-> 휴대전화 스크린샷은 실제 기기(Galaxy S24+)에서 **스크린샷 모드**로 찍어 합성한다(2026-09-24, 2.0.0 화면).
+> 휴대전화 스크린샷은 실제 기기(Galaxy S24+)에서 **스크린샷 모드**로 찍어 합성한다(2026-09-30, 2.0.3 화면 — App Store 이미지와 같은 원본·문구).
 > 랭킹·세계 신기록은 가짜 기록(실제 유저 닉네임이 나오지 않게), 판은 공이 많은 순간에서 멈춘 모습이다.
 > ```
 > flutter build apk --release --dart-define=STORE_SHOT=true   # 스크린샷 모드 (lib/store_shot.dart)

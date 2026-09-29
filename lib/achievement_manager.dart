@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'services/auth_service.dart';
+import 'store_shot.dart';
 
 // 뱃지(업적) 저장소 — 얻은 뱃지 키를 prefs + users/{uid}.achievements 에 둔다.
 // 뱃지 정의·조건은 badges.dart(Badges). 옛 업적 키(ach_*)는 그대로 뱃지로 이어진다.
@@ -16,7 +17,7 @@ class AchievementManager {
 
   /// Adds new keys to the user's permanent achievement set.
   static Future<void> unlock(List<String> newKeys) async {
-    if (newKeys.isEmpty || AuthService.isGuest) return; // 게스트는 뱃지를 얻지 않는다
+    if (newKeys.isEmpty || AuthService.isGuest || kStoreShot) return; // 게스트는 뱃지를 얻지 않는다 · 스크린샷 모드는 저장하지 않는다
     final prefs = await SharedPreferences.getInstance();
     final existing = Set<String>.from(
       prefs.getStringList(_keyAchievements) ?? [],
@@ -39,6 +40,7 @@ class AchievementManager {
 
   /// Returns the current user's locally cached achievement keys.
   static Future<List<String>> getMine() async {
+    if (kStoreShot) return StoreShot.myBadges;
     final prefs = await SharedPreferences.getInstance();
     return prefs.getStringList(_keyAchievements) ?? [];
   }

@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'coin_store.dart';
 import 'services/analytics_service.dart';
 import 'services/auth_service.dart';
+import 'store_shot.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 프로모션(이벤트) — 신규 유입·복귀를 노리는 가벼운 보상 이벤트 한 벌.
@@ -550,14 +551,17 @@ class PromoService {
       return _cache;
     }
     final byId = {for (final p in Promotions.builtIn) p.id: p};
-    try {
-      final snap = await FirebaseFirestore.instance.collection(collection).get();
-      for (final d in snap.docs) {
-        final p = Promotions.fromServer(d.id, d.data());
-        if (p != null) byId[d.id] = p;
+    // 스크린샷 모드는 앱 기본 이벤트만(운영 중인 서버 이벤트가 이미지에 섞이지 않게)
+    if (!kStoreShot) {
+      try {
+        final snap = await FirebaseFirestore.instance.collection(collection).get();
+        for (final d in snap.docs) {
+          final p = Promotions.fromServer(d.id, d.data());
+          if (p != null) byId[d.id] = p;
+        }
+      } catch (e) {
+        debugPrint('promos load failed: $e');
       }
-    } catch (e) {
-      debugPrint('promos load failed: $e');
     }
     _cache = Promotions.live(byId.values.toList())
       ..sort((a, b) => a.kind.index.compareTo(b.kind.index));

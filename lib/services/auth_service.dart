@@ -26,7 +26,7 @@ class AuthService {
   /// (예전 버전이 만든 익명 세션도 게스트로 본다 — 시작할 때 로그아웃시킨다)
   static bool get isGuest {
     if (debugIsGuest != null) return debugIsGuest!;
-    if (kStoreShot) return true; // 스토어 스크린샷 — 늘 처음 시작한 게스트처럼
+    if (kStoreShot) return !StoreShot.member; // 스토어 스크린샷 — 늘 처음 시작한 게스트처럼(결과 화면 한 장만 회원 모습)
     final user = FirebaseAuth.instance.currentUser;
     return user == null || user.isAnonymous;
   }
