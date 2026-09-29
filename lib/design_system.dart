@@ -58,6 +58,42 @@ class AppColors {
         systemNavigationBarColor: Colors.transparent,
         systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       );
+
+  /// 색이 채워진 자리(버튼·배지·메달) 위 글자·아이콘 색 — 배경이 밝으면 짙은 글자, 어두우면 흰 글자.
+  /// 코인·골드·primary 는 다크 모드에서 더 밝아져 흰 글자가 묻힌다 → 채움 위에는 `Colors.white` 대신 이것을 쓴다
+  static Color on(Color fill) =>
+      ThemeData.estimateBrightnessForColor(fill) == Brightness.light ? const Color(0xFF0B0D12) : Colors.white;
+
+  /// Material 기본 테마 — 색을 지정하지 않은 글자(스낵바·입력칸 글자 수·기본 버튼)가 테마를 따라가게.
+  /// 없으면 늘 라이트 기본(검은 글자)이라 다크 모드에서 어두운 바탕에 검은 글자가 된다
+  static ThemeData get materialTheme {
+    final b = isDark ? Brightness.dark : Brightness.light;
+    final base = ThemeData(brightness: b, useMaterial3: true);
+    return base.copyWith(
+      colorScheme: ColorScheme(
+        brightness: b,
+        primary: primary,
+        onPrimary: on(primary),
+        secondary: primary,
+        onSecondary: on(primary),
+        error: danger,
+        onError: on(danger),
+        surface: surface,
+        onSurface: text,
+        onSurfaceVariant: textDim,
+        outline: textDim,
+      ),
+      scaffoldBackgroundColor: background,
+      canvasColor: background,
+      textTheme: base.textTheme.apply(bodyColor: text, displayColor: text),
+      iconTheme: IconThemeData(color: text),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: primary,
+        selectionColor: primary.withValues(alpha: 0.3),
+        selectionHandleColor: primary,
+      ),
+    );
+  }
 }
 
 class AppTextStyles {
@@ -405,7 +441,7 @@ class _NeonButtonState extends State<NeonButton> {
     final accent = widget.color ?? AppColors.primary;
     final bool filled = widget.isPrimary;
     final Color bg = filled ? accent : AppColors.surface2;
-    final Color fg = filled ? AppColors.background : (widget.color ?? AppColors.text);
+    final Color fg = filled ? AppColors.on(accent) : (widget.color ?? AppColors.text);
     final double h = widget.isCompact ? 44 : 56;
     final bool disabled = widget.onPressed == null;
 
@@ -522,13 +558,13 @@ class AppChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: filled ? AppColors.background : c),
+            Icon(icon, size: 14, color: filled ? AppColors.on(c) : c),
             const SizedBox(width: 4),
           ],
           Text(
             label,
             style: AppTextStyles.text(12,
-                color: filled ? AppColors.background : (color ?? AppColors.text),
+                color: filled ? AppColors.on(c) : (color ?? AppColors.text),
                 weight: FontWeight.w700),
           ),
         ],

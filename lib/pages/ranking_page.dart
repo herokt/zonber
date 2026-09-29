@@ -264,9 +264,9 @@ class _RankingPageState extends State<RankingPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
+              Icon(Icons.play_arrow_rounded, color: AppColors.on(accent), size: 18),
               const SizedBox(width: 3),
-              Text(lm.translate('rank_play'), style: AppTextStyles.text(13, color: Colors.white, weight: FontWeight.w800)),
+              Text(lm.translate('rank_play'), style: AppTextStyles.text(13, color: AppColors.on(accent), weight: FontWeight.w800)),
             ],
           ),
         ),
@@ -468,7 +468,7 @@ class _Podium extends StatelessWidget {
                         border: Border.all(color: AppColors.surface, width: 2),
                       ),
                       alignment: Alignment.center,
-                      child: Text('${i + 1}', style: AppTextStyles.display(11, color: Colors.white)),
+                      child: Text('${i + 1}', style: AppTextStyles.display(11, color: AppColors.on(medal))),
                     ),
                   ),
                 ],

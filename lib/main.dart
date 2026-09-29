@@ -559,6 +559,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         PointerDeviceKind.stylus,
       }),
       locale: Locale(LanguageManager().currentLanguage),
+      theme: AppColors.materialTheme, // 다크 모드 전환(_applyTheme → setState)마다 다시 만든다
       // 스토어 스크린샷 — 시스템 바를 숨겼으니 위쪽에 상태바 자리를 비워 둔다(합성 때 그 자리에 상태바를 그린다)
       builder: kStoreShot
           ? (context, child) {

@@ -127,9 +127,10 @@ class _ResultPageState extends State<ResultPage> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 16),
+                    Icon(Icons.play_circle_fill_rounded, color: AppColors.on(AppColors.coin), size: 16),
                     const SizedBox(width: 5),
-                    Text(lm.translate('coin_double_ad'), style: AppTextStyles.text(12, color: Colors.white, weight: FontWeight.w800)),
+                    Text(lm.translate('coin_double_ad'),
+                        style: AppTextStyles.text(12, color: AppColors.on(AppColors.coin), weight: FontWeight.w800)),
                   ],
                 ),
               ),
