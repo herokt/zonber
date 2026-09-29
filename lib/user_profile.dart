@@ -781,8 +781,8 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
                                 Flexible(
                                   child: Text(
                                     _selectedCountryName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: AppColors.text, // 흰색 고정이면 라이트 모드 흰 칸에서 안 보인다
                                       fontSize: 16,
                                     ),
                                     overflow: TextOverflow.ellipsis,
@@ -852,8 +852,8 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
       },
       countryListTheme: CountryListThemeData(
         backgroundColor: AppColors.surface,
-        textStyle: const TextStyle(color: Colors.white),
-        searchTextStyle: const TextStyle(color: Colors.white),
+        textStyle: TextStyle(color: AppColors.text),
+        searchTextStyle: TextStyle(color: AppColors.text),
         bottomSheetHeight: 500,
         borderRadius: BorderRadius.circular(20),
         inputDecoration: InputDecoration(

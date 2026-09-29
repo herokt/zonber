@@ -331,7 +331,7 @@ class _ShopPageState extends State<ShopPage> {
             borderRadius: BorderRadius.circular(13),
             border: Border.all(color: on ? AppColors.primary : AppColors.line),
           ),
-          child: Icon(c.icon, size: 20, color: on ? Colors.white : AppColors.textDim),
+          child: Icon(c.icon, size: 20, color: on ? AppColors.on(AppColors.primary) : AppColors.textDim),
         ),
       ),
     );
@@ -373,11 +373,11 @@ class _ShopPageState extends State<ShopPage> {
                     const SizedBox(width: 5),
                     Text(formatCount(picked.price),
                         style: AppTextStyles.display(12,
-                            color: CoinStore.balance.value >= picked.price ? Colors.white : AppColors.textDim)),
+                            color: CoinStore.balance.value >= picked.price ? AppColors.on(AppColors.coin) : AppColors.textDim)),
                     const SizedBox(width: 6),
                     Text(lm.translate('shop_buy'),
                         style: AppTextStyles.text(12,
-                            color: CoinStore.balance.value >= picked.price ? Colors.white : AppColors.textDim,
+                            color: CoinStore.balance.value >= picked.price ? AppColors.on(AppColors.coin) : AppColors.textDim,
                             weight: FontWeight.w800)),
                   ],
                 ),
@@ -637,7 +637,7 @@ class _ShopPageState extends State<ShopPage> {
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(color: _equippedColor, shape: BoxShape.circle),
-                        child: const Icon(Icons.check_rounded, size: 13, color: Colors.white),
+                        child: Icon(Icons.check_rounded, size: 13, color: AppColors.on(_equippedColor)),
                       ),
                     )
                   else if (item.previewing)

@@ -397,7 +397,7 @@ class _DailySheetState extends State<_DailySheet> {
             const SizedBox(width: 4),
             Text(
               state == 2 ? lm.translate('claimed') : (ready ? '${lm.translate('claim')} +$coins' : '+$coins'),
-              style: AppTextStyles.text(12, color: ready ? Colors.white : AppColors.textDim, weight: FontWeight.w800),
+              style: AppTextStyles.text(12, color: ready ? AppColors.on(AppColors.coin) : AppColors.textDim, weight: FontWeight.w800),
             ),
           ],
         ),
@@ -415,7 +415,7 @@ class _DailySheetState extends State<_DailySheet> {
           color: enabled ? AppColors.coin : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Text(label, style: AppTextStyles.text(14, color: enabled ? Colors.white : AppColors.textDim, weight: FontWeight.w900)),
+        child: Text(label, style: AppTextStyles.text(14, color: enabled ? AppColors.on(AppColors.coin) : AppColors.textDim, weight: FontWeight.w900)),
       ),
     );
   }

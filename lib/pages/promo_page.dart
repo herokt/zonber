@@ -106,7 +106,7 @@ class _PromoBannerState extends State<PromoBanner> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(color: AppColors.coin, borderRadius: BorderRadius.circular(999)),
                 child: Text(lm.translate('promo_claimable').replaceAll('{n}', '$_claimable'),
-                    style: AppTextStyles.text(10.5, color: Colors.white, weight: FontWeight.w900)),
+                    style: AppTextStyles.text(10.5, color: AppColors.on(AppColors.coin), weight: FontWeight.w900)),
               ),
               const SizedBox(width: 6),
             ],
@@ -409,7 +409,7 @@ class _PromoPageState extends State<PromoPage> {
   Widget _pill(String label, {VoidCallback? onTap, bool filled = true}) {
     final enabled = onTap != null;
     final color = filled && enabled ? AppColors.coin : Colors.transparent;
-    final textColor = filled && enabled ? Colors.white : (enabled ? AppColors.coin : AppColors.textDim);
+    final textColor = filled && enabled ? AppColors.on(AppColors.coin) : (enabled ? AppColors.coin : AppColors.textDim);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _busy ? null : onTap,
