@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 /// - 모바일(Android/iOS)에서만 활성. 웹/데스크톱과 초기화 실패 시 전부 no-op.
 /// - 이벤트 이름·파라미터는 이 파일에만 둔다 (호출부에서 문자열을 만들지 않는다).
 /// - 퍼널 순서: session_ready → game_start → game_over → (revive | score_submit)
+/// - 성장: share · promo_claim · promo_code_redeem · sign_up/login · earn/spend_virtual_currency · unlock_achievement · review_prompt
 class AnalyticsService {
   static final AnalyticsService _instance = AnalyticsService._internal();
   factory AnalyticsService() => _instance;
@@ -89,11 +90,17 @@ class AnalyticsService {
   /// 로그인 화면에서 게스트로 계속하기를 눌러 로그인을 건너뛴 시점.
   Future<void> logLoginSkipped() => _log('login_skipped');
 
-  Future<void> logLogin(String method) async {
+  /// 로그인 성공. 처음 만든 계정이면 표준 `sign_up`, 원래 있던 계정이면 표준 `login` —
+  /// 게스트 → 회원 전환(sign_up)과 재로그인을 나눠 본다.
+  Future<void> logLogin(String method, {bool isNewUser = false}) async {
     final a = _analytics;
     if (a == null) return;
     try {
-      await a.logLogin(loginMethod: method);
+      if (isNewUser) {
+        await a.logSignUp(signUpMethod: method);
+      } else {
+        await a.logLogin(loginMethod: method);
+      }
       await _setUserProperty('login_provider', method);
       await _setUserProperty('is_guest', 'false');
     } catch (e) {
@@ -162,6 +169,73 @@ class AnalyticsService {
   /// 게스트가 점수 제출을 눌렀다가 로그인 안내를 받은 시점 — 게스트→계정 전환 퍼널의 입구.
   Future<void> logGuestRankingBlocked({required double survivalTime}) =>
       _log('guest_ranking_blocked', {'survival_time': _round3(survivalTime)});
+
+  // ── 공유 / 이벤트 ───────────────────────────────────────────────────
+
+  /// 표준 `share` — [src] 어디서(result · promo) · [itemId] 무엇을(맵 id · 이벤트 id) ·
+  /// [method] 어느 앱으로(iOS·일부 Android 는 고른 앱, 모르면 os, 공유 창이 없으면 clipboard).
+  /// 게스트 공유와 하루 두 번째 공유도 센다(백오피스 share_daily 수령 수는 회원 하루 한 번뿐).
+  Future<void> logShare({required String src, required String itemId, required String method}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logShare(contentType: src, itemId: itemId, method: _cut(method));
+    } catch (e) {
+      debugPrint('Analytics share failed: $e');
+    }
+  }
+
+  /// 이벤트 보상을 받은 시점 — 환영 선물을 받은 사람이 더 오래 남는지 퍼널로 본다
+  Future<void> logPromoClaim({required String promoId, required String kind, required int coins}) =>
+      _log('promo_claim', {'promo_id': promoId, 'kind': kind, 'coins': coins});
+
+  /// 이벤트·친구 코드 입력 — 실패도 남긴다([result] = RedeemResult 이름). 코드 원문은 남기지 않고 캠페인만
+  Future<void> logPromoCodeRedeem({required String result, String? campaign, int coins = 0}) => _log('promo_code_redeem', {
+        'result': result,
+        'campaign': campaign ?? 'unknown',
+        'coins': coins,
+      });
+
+  /// 앱 리뷰 창을 요청한 시점(OS 가 실제로 띄웠는지는 알 수 없다)
+  Future<void> logReviewPrompt({required int runs}) => _log('review_prompt', {'runs': runs});
+
+  // ── 코인 / 뱃지 ─────────────────────────────────────────────────────
+
+  /// 표준 `earn_virtual_currency` — [source] run · ad_double · mission · all_clear · check_in · promo · friend
+  Future<void> logEarnCoins({required String source, required int amount}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEarnVirtualCurrency(virtualCurrencyName: 'coin', value: amount, parameters: {'source': source});
+    } catch (e) {
+      debugPrint('Analytics earn_virtual_currency failed: $e');
+    }
+  }
+
+  /// 표준 `spend_virtual_currency` — [item] 무엇에 썼나(아이템 id · name_ticket)
+  Future<void> logSpendCoins({required String item, required int amount}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logSpendVirtualCurrency(itemName: item, virtualCurrencyName: 'coin', value: amount);
+    } catch (e) {
+      debugPrint('Analytics spend_virtual_currency failed: $e');
+    }
+  }
+
+  /// 표준 `unlock_achievement` — 뱃지를 새로 얻은 시점
+  Future<void> logBadge(String badgeKey) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logUnlockAchievement(id: badgeKey);
+    } catch (e) {
+      debugPrint('Analytics unlock_achievement failed: $e');
+    }
+  }
+
+  /// GA4 파라미터 값은 100자까지
+  static String _cut(String v) => v.length <= 100 ? v : v.substring(0, 100);
 
   static double _round3(double v) => (v * 1000).round() / 1000;
 }

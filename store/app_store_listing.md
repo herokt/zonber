@@ -1,16 +1,24 @@
-# ZONBER — App Store 소개 문구 (2.0.0)
+# ZONBER — App Store 소개 문구 (2.0.3 예정)
 
 App Store Connect › 앱 › 배포 탭 › 해당 언어에 붙여 넣으면 된다. 괄호 안은 글자 수 제한. 스크린샷은 `store/screenshots/{en,ko,ja,zh}/{iphone,ipad}/` (index.html 로 한눈에 보기) — 중국어는 간체(zh-Hans).
+
+**검색(ASO) 원칙 (2026-09-29)**
+- Apple 은 **이름 + 부제 + 키워드**를 합쳐 검색에 쓴다 → 세 칸에 같은 단어를 두 번 넣지 않는다(중복은 칸 낭비).
+- 신규 브랜드는 이름으로 검색되지 않는다 → 이름에 `ZONBER: <핵심 키워드>` 를 붙인다. 앱 이름은 언어별로 다르게 둘 수 있다.
+- 이름·부제·키워드는 **새 버전 심사 때만** 바뀐다. **프로모션 텍스트는 심사 없이 언제든** 바꿀 수 있다 → 진행 중인 이벤트 홍보 자리로 쓴다.
 
 ---
 
 ## 한국어
 
-### 부제 (30자)
-좁은 존에서 끝까지 버텨라
+### 앱 이름 (30자)
+ZONBER: 탄막 피하기 생존게임
 
-### 프로모션 텍스트 (170자)
-갤럭시·피구·프리킥, 3개의 존에서 몇 초나 버틸 수 있을까? 손가락 하나로 피하고 막고, 주간·월간 세계 랭킹에 이름을 올려 보세요.
+### 부제 (30자)
+피구·프리킥까지, 손가락 하나로 버텨라
+
+### 프로모션 텍스트 (170자) — 심사 없이 바꿀 수 있음, 이벤트가 바뀌면 여기부터
+지금 시작하면 환영 선물 코인 300 + 구름 스킨! 친구 코드를 넣으면 친구와 나 모두 코인 200. 판이 끝나면 기록과 세계 순위를 자랑하고 친구에게 도전장을 보내 보세요.
 
 ### 설명 (4000자)
 좁은 존 안에서 쏟아지는 공을 피하며 최대한 오래 버티세요.
@@ -35,6 +43,11 @@ App Store Connect › 앱 › 배포 탭 › 해당 언어에 붙여 넣으면 �
 • 뱃지 46종 — 생존, 기술, 랭킹, 수집, 출석까지
 • 매일 바뀌는 오늘의 미션과 출석 보상
 
+■ 친구와 겨루기
+• 판이 끝나면 기록과 세계 순위를 바로 자랑 — 카톡·인스타로 도전장을 보내세요
+• 친구 코드를 입력하면 친구와 나 모두 코인 200
+• 처음 오면 환영 선물(코인 300 + 구름 스킨), SNS 이벤트 코드로 추가 보상
+
 ■ 가볍게 시작
 • 로그인 없이 바로 플레이할 수 있습니다
 • 기록을 랭킹에 올리고 코인·뱃지를 모으려면 Google 또는 Apple로 로그인하세요
@@ -42,26 +55,28 @@ App Store Connect › 앱 › 배포 탭 › 해당 언어에 붙여 넣으면 �
 
 오늘 기록, 어제보다 1초만 더 버텨 보세요.
 
-### 키워드 (100자, 쉼표로 구분 · 띄어쓰기 없이)
-탄막,피하기,생존,서바이벌,하이퍼캐주얼,피구,프리킥,골키퍼,페널티킥,랭킹,아케이드,원터치,반응속도,회피,존버,캐주얼게임
+### 키워드 (100자, 쉼표로 구분 · 띄어쓰기 없이) — 이름·부제에 있는 탄막·피하기·생존게임·피구·프리킥·손가락은 뺐다
+서바이벌,하이퍼캐주얼,골키퍼,페널티킥,랭킹,아케이드,원터치,반응속도,회피,존버,캐주얼게임,슈팅,축구,총알피하기,똥피하기,시간때우기,한손게임,생존
 
 ### 이번 버전의 새로운 기능 (4000자)
-ZONBER 2.0 — 완전히 새로워졌습니다.
-• 3개의 존: 갤럭시 · 피구 · 프리킥
-• 캐릭터 8종과 몸통 스킨·잔상·오라·존별 장비
-• 뱃지 46종, 오늘의 미션과 출석 보상
-• 주간·월간·연간 세계/나라별 랭킹
-• 로그인 없이 바로 플레이
+• 결과 화면에서 바로 기록 자랑하기 — 세계 순위와 내 친구 코드가 함께 나갑니다
+• 친구 코드: 입력하면 친구와 나 모두 코인 200
+• 이벤트: 환영 선물, 매일 공유 보상, SNS 이벤트 코드
+• 공유 링크가 iPhone·Android 모두 알맞은 스토어로 연결됩니다
+• 작은 개선과 버그 수정
 
 ---
 
 ## English
 
-### Subtitle (30)
-Dodge, survive, rank worldwide
+### App Name (30)
+ZONBER: Dodge & Survive
 
-### Promotional Text (170)
-Galaxy, Dodgeball, FreeKick — how long can you last in each zone? Dodge and block with one finger, and climb the weekly and monthly world rankings.
+### Subtitle (30)
+Bullet hell arcade, one finger
+
+### Promotional Text (170) — editable without review
+New players get a welcome gift: 300 coins + Cloud skin! Enter a friend's code and you both get 200 coins. Brag your time and world rank, then challenge your friends.
 
 ### Description (4000)
 Stay inside a tight zone, dodge everything thrown at you, and survive as long as you can.
@@ -86,6 +101,11 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • 46 badges for survival, skill, rankings, collecting and check-ins
 • New daily missions and check-in rewards every day
 
+■ CHALLENGE YOUR FRIENDS
+• Brag your time and world rank the moment a run ends — send a challenge to any chat app
+• Enter a friend's code and you both get 200 coins
+• Welcome gift for new players (300 coins + Cloud skin), plus bonus codes on our socials
+
 ■ JUMP RIGHT IN
 • Play instantly — no login needed
 • Sign in with Google or Apple to post your records and keep your coins and badges
@@ -93,23 +113,28 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 
 Beat yesterday by just one more second.
 
-### Keywords (100, comma-separated, no spaces)
-bullet,dodge,survival,casual,dodgeball,goalkeeper,penalty,arcade,reflex,finger,soccer,ball,free kick
+### Keywords (100, comma-separated, no spaces) — no words already in the name/subtitle (dodge, survive, bullet, hell, arcade, finger)
+danmaku,shmup,dodgeball,goalkeeper,penalty,soccer,football,freekick,reflex,casual,avoid,ranking
 
 ### What's New (4000)
-ZONBER 2.0 — rebuilt from the ground up.
-• 3 zones: Galaxy, Dodgeball and FreeKick
-• 8 characters plus body skins, trails, auras and gear for each zone
-• 46 badges, daily missions and check-in rewards
-• Weekly, monthly and yearly rankings — worldwide and by country
-• Play instantly, no login needed
+• Brag right from the results screen — your world rank and friend code go with it
+• Friend codes: enter one and you both get 200 coins
+• Events: welcome gift, daily share reward and codes from our socials
+• Shared links now open the right store on both iPhone and Android
+• Small improvements and bug fixes
 
 ---
 
 ## 日本語
 
-### プロモーションテキスト (170)
-ギャラクシー・ドッジボール・フリーキック、3つのゾーンで何秒耐えられる？指1本でかわして、止めて、週間・月間の世界ランキングに名前を刻もう。
+### App 名 (30)
+ZONBER: 弾幕よけサバイバル
+
+### サブタイトル (30)
+ドッジボールもPKも指1本で耐えろ
+
+### プロモーションテキスト (170) — 審査なしで変更可
+今はじめると歓迎ギフト：コイン300 + くもスキン！フレンドコードを入力すると自分も友だちもコイン200。記録と世界順位を自慢して、友だちに挑戦状を送ろう。
 
 ### 説明 (4000)
 狭いゾーンの中で、飛んでくるすべてをかわし、できるだけ長く生き残ろう。
@@ -134,6 +159,11 @@ ZONBER 2.0 — rebuilt from the ground up.
 • バッジ46種 — 生存、テクニック、ランキング、コレクション、出席まで
 • 毎日の「今日のミッション」と出席ボーナス
 
+■ 友だちと勝負
+• 1プレイ終わったら記録と世界順位をすぐ自慢 — メッセージアプリで挑戦状を送ろう
+• フレンドコードを入力すると、自分も友だちもコイン200
+• はじめての方に歓迎ギフト（コイン300 + くもスキン）、SNSのイベントコードでさらに報酬
+
 ■ 気軽にスタート
 • ログインなしですぐにプレイ
 • 記録をランキングに載せ、コインやバッジを貯めるにはGoogleまたはAppleでログイン
@@ -141,23 +171,28 @@ ZONBER 2.0 — rebuilt from the ground up.
 
 昨日より、あと1秒だけ長く。
 
-### キーワード (100)
-弾幕,よける,サバイバル,カジュアル,ドッジボール,ゴールキーパー,PK,アーケード,反射神経,指一本,サッカー,ボール,フリーキック,暇つぶし,ハイパーカジュアル,避けゲー
+### キーワード (100) — 名前・サブタイトルにある弾幕よけ・サバイバル・ドッジボール・PK・指1本は除いた
+弾幕,避けゲー,よける,カジュアル,ゴールキーパー,アーケード,反射神経,サッカー,ボール,フリーキック,暇つぶし,ハイパーカジュアル,シューティング,ランキング,片手
 
 ### このバージョンの新機能 (4000)
-ZONBER 2.0 — すべてが新しくなりました。
-• 3つのゾーン：ギャラクシー・ドッジボール・フリーキック
-• キャラクター8種、ボディスキン・トレイル・オーラ・ゾーン別の装備
-• バッジ46種、今日のミッションと出席ボーナス
-• 週間・月間・年間ランキング（世界・国別）
-• ログインなしですぐにプレイ
+• 結果画面からすぐに記録を自慢 — 世界順位とフレンドコードも一緒に
+• フレンドコード：入力すると自分も友だちもコイン200
+• イベント：歓迎ギフト、毎日のシェア報酬、SNSのイベントコード
+• シェアしたリンクが iPhone・Android どちらでも正しいストアに
+• 細かな改善と不具合の修正
 
 ---
 
 ## 简体中文
 
-### 推广文本 (170)
-银河、躲避球、任意球——在三个区域里你能坚持多久？一根手指闪避与扑救，登上每周、每月的世界排行榜。
+### App 名称 (30)
+ZONBER：躲弹幕生存挑战
+
+### 副标题 (30)
+躲避球、点球，一根手指撑到底
+
+### 推广文本 (170) — 无需审核即可修改
+新玩家欢迎礼：300 金币 + 云朵皮肤！输入好友代码，你和好友各得 200 金币。炫耀你的成绩与全球排名，向好友发起挑战吧。
 
 ### 描述 (4000)
 待在狭小的区域里，躲开飞来的一切，尽可能坚持得更久。
@@ -182,6 +217,11 @@ ZONBER 2.0 — すべてが新しくなりました。
 • 46枚徽章——生存、技巧、排名、收集、签到
 • 每日刷新的今日任务与签到奖励
 
+■ 和好友一较高下
+• 每局结束立即炫耀成绩与全球排名——一键向好友发起挑战
+• 输入好友代码，你和好友各得 200 金币
+• 新玩家欢迎礼（300 金币 + 云朵皮肤），社媒兑换码还有额外奖励
+
 ■ 轻松开始
 • 无需登录，立即开玩
 • 使用 Google 或 Apple 登录，即可上传排名记录并保存金币和徽章
@@ -189,13 +229,12 @@ ZONBER 2.0 — すべてが新しくなりました。
 
 今天，比昨天多坚持一秒。
 
-### 关键词 (100)
-弹幕,躲避,生存,休闲,躲避球,守门员,点球,街机,反应,手指,足球,球类,任意球,闪避,单指,小游戏,挑战
+### 关键词 (100) — 已去掉名称、副标题中的躲弹幕、生存、挑战、躲避球、点球、手指
+弹幕,躲避,休闲,守门员,街机,反应,足球,球类,任意球,闪避,单指,小游戏,排行榜,射击,解压,打发时间,生存游戏,手速,反应力,躲球
 
 ### 此版本的新增内容 (4000)
-ZONBER 2.0 — 全面焕新。
-• 3个区域：银河、躲避球、任意球
-• 8个角色，以及身体皮肤、拖尾、光环和各区域专属装备
-• 46枚徽章、今日任务与签到奖励
-• 周榜、月榜、年榜——全球与国家排名
-• 无需登录，立即开玩
+• 结算画面一键炫耀成绩——全球排名和好友代码一起分享
+• 好友代码：输入即可让你和好友各得 200 金币
+• 活动：欢迎礼、每日分享奖励、社媒兑换码
+• 分享链接在 iPhone 和 Android 上都会打开对应的应用商店
+• 细节优化与问题修复

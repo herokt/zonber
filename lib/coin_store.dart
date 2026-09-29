@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'services/analytics_service.dart';
 import 'services/auth_service.dart';
 import 'store_shot.dart';
 
@@ -91,19 +92,22 @@ class CoinStore {
     }
   }
 
-  static Future<void> add(int amount) async {
+  /// [source] = 어디서 얻었나(분석용 — run · ad_double · mission · all_clear · check_in · promo · friend)
+  static Future<void> add(int amount, {required String source}) async {
     if (amount <= 0 || AuthService.isGuest) return;
     await _ensure();
     balance.value += amount;
     await _save();
+    AnalyticsService().logEarnCoins(source: source, amount: amount);
   }
 
-  /// 잔액이 모자라면 false (아무것도 바뀌지 않는다)
-  static Future<bool> spend(int amount) async {
+  /// 잔액이 모자라면 false (아무것도 바뀌지 않는다). [item] = 무엇에 썼나(분석용)
+  static Future<bool> spend(int amount, {required String item}) async {
     await _ensure();
     if (amount < 0 || balance.value < amount) return false;
     balance.value -= amount;
     await _save();
+    AnalyticsService().logSpendCoins(item: item, amount: amount);
     return true;
   }
 
@@ -132,6 +136,7 @@ class CoinStore {
     balance.value -= price;
     _owned.add(itemId);
     await _save();
+    AnalyticsService().logSpendCoins(item: itemId, amount: price);
     return true;
   }
 

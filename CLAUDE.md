@@ -100,6 +100,8 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `character_data.dart` | 캐릭터 정의 8종 + `CharacterStats`(능력치는 전부 동일 — 캐릭터는 외형·표정만 다르다) |
 | `game_guide_sheet.dart` | 게임 방법 가이드 바텀시트 (아이템 탭은 파워업 제거와 함께 삭제) |
 | `services/analytics_service.dart` | Firebase Analytics 래퍼. **이벤트 이름·파라미터는 이 파일에만** 둔다 (모바일 외 no-op) |
+| `services/share_service.dart` | **공유 단일 출처** — `ShareLinks.url(lang, src)`(공유용 페이지 `/get/{lang}/?src=` 주소) + `ShareService.share`(OS 공유 창 · 안 되면 복사 · `share` 이벤트). 공유 문구에 스토어 주소를 직접 쓰지 않는다 |
+| `services/review_service.dart` | `ReviewPrompt` — 신기록·새 뱃지가 있었던 회원이 홈으로 나갈 때, 5판 이상 · 120일에 한 번 앱 리뷰 창(`in_app_review`) |
 | `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
 | `promotions.dart` | **이벤트(프로모션) 단일 출처** — `Promotion` 모델 · `Promotions.builtIn`(앱 기본 7종, 4개 언어) · `PromoCode`/`PromoCodes`(이벤트 코드: 정리·형식·자동 생성) · `PromoService`(서버 목록 병합·받기·중복 차단·`redeem` 코드 사용). 새 이벤트는 백오피스에서 `promos/{id}` 추가 = 앱 업데이트 없이 반영. 기획·운영법은 [docs/PROMOTIONS.md](docs/PROMOTIONS.md) |
@@ -293,7 +295,9 @@ custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규�
 
 ## Analytics
 
-`AnalyticsService()`(모바일 전용, 그 외 no-op). 퍼널: `session_ready`(유저 속성 `is_guest`/`login_provider`) → `game_start` → `game_over`(+표준 `post_score`) → `revive` | `score_submit` | `guest_ranking_blocked`. 화면은 `_navigateTo()`에서 `logScreen(page)`로 자동 기록. 새 이벤트는 반드시 `analytics_service.dart`에 메서드로 추가하고 호출부에서 문자열을 만들지 않는다.
+`AnalyticsService()`(모바일 전용, 그 외 no-op). 퍼널: `session_ready`(유저 속성 `is_guest`/`login_provider`) → `game_start` → `game_over`(+표준 `post_score`) → `revive` | `score_submit` | `guest_ranking_blocked`.
+성장 지표(2026-09-29): 표준 `sign_up`(새 계정)/`login`(재로그인) · `share`(content_type = result·promo) · `promo_claim` · `promo_code_redeem`(실패 포함, 캠페인만) · `earn_virtual_currency`(source)/`spend_virtual_currency`(`CoinStore.add/spend` 가 직접 남긴다) · `unlock_achievement`(뱃지) · `review_prompt`.
+공유 링크는 `https://stayzone-88364.web.app/get/{lang}/?src=` — `node scripts/make_share_page.mjs` 가 `hosting_root/get/` 에 만들고(OS별 스토어 이동 · Play `referrer` UTM · og 미리보기) `deploy_admin.bat` 이 같이 올린다. 화면은 `_navigateTo()`에서 `logScreen(page)`로 자동 기록. 새 이벤트는 반드시 `analytics_service.dart`에 메서드로 추가하고 호출부에서 문자열을 만들지 않는다.
 
 ## 오디오 에셋
 

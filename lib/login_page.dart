@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
       // Do NOT auto-create a profile here — let _checkProfile() route to
       // InitialSetupPage if no profile exists, so the user can pick a country.
       await UserProfileManager.syncProfile();
-      AnalyticsService().logLogin('google');
+      AnalyticsService().logLogin('google', isNewUser: credential.additionalUserInfo?.isNewUser ?? false);
 
       widget.onLoginSuccess();
     } else {
@@ -61,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
         // Do NOT auto-create a profile here — let _checkProfile() route to
         // InitialSetupPage if no profile exists, so the user can pick a country.
         await UserProfileManager.syncProfile();
-        AnalyticsService().logLogin('apple');
+        AnalyticsService().logLogin('apple', isNewUser: credential.additionalUserInfo?.isNewUser ?? false);
 
         widget.onLoginSuccess();
       }

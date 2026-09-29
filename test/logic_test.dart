@@ -30,7 +30,7 @@ void main() {
 
     test('판을 해도 미션·코인·기기 저장이 없다', () async {
       await DailyRewards.recordRun(stage: 1, time: 40, addedTime: 40, addedStat: 3, continued: false);
-      await CoinStore.add(50);
+      await CoinStore.add(50, source: 'test');
       expect((await DailyRewards.missions()).every((s) => s.progress == 0), isTrue);
       expect(CoinStore.balance.value, 0);
       expect(await DailyRewards.claimAttendance(), 0);

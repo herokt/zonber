@@ -180,7 +180,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('shop_not_enough'))));
       return;
     }
-    if (!await CoinStore.spend(kTicketPrice)) return;
+    if (!await CoinStore.spend(kTicketPrice, item: 'name_ticket')) return;
     await UserProfileManager.setNicknameTickets(await UserProfileManager.getNicknameTickets() + 1);
     if (!mounted) return;
     await _load();

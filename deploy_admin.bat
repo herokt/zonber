@@ -18,7 +18,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [3/3] Deploying hosting...
+echo [3/3] Deploying hosting (with share page /get/)...
+REM 공유용 페이지(OS별 스토어 이동 + 미리보기) — hosting_root 는 git 에 없어서 매번 만든다
+call node scripts/make_share_page.mjs
+if errorlevel 1 (
+    echo Share page build failed!
+    pause
+    exit /b 1
+)
 call firebase deploy --only hosting
 if errorlevel 1 (
     echo Deploy failed!
