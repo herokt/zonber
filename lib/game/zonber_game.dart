@@ -12,6 +12,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   final double initialSurvivalTime;
   /// 이 판 이전의 개인 최고(초) — HUD의 BEST 표시용
   final double personalBest;
+  /// 이 기록 깨러 가기 — 랭킹에서 고른 상대. 목표선 첫 칸이 되고, 넘으면 소리·진동으로 알린다
+  final ({String name, double time})? rival;
 
   ZonberGame({
     required this.mapId,
@@ -20,7 +22,12 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     required this.onGameOver,
     this.initialSurvivalTime = 0.0,
     this.personalBest = 0.0,
-  }) : worldConfig = worldConfig ?? WorldData.defaultWorld;
+    this.rival,
+  }) : worldConfig = worldConfig ?? WorldData.defaultWorld {
+    // TOP N 목표선은 서버에서 늦게 온다 — 상대 목표는 바로 보이게 먼저 둔다(main._loadTargets 가 합쳐서 다시 넣는다)
+    final r = rival;
+    if (r != null) setTargets([(label: 'VS ${r.name}', time: r.time)]);
+  }
 
   // ── 목표선 / 근접 회피 ──
   List<({String label, double time})> _targets = const [];
@@ -182,6 +189,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   final ValueNotifier<bool> dangerNotifier = ValueNotifier(false);
   int _lastLevel = 0;
   bool _bestAnnounced = false;
+  bool _rivalAnnounced = false;
   double _heartT = 0;
 
   /// 멈춤·나가기 — 심장박동을 끈다(다시 이어지면 update 가 다시 켠다)
@@ -209,6 +217,15 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       _bestAnnounced = true;
       AudioManager().playSfx(Sfx.newBest, volume: 0.7);
       Haptics.medium();
+    }
+    // 상대 기록을 넘긴 순간 — 한 판에 한 번(부활로 이어진 판에서 이미 넘었으면 다시 알리지 않는다)
+    final r = rival;
+    if (!_rivalAnnounced && r != null && survivalTime > r.time) {
+      _rivalAnnounced = true;
+      if (initialSurvivalTime <= r.time) {
+        AudioManager().playSfx(Sfx.newBest, volume: 0.7);
+        Haptics.medium();
+      }
     }
     // 위기
     final e = energyNotifier.value;

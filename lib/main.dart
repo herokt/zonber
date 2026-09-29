@@ -116,6 +116,8 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   String _shopReturn = 'Menu'; // 상점에서 뒤로 가면 돌아갈 화면
   /// 월드별 목표선 캐시(TOP 100/30/10/1 시간). 10분 유지.
   final Map<String, ({List<double> times, DateTime at})> _targetCache = {};
+  /// 이 기록 깨러 가기 — 랭킹에서 고른 상대(닉네임·기록). 다시 하기·부활에는 이어지고, 다른 곳에서 시작하면 지운다
+  ({String name, double time})? _rival;
 
   WorldConfig get _currentWorld => WorldData.getWorld(_currentWorldId);
   String get _currentMapId => _currentWorld.rankingMapId;
@@ -392,7 +394,15 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   /// 화면만 바꾼다(분석·게임 준비 없이) — 스토어 스크린샷 시작용
   void _showPage(String page) => setState(() => _currentPage = page);
 
-  void _navigateTo(String page, {String? mapId, double initialTime = 0.0}) {
+  /// 게임 시작 — [worldId] 존으로 바꾸고(홈에서 고른 존도 같이 바뀐다) 바로 판을 연다.
+  /// [source] = 어디서 시작했나(home · ranking · rival · retry), [rival] = 이 기록 깨러 가기 상대
+  void _play(String worldId, {required String source, ({String name, double time})? rival}) {
+    _currentWorldId = worldId;
+    _rival = rival;
+    _navigateTo('Game', source: source);
+  }
+
+  void _navigateTo(String page, {String? mapId, double initialTime = 0.0, String source = 'home'}) {
     if (page == 'Shop' && _currentPage != 'Shop') _shopReturn = _currentPage;
     // Create the game object here (before setState) so that build() always
     // reuses the same instance. Creating it inside build() causes a new game
@@ -405,6 +415,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         worldConfig: world,
         initialSurvivalTime: initialTime,
         personalBest: _bestTimes[world.id] ?? 0.0,
+        rival: _rival,
         onExit: () {
           AdManager().showInterstitialIfReady();
           _navigateTo('Menu');
@@ -423,6 +434,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         (p) => AnalyticsService().logGameStart(
           mapId: gameMapId,
           characterId: p['characterId'] ?? 'neon_green',
+          source: source,
         ),
       );
     }
@@ -456,6 +468,12 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       if (times.length >= n) targets.add((label: 'TOP $n', time: times[n - 1]));
     }
     targets.sort((a, b) => a.time.compareTo(b.time));
+    // 상대가 있으면 상대 기록이 첫 목표 — 넘으면 그보다 높은 TOP N 으로 이어진다
+    final rival = game.rival;
+    if (rival != null) {
+      targets.removeWhere((t) => t.time <= rival.time);
+      targets.insert(0, (label: 'VS ${rival.name}', time: rival.time));
+    }
     if (_currentGame == game) game.setTargets(targets);
   }
 
@@ -641,13 +659,15 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           rankCache: _rankCache,
           onLogin: () => _navigateTo('Login'),
           onBack: () => _navigateTo('Menu'),
+          onPlay: (worldId) => _play(worldId, source: 'ranking'),
+          onChallenge: (worldId, name, time) => _play(worldId, source: 'rival', rival: (name: name, time: time)),
         );
       case 'Result':
         return ResultPage(
           world: _currentWorld,
           result: _lastGameResult!,
           previousBest: _previousBest,
-          onRestart: () => _navigateTo('Game'),
+          onRestart: () => _navigateTo('Game', source: 'retry'), // 상대가 있으면 그대로 다시 도전
           onExit: () => _navigateTo('Menu'),
           onNavigateToLogin: () => _navigateTo('Login'),
           onShowRanking: () => _navigateTo('Ranking'),
@@ -777,7 +797,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           bestTimes: _bestTimes,
           rankCache: _rankCache,
           onWorldSelected: (id) => _currentWorldId = id,
-          onStart: () => _navigateTo('Game'),
+          onStart: () => _play(_currentWorldId, source: 'home'),
           onCharacterSelect: () => _navigateTo('Shop'), // 캐릭터 고르기 = 상점 캐릭터 탭(첫 탭)
           onLogin: () => _navigateTo('Login'),
           onSettings: () => _navigateTo('MyProfile'),
@@ -828,6 +848,12 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   }
 
   void _handleGameOver(Map<String, dynamic> result) async {
+    // 이 기록 깨러 가기 — 결과 화면이 이겼는지 보여 준다
+    final rival = _rival;
+    if (rival != null) {
+      result['rivalName'] = rival.name;
+      result['rivalTime'] = rival.time;
+    }
     // 게스트 — 게임 맛보기만. 기록·코인·미션·뱃지·통계를 어디에도 남기지 않고 결과만 보여 준다
     if (AuthService.isGuest) {
       _previousBest = 0;

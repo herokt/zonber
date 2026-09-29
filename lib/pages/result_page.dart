@@ -142,6 +142,41 @@ class _ResultPageState extends State<ResultPage> {
   double get _time => (widget.result['survivalTime'] as num).toDouble();
   bool get _isGuest => AuthService.isGuest;
 
+  // 이 기록 깨러 가기 — 랭킹에서 고른 상대(없으면 null)
+  String? get _rivalName => widget.result['rivalName'] as String?;
+  double get _rivalTime => (widget.result['rivalTime'] as num?)?.toDouble() ?? 0;
+  bool get _rivalBeaten => _rivalName != null && _time > _rivalTime;
+
+  /// VS 상대 — 이겼으면 몇 초 앞섰는지, 졌으면 몇 초 모자랐는지
+  Widget _rivalRow(LanguageManager lm, Color accent) {
+    final win = _rivalBeaten;
+    final gap = formatSurvival((_time - _rivalTime).abs());
+    final color = win ? AppColors.up : AppColors.textDim;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: win ? AppColors.up.withValues(alpha: 0.10) : AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: win ? AppColors.up.withValues(alpha: 0.6) : AppColors.line),
+      ),
+      child: Row(
+        children: [
+          Icon(win ? Icons.emoji_events_rounded : Icons.sports_score_rounded, size: 18, color: win ? AppColors.up : accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OneLineText(
+              lm.translate(win ? 'result_rival_win' : 'result_rival_lose').replaceAll('{name}', _rivalName!).replaceAll('{s}', gap),
+              style: AppTextStyles.text(13, color: win ? AppColors.up : null, weight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('VS ${formatSurvival(_rivalTime)}s', style: AppTextStyles.text(11, color: color, weight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
   int _badgeSounded = 0;
 
   @override
@@ -157,7 +192,7 @@ class _ResultPageState extends State<ResultPage> {
     Future.delayed(const Duration(milliseconds: 900), _soundBadges);
     Badges.fresh.addListener(_soundBadges);
     // 신기록(첫 기록 제외)은 리뷰를 부탁하기 좋은 순간 — 홈으로 나갈 때 묻는다
-    if (!_isGuest && widget.previousBest > 0 && _time > widget.previousBest) ReviewPrompt.markHappy();
+    if (!_isGuest && ((widget.previousBest > 0 && _time > widget.previousBest) || _rivalBeaten)) ReviewPrompt.markHappy();
   }
 
   void _soundBadges() {
@@ -424,6 +459,7 @@ class _ResultPageState extends State<ResultPage> {
               .replaceAll('{time}', formatSurvival(_time)),
           if (ranked) lm.translate('result_share_rank').replaceAll('{rank}', formatCount(_worldRank!)),
         ].join(' '),
+        if (_rivalBeaten) lm.translate('result_share_rival').replaceAll('{name}', _rivalName!),
         lm.translate('result_share_challenge'),
         if (code != null)
           lm
@@ -505,6 +541,10 @@ class _ResultPageState extends State<ResultPage> {
               const SizedBox(height: 18),
               // 생존 시간과 세계 순위를 같은 무게로
               _hero(lm, accent, isBest, delta),
+              if (_rivalName != null) ...[
+                const SizedBox(height: 10),
+                _rivalRow(lm, accent),
+              ],
               const SizedBox(height: 10),
               Row(
                 children: [
