@@ -279,18 +279,23 @@ class ProfileBadgeStrip extends StatelessWidget {
 }
 
 /// 남의 프로필 — 랭킹에서 이름을 누르면 아래에서 올라온다
-Future<void> showPlayerCard(BuildContext context, {required String uid, String? zone}) => showModalBottomSheet(
+/// [challenge] 가 있으면 아래에 "이 기록 깨러 가기" 버튼 — 누르면 창을 닫고 [challenge].onTap
+/// (그 기록을 목표로 판을 연다). 기록은 랭킹 줄에 보이던 값
+Future<void> showPlayerCard(BuildContext context,
+        {required String uid, String? zone, ({double time, VoidCallback onTap})? challenge}) =>
+    showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.background,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => PlayerCardSheet(uid: uid, zone: zone),
+      builder: (_) => PlayerCardSheet(uid: uid, zone: zone, challenge: challenge),
     );
 
 class PlayerCardSheet extends StatefulWidget {
   final String uid;
   final String? zone;
-  const PlayerCardSheet({super.key, required this.uid, this.zone});
+  final ({double time, VoidCallback onTap})? challenge;
+  const PlayerCardSheet({super.key, required this.uid, this.zone, this.challenge});
 
   @override
   State<PlayerCardSheet> createState() => _PlayerCardSheetState();
@@ -320,7 +325,7 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
     final lm = LanguageManager.of(context);
     final p = _profile;
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView( // 도전 버튼까지 작은 화면에 다 안 들어가면 밀어 올린다
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -368,6 +373,19 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
               SectionLabel(lm.translate('badges')),
               const SizedBox(height: 10),
               ProfileBadgeStrip(profile: p),
+            ],
+            // 프로필을 못 읽어도(탈퇴 등) 랭킹 기록에는 도전할 수 있다
+            if (!_loading && widget.challenge != null) ...[
+              const SizedBox(height: 18),
+              NeonButton(
+                text: '${lm.translate('rival_challenge')} · ${formatSurvival(widget.challenge!.time)}s',
+                icon: Icons.sports_score_rounded,
+                color: widget.zone == null ? null : WorldData.getWorld(widget.zone!).accent,
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  widget.challenge!.onTap();
+                },
+              ),
             ],
           ],
         ),

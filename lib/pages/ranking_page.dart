@@ -18,6 +18,10 @@ class RankingPage extends StatefulWidget {
   final Map<String, RankCacheEntry> rankCache;
   final VoidCallback onLogin;
   final VoidCallback onBack;
+  /// 도전 — 지금 보고 있는 존으로 바로 판을 연다
+  final void Function(String worldId) onPlay;
+  /// 이 기록 깨러 가기 — 프로필 창에서 고른 상대의 기록을 목표로 판을 연다
+  final void Function(String worldId, String name, double time) onChallenge;
 
   const RankingPage({
     super.key,
@@ -25,6 +29,8 @@ class RankingPage extends StatefulWidget {
     required this.rankCache,
     required this.onLogin,
     required this.onBack,
+    required this.onPlay,
+    required this.onChallenge,
   });
 
   @override
@@ -61,7 +67,18 @@ class _RankingPageState extends State<RankingPage> {
   void _openPlayer(Map<String, dynamic> record) {
     final uid = (record['userId'] as String?) ?? '';
     if (uid.isEmpty) return;
-    showPlayerCard(context, uid: uid, zone: _worldId);
+    final worldId = _worldId;
+    final time = ((record['survivalTime'] as num?) ?? 0).toDouble();
+    final name = (record['nickname'] as String?) ?? '';
+    showPlayerCard(
+      context,
+      uid: uid,
+      zone: worldId,
+      // 내 기록에는 도전하지 않는다. 기록은 랭킹에 보이던 그 값(이 기간 기록)
+      challenge: uid == _myUid || time <= 0
+          ? null
+          : (time: time, onTap: () => widget.onChallenge(worldId, name.isEmpty ? '?' : name, time)),
+    );
   }
 
   bool get _isGuest => AuthService.isGuest;
@@ -236,41 +253,100 @@ class _RankingPageState extends State<RankingPage> {
         ),
       );
 
-  /// 하단 고정 — 내 기록(리스트 밖이면 TOP 30까지 남은 시간), 게스트면 로그인 유도
+  /// ▶ 도전 — 지금 보고 있는 존으로 바로 시작(홈에서 고른 존도 같이 바뀐다)
+  Widget _playButton(LanguageManager lm, Color accent) => GestureDetector(
+        onTap: () => widget.onPlay(_worldId),
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 3),
+              Text(lm.translate('rank_play'), style: AppTextStyles.text(13, color: Colors.white, weight: FontWeight.w800)),
+            ],
+          ),
+        ),
+      );
+
+  /// 하단 고정 — 내 기록(바로 위 순위까지 · 리스트 밖이면 TOP N 까지 남은 시간) + ▶ 도전.
+  /// 게스트면 로그인 유도 + ▶ 도전(해 봐야 로그인하고 싶어진다), 이 기간 기록이 없으면 첫 기록 안내 + ▶ 도전
   Widget _myBar(LanguageManager lm, Color accent) {
     if (_isGuest) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-        child: GestureDetector(
-          onTap: widget.onLogin,
-          child: Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.line),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OneLineText(lm.translate('guest_no_ranking_note'),
-                      style: AppTextStyles.text(12, color: AppColors.textDim)),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.fromLTRB(14, 0, 10, 0),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onLogin,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OneLineText(lm.translate('guest_no_ranking_note'),
+                            style: AppTextStyles.text(12, color: AppColors.textDim)),
+                      ),
+                      const SizedBox(width: 10), // 안내가 길면(영어) '로그인'과 붙어 보였다
+                      Text(lm.translate('login'), style: AppTextStyles.text(13, weight: FontWeight.w800)),
+                      Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 18),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 10), // 안내가 길면(영어) '로그인'과 붙어 보였다
-                Text(lm.translate('login'), style: AppTextStyles.text(13, weight: FontWeight.w800)),
-                Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 18),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              _playButton(lm, accent),
+            ],
           ),
         ),
       );
     }
-    if (_loading || _mine == null) return const SizedBox(height: 12);
+    if (_loading) return const SizedBox(height: 12);
+    if (_mine == null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.fromLTRB(14, 0, 10, 0),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: accent),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: OneLineText(lm.translate('rank_first_record'), style: AppTextStyles.text(13, weight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 8),
+              _playButton(lm, accent),
+            ],
+          ),
+        ),
+      );
+    }
     final myTime = ((_mine!['survivalTime'] as num?) ?? 0).toDouble();
-    String sub;
-    if (_myIndex >= 0) {
-      sub = '#${_myIndex + 1}';
+    String? sub;
+    if (_myIndex > 0) {
+      // 바로 위 순위까지 — 도전할 이유
+      final above = ((_records[_myIndex - 1]['survivalTime'] as num?) ?? 0).toDouble();
+      sub = lm
+          .translate('until_rank')
+          .replaceAll('{n}', '$_myIndex')
+          .replaceAll('{s}', formatSurvival((above - myTime).clamp(0, double.infinity).toDouble()));
+    } else if (_myIndex == 0) {
+      sub = null; // 1위
     } else if (_records.isNotEmpty) {
       final last = ((_records.last['survivalTime'] as num?) ?? 0).toDouble();
       final diff = (last - myTime).clamp(0, double.infinity);
@@ -282,7 +358,7 @@ class _RankingPageState extends State<RankingPage> {
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
       child: Container(
         height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.fromLTRB(14, 0, 10, 0),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
@@ -314,9 +390,11 @@ class _RankingPageState extends State<RankingPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(formatSurvival(myTime), style: AppTextStyles.display(15)),
-                if (_myIndex < 0) Text(sub, style: AppTextStyles.text(10, color: AppColors.textDim, weight: FontWeight.w700)),
+                if (sub != null) Text(sub, style: AppTextStyles.text(10, color: AppColors.textDim, weight: FontWeight.w700)),
               ],
             ),
+            const SizedBox(width: 10),
+            _playButton(lm, accent),
           ],
         ),
       ),

@@ -112,11 +112,13 @@ class AnalyticsService {
 
   // ── 게임 루프 ───────────────────────────────────────────────────────
 
+  /// [source] = 어디서 시작했나 — home · ranking(랭킹 도전 버튼) · rival(이 기록 깨러 가기) · retry(결과 화면 다시 하기)
   Future<void> logGameStart({
     required String mapId,
     required String characterId,
+    required String source,
   }) =>
-      _log('game_start', {'map_id': mapId, 'character_id': characterId});
+      _log('game_start', {'map_id': mapId, 'character_id': characterId, 'source': source});
 
   Future<void> logGameOver({
     required String mapId,

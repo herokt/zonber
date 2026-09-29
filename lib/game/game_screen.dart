@@ -50,20 +50,26 @@ class _GameScreen extends StatelessWidget {
                         builder: (context, value, _) {
                           final pb = game.personalBest;
                           final beaten = pb > 0 && value > pb;
+                          final rival = game.rival;
+                          final rivalBeaten = rival != null && value > rival.time;
                           return Column(
                             children: [
                               // 소수점 셋째 자리까지 매 프레임 바뀌므로 숫자 폭을 고정해 흔들리지 않게
                               Text(formatClock(value),
-                                  style: AppTextStyles.display(40, color: beaten ? up : ink)
+                                  style: AppTextStyles.display(40, color: beaten || rivalBeaten ? up : ink)
                                       .copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
                               const SizedBox(height: 4),
                               Text(
                                 beaten
                                     ? lm.translate('hud_new_best')
-                                    : pb > 0
-                                        ? '${lm.translate('hud_best')} ${formatClock(pb)}'
-                                        : lm.translate(world.nameKey).toUpperCase(),
-                                style: AppTextStyles.label(color: beaten ? up : inkDim),
+                                    : rivalBeaten
+                                        ? lm.translate('hud_rival_beaten').replaceAll('{name}', rival.name)
+                                        : pb > 0
+                                            ? '${lm.translate('hud_best')} ${formatClock(pb)}'
+                                            : lm.translate(world.nameKey).toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.label(color: beaten || rivalBeaten ? up : inkDim),
                               ),
                             ],
                           );
@@ -87,7 +93,9 @@ class _GameScreen extends StatelessWidget {
                 valueListenable: game.targetNotifier,
                 builder: (context, target, _) {
                   if (target == null) return const SizedBox.shrink();
-                  final guest = AuthService.isGuest;
+                  // 상대 목표(이 기록 깨러 가기)는 게스트도 잠금 없이 보인다 — 잠금은 TOP N 랭킹 목표만
+                  final isRival = game.rival != null && target.time == game.rival!.time;
+                  final guest = AuthService.isGuest && !isRival;
                   return ValueListenableBuilder<double>(
                     valueListenable: game.survivalTimeNotifier,
                     builder: (context, t, _) => Padding(

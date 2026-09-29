@@ -59,6 +59,8 @@ ZONBER: 탄막 피하기 생존게임
 서바이벌,하이퍼캐주얼,골키퍼,페널티킥,랭킹,아케이드,원터치,반응속도,회피,존버,캐주얼게임,슈팅,축구,총알피하기,똥피하기,시간때우기,한손게임,생존
 
 ### 이번 버전의 새로운 기능 (4000자)
+• 랭킹에서 바로 도전 — 보고 있던 존으로 곧장 시작해요
+• 이 기록 깨러 가기 — 랭커의 기록을 목표로 달리고, 넘는 순간 알려 줘요
 • 결과 화면에서 바로 기록 자랑하기 — 세계 순위와 내 친구 코드가 함께 나갑니다
 • 친구 코드: 입력하면 친구와 나 모두 코인 200
 • 이벤트: 환영 선물, 매일 공유 보상, SNS 이벤트 코드
@@ -117,6 +119,8 @@ Beat yesterday by just one more second.
 danmaku,shmup,dodgeball,goalkeeper,penalty,soccer,football,freekick,reflex,casual,avoid,ranking
 
 ### What's New (4000)
+• Play straight from the rankings — jump into the zone you were viewing
+• Beat this record — chase any ranked player's time and see the moment you pass it
 • Brag right from the results screen — your world rank and friend code go with it
 • Friend codes: enter one and you both get 200 coins
 • Events: welcome gift, daily share reward and codes from our socials
@@ -175,6 +179,8 @@ ZONBER: 弾幕よけサバイバル
 弾幕,避けゲー,よける,カジュアル,ゴールキーパー,アーケード,反射神経,サッカー,ボール,フリーキック,暇つぶし,ハイパーカジュアル,シューティング,ランキング,片手
 
 ### このバージョンの新機能 (4000)
+• ランキングからすぐ挑戦 — 見ていたゾーンでそのままスタート
+• この記録を超えにいく — ランカーの記録を目標に走り、超えた瞬間にお知らせ
 • 結果画面からすぐに記録を自慢 — 世界順位とフレンドコードも一緒に
 • フレンドコード：入力すると自分も友だちもコイン200
 • イベント：歓迎ギフト、毎日のシェア報酬、SNSのイベントコード
@@ -233,6 +239,8 @@ ZONBER：躲弹幕生存挑战
 弹幕,躲避,休闲,守门员,街机,反应,足球,球类,任意球,闪避,单指,小游戏,排行榜,射击,解压,打发时间,生存游戏,手速,反应力,躲球
 
 ### 此版本的新增内容 (4000)
+• 从排行榜直接挑战——马上进入正在查看的区域
+• 去打破这个记录——以排行榜玩家的成绩为目标，超越的瞬间立即提示
 • 结算画面一键炫耀成绩——全球排名和好友代码一起分享
 • 好友代码：输入即可让你和好友各得 200 金币
 • 活动：欢迎礼、每日分享奖励、社媒兑换码
