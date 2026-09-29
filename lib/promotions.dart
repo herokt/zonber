@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'coin_store.dart';
+import 'services/analytics_service.dart';
 import 'services/auth_service.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -460,7 +461,7 @@ class FriendService {
         return RedeemResult.ok;
       });
       if (result != RedeemResult.ok) return (result, null);
-      await PromoService._grant(FriendCodes.newcomerCoins, const []);
+      await PromoService._grant(FriendCodes.newcomerCoins, const [], source: 'friend');
       return (RedeemResult.ok, PromoCode(code: code, campaign: 'friend', coins: FriendCodes.newcomerCoins));
     } catch (e) {
       debugPrint('friend redeem failed: $e');
@@ -498,7 +499,7 @@ class FriendService {
     } catch (e) {
       debugPrint('friend rewards failed: $e');
     }
-    if (got > 0) await PromoService._grant(got * FriendCodes.inviterCoins, const []);
+    if (got > 0) await PromoService._grant(got * FriendCodes.inviterCoins, const [], source: 'friend');
     return got;
   }
 
@@ -641,11 +642,20 @@ class PromoService {
 
     await _grant(promo.coins, promo.items);
     await _record(promo, now);
+    AnalyticsService().logPromoClaim(promoId: promo.id, kind: promo.kind.name, coins: promo.coins);
     return true;
   }
 
-  static Future<void> _grant(int coins, List<String> items) async {
-    if (coins > 0) await CoinStore.add(coins);
+  /// 공유 보상(하루 한 번) — 이벤트 화면 밖(결과 화면)에서 공유해도 받는다. 받았으면 그 이벤트, 아니면 null
+  static Future<Promotion?> claimShare() async {
+    for (final p in await load()) {
+      if (p.kind == PromoKind.share && await claim(p)) return p;
+    }
+    return null;
+  }
+
+  static Future<void> _grant(int coins, List<String> items, {String source = 'promo'}) async {
+    if (coins > 0) await CoinStore.add(coins, source: source);
     for (final id in items) {
       await CoinStore.grant(id);
     }
@@ -676,6 +686,12 @@ class PromoService {
   /// 이벤트 코드 사용 — 성공하면 (ok, 그 코드) 이고 보상은 이미 들어가 있다.
   /// 트랜잭션: 코드 읽기 → 상태 검사 → 내 사용 기록 생성 + 사용 수 +1. 규칙이 같은 조건을 서버에서 다시 본다
   static Future<(RedeemResult, PromoCode?)> redeem(String input) async {
+    final (result, pc) = await _redeem(input);
+    AnalyticsService().logPromoCodeRedeem(result: result.name, campaign: pc?.campaign, coins: result == RedeemResult.ok ? (pc?.coins ?? 0) : 0);
+    return (result, pc);
+  }
+
+  static Future<(RedeemResult, PromoCode?)> _redeem(String input) async {
     final code = PromoCodes.normalize(input);
     if (!PromoCodes.isValidFormat(code)) return (RedeemResult.invalid, null);
     if (AuthService.isGuest) return (RedeemResult.guest, null);

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../audio_manager.dart';
 import '../character_data.dart';
@@ -13,6 +12,7 @@ import '../language_manager.dart';
 import '../progress_store.dart';
 import '../promotions.dart';
 import '../services/auth_service.dart';
+import '../services/share_service.dart';
 import '../world_config.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -247,20 +247,11 @@ class _PromoPageState extends State<PromoPage> {
             .translate('friend_share_line')
             .replaceAll('{code}', code)
             .replaceAll('{reward}', rewardText(lm, FriendCodes.newcomerCoins, const [])),
-      lm.translate('promo_share_link'),
+      ShareLinks.url(lang: lm.currentLanguage, src: 'promo'),
     ].join('\n'));
-    ShareResultStatus status;
-    try {
-      // iPad 는 공유 창을 띄울 자리(버튼 위치)가 있어야 한다
-      final r = await SharePlus.instance.share(ShareParams(text: text, subject: 'ZONBER', sharePositionOrigin: origin));
-      status = r.status;
-    } catch (e) {
-      debugPrint('share failed: $e');
-      await Clipboard.setData(ClipboardData(text: text));
-      _toast(lm.translate('promo_share_copied'));
-      status = ShareResultStatus.unavailable;
-    }
-    if (!mounted || status == ShareResultStatus.dismissed) return; // 공유 창을 닫기만 하면 보상 없음
+    final outcome = await ShareService.share(text: text, src: 'promo', itemId: p.id, origin: origin);
+    if (outcome == ShareOutcome.copied) _toast(lm.translate('promo_share_copied'));
+    if (!mounted || outcome == ShareOutcome.dismissed) return; // 공유 창을 닫기만 하면 보상 없음
     if (_can[p.id] ?? false) await _claim(p);
   }
 

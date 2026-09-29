@@ -8,11 +8,15 @@ import '../coin_store.dart';
 import '../ad_manager.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
+import '../promotions.dart';
 import '../ranking_system.dart';
 import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
+import '../services/review_service.dart';
+import '../services/share_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
+import 'promo_page.dart' show rewardText;
 
 /// 결과 화면 — 생존 시간·델타·순위 카드·새로 얻은 뱃지.
 /// (docs/UI_DESIGN.md §4.4)
@@ -62,7 +66,7 @@ class _ResultPageState extends State<ResultPage> {
   void _doubleCoins(LanguageManager lm) {
     if (_coinsDoubled || _coinsEarned <= 0) return;
     final shown = AdManager().showRewardedAd(() async {
-      await CoinStore.add(_coinsEarned);
+      await CoinStore.add(_coinsEarned, source: 'ad_double');
       if (mounted) setState(() => _coinsDoubled = true);
     });
     if (!shown && mounted) {
@@ -152,6 +156,8 @@ class _ResultPageState extends State<ResultPage> {
     }
     Future.delayed(const Duration(milliseconds: 900), _soundBadges);
     Badges.fresh.addListener(_soundBadges);
+    // 신기록(첫 기록 제외)은 리뷰를 부탁하기 좋은 순간 — 홈으로 나갈 때 묻는다
+    if (!_isGuest && widget.previousBest > 0 && _time > widget.previousBest) ReviewPrompt.markHappy();
   }
 
   void _soundBadges() {
@@ -159,6 +165,7 @@ class _ResultPageState extends State<ResultPage> {
     final n = Badges.fresh.value.length;
     if (n > _badgeSounded) {
       _badgeSounded = n;
+      if (!_isGuest) ReviewPrompt.markHappy();
       AudioManager().playSfx(Sfx.badge, volume: 0.8);
       Haptics.medium();
     }
@@ -395,6 +402,50 @@ class _ResultPageState extends State<ResultPage> {
         ],
       );
 
+  bool _sharing = false;
+
+  /// 자랑하기 — 이번 판 기록 · 세계 순위(기록을 낸 회원만) · 도전 문장 · 내 친구 코드 · 공유 링크로 OS 공유 창을 띄운다.
+  /// 공유하면 이벤트의 공유 보상(하루 한 번)도 여기서 받는다
+  Future<void> _share(Rect? origin) async {
+    if (_sharing) return;
+    _sharing = true;
+    final lm = LanguageManager.of(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+    void toast(String msg) => messenger.showSnackBar(SnackBar(content: Text(msg)));
+    try {
+      final code = _isGuest ? null : await FriendService.myCode();
+      if (!mounted) return;
+      final ranked = !_isGuest && _savedRecordId != null && _worldRank != null;
+      final text = LanguageManager.stripJoiners([
+        [
+          lm
+              .translate('result_share_text')
+              .replaceAll('{world}', lm.translate(widget.world.nameKey))
+              .replaceAll('{time}', formatSurvival(_time)),
+          if (ranked) lm.translate('result_share_rank').replaceAll('{rank}', formatCount(_worldRank!)),
+        ].join(' '),
+        lm.translate('result_share_challenge'),
+        if (code != null)
+          lm
+              .translate('friend_share_line')
+              .replaceAll('{code}', code)
+              .replaceAll('{reward}', rewardText(lm, FriendCodes.newcomerCoins, const [])),
+        ShareLinks.url(lang: lm.currentLanguage, src: 'result'),
+      ].join('\n'));
+      final outcome = await ShareService.share(text: text, src: 'result', itemId: widget.world.rankingMapId, origin: origin);
+      if (outcome == ShareOutcome.copied) toast(lm.translate('promo_share_copied'));
+      if (outcome == ShareOutcome.dismissed || _isGuest) return;
+      final got = await PromoService.claimShare();
+      if (got != null && mounted) {
+        AudioManager().playSfx(Sfx.coin, volume: 0.8);
+        Haptics.medium();
+        toast(lm.translate('promo_code_got').replaceAll('{reward}', rewardText(lm, got.coins, got.items)));
+      }
+    } finally {
+      _sharing = false;
+    }
+  }
+
   void _showReviveConfirmDialog() {
     final t = LanguageManager.of(context, listen: false);
     showNeonDialog(
@@ -495,6 +546,21 @@ class _ResultPageState extends State<ResultPage> {
                 onPressed: widget.onRestart,
                 fontSize: 18,
               ),
+              const SizedBox(height: 10),
+              // 자랑하기 — 신기록이면 강조색으로
+              Builder(
+                builder: (b) => NeonButton(
+                  text: lm.translate('result_share'),
+                  icon: Icons.ios_share_rounded,
+                  color: isBest && !_isGuest ? accent : null,
+                  isPrimary: false,
+                  isCompact: true,
+                  onPressed: () {
+                    final box = b.findRenderObject() as RenderBox?;
+                    _share(box == null ? null : box.localToGlobal(Offset.zero) & box.size);
+                  },
+                ),
+              ),
               if (widget.onRevive != null) ...[
                 const SizedBox(height: 10),
                 NeonButton(
@@ -508,7 +574,10 @@ class _ResultPageState extends State<ResultPage> {
               SizedBox(
                 height: 44,
                 child: TextButton(
-                  onPressed: widget.onExit,
+                  onPressed: () {
+                    ReviewPrompt.maybeAsk(); // 신기록·새 뱃지가 있었던 판이면 리뷰를 한 번 부탁한다
+                    widget.onExit();
+                  },
                   child: Text(lm.translate('home'), style: AppTextStyles.text(14, color: AppColors.textDim, weight: FontWeight.w700)),
                 ),
               ),

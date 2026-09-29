@@ -876,7 +876,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     final coinMult = 1 + Gear.bonusOf(_currentWorldId, CoinStore.equipped).coin;
     final earned = (((CoinStore.coinsForRun(time) + bonus) * coinMult).round() - _runCoins).clamp(0, 1 << 30);
     _runCoins += earned;
-    await CoinStore.add(earned);
+    await CoinStore.add(earned, source: 'run');
     result['coinsEarned'] = earned;
     result['coinsBonus'] = bonus;
     _bestTimes = await ProgressStore.getBestTimes();

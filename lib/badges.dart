@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'achievement_manager.dart';
+import 'services/analytics_service.dart';
 import 'services/auth_service.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -198,6 +199,11 @@ class Badges {
     if (got.isNotEmpty) {
       await AchievementManager.unlock(got.map((b) => b.key).toList());
       fresh.value = [...fresh.value, ...got];
+      if (!AuthService.isGuest) {
+        for (final b in got) {
+          AnalyticsService().logBadge(b.key);
+        }
+      }
     }
     return got;
   }

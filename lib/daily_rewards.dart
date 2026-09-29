@@ -144,7 +144,7 @@ class DailyRewards {
     final st = (await missions()).firstWhere((s) => s.mission.id == id);
     if (!st.claimable) return 0;
     await p.setStringList(_kClaimed, [...(p.getStringList(_kClaimed) ?? const []), id]);
-    await CoinStore.add(st.mission.reward);
+    await CoinStore.add(st.mission.reward, source: 'mission');
     await refresh();
     await _syncRemote();
     return st.mission.reward;
@@ -156,7 +156,7 @@ class DailyRewards {
     final ms = await missions();
     if ((p.getBool(_kBonus) ?? false) || !ms.every((s) => s.claimed)) return 0;
     await p.setBool(_kBonus, true);
-    await CoinStore.add(allClearBonus);
+    await CoinStore.add(allClearBonus, source: 'all_clear');
     final stats = await BadgeStatsStore.load();
     stats.allClearDays++;
     await BadgeStatsStore.save(stats);
@@ -187,7 +187,7 @@ class DailyRewards {
     await p.setString(_kAttLast, _today);
     await p.setInt(_kAttStreak, a.streak + 1);
     final reward = attendanceRewards[a.day - 1];
-    await CoinStore.add(reward);
+    await CoinStore.add(reward, source: 'check_in');
     await Badges.evaluate(BadgeContext(stats: await BadgeStatsStore.load(), attendanceStreak: a.streak + 1));
     await refresh();
     await _syncRemote();
