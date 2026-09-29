@@ -161,10 +161,13 @@ python scripts/make_stage_bg.py
 dart run scripts/make_app_icons.dart
 dart run flutter_launcher_icons
 
-# 스토어 스크린샷 — 스크린샷 모드(lib/store_shot.dart) 빌드를 기기에 깔고 캡처 → 합성 (store/play_store_listing.md)
+# 스토어 스크린샷 — 스크린샷 모드(lib/store_shot.dart) 빌드를 기기에 깔고 캡처 → 합성. 화면 10장, 문구는 scripts/store_shot_captions.mjs
 flutter build apk --release --dart-define=STORE_SHOT=true
-bash scripts/store_shots.sh <기기 시리얼>
-node scripts/compose_store_shots.mjs
+bash scripts/store_shots.sh <기기 시리얼>                                # 휴대폰 화면 → build/store_shots/
+bash scripts/store_shots.sh <기기 시리얼> build/store_shots_ipad --ipad  # 기기 화면을 잠깐 4:3 으로(끝나면 되돌림) → iPad 원본
+node scripts/compose_store_shots.mjs   # Play 휴대전화 8장 → store/screenshots_play/
+node scripts/compose_ios_shots.mjs     # App Store iPhone 6.9"·iPad 13" 10장 → store/screenshots/
+# 기기 잠금을 풀고 화면을 켜 둔다 — 캡처 직전마다 잠금·화면 꺼짐을 보고, 그러면 찍지 않고 멈춘다(잠금 화면 사진이 이미지에 들어가지 않게)
 ```
 
 > 옛 익명 SDK 관리 스크립트(seed/check/cleanup·마이그레이션)는 2026-09-22 삭제했다. DB 를 고칠 일이 있으면 `test_rules.mjs` 처럼 gcloud 토큰 + REST 로 새로 만든다.

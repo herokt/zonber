@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // 스토어 스크린샷 모드 — `--dart-define=STORE_SHOT=true` 로 빌드했을 때만 켜진다(보통 빌드에서는 상수 false 라
-// 관련 코드가 빠진다). 켜지면 앱이 언어 4개 × 화면 6개(갤럭시·피구·프리킥 플레이 · 랭킹 · 가방 · 홈)를 차례로 띄우고
+// 관련 코드가 빠진다). 켜지면 앱이 언어 4개 × 화면 10개(갤럭시·피구·프리킥 플레이 · 결과 · 이 기록 깨러 가기 · 랭킹 · 가방 · 뱃지 · 이벤트 · 홈)를 차례로 띄우고
 // 화면마다 로그에 `STORESHOT <언어>/<번호_이름>` 을 찍는다. 호스트 스크립트(scripts/store_shots.sh)가 그 줄을 보고
 // adb 로 캡처한 뒤 scripts/compose_store_shots.mjs 가 문구·틀을 입혀 스토어 이미지로 만든다.
 //
@@ -70,4 +70,59 @@ class StoreShot {
   /// 올해 상위 기록 시간(내림차순) — 목표선·세계 신기록
   static List<double> topTimes(String mapId, {int limit = 100}) =>
       [for (int i = 0; i < limit; i++) _timeAt(mapId, i ~/ 5)];
+
+  /// 이 시간의 세계 순위(가짜 기록 기준) — 결과 화면
+  static ({int rank, int total}) rankOf(String mapId, double time) =>
+      (rank: records(mapId).where((r) => (r['survivalTime'] as double) > time).length + 1, total: 12840);
+
+  // ── 회원 화면(결과·뱃지) ──
+  // 스크린샷 모드는 늘 게스트다. 결과 화면 한 장만 회원처럼 보이게 [member] 를 잠깐 켠다.
+  // 켜 있어도 저장은 없다 — 프로필이 비어 기록 제출을 건너뛰고, 뱃지 저장(AchievementManager.unlock)은 스크린샷 모드에서 막힌다
+
+  static bool member = false;
+
+  /// 결과 화면 — 갤럭시 신기록 · 세계 순위 · 바로 아래 순위 랭커 돌파
+  static const double resultTime = 261.524;
+  static const double resultPrevBest = 255.018;
+  /// 결과·이벤트 화면에서 보이는 코인 잔액(메모리만 — 저장하지 않는다)
+  static const int shownCoins = 1240;
+  /// 이번 판 기록보다 낮은 첫 랭커 — 결과 화면이 "돌파"로 나오게
+  static int get resultRivalIndex =>
+      records('cyber').indexWhere((r) => (r['survivalTime'] as double) < resultTime);
+  static double get resultRivalTime => _timeAt('cyber', resultRivalIndex);
+  static String get resultRivalName => _names[resultRivalIndex];
+
+  /// 이 기록 깨러 가기 — 랭킹에서 누른 상대(1위 Nova)
+  static const int rivalIndex = 0;
+  static String rivalUid() => 'shot_user_$rivalIndex';
+  static double rivalTime() => _timeAt('cyber', rivalIndex);
+
+  /// 뱃지 화면·결과 화면에서 보이는 내 뱃지
+  static const List<String> myBadges = [
+    'ach_survivor', 'ach_veteran', 'ach_elite', 'ach_master', 'b_s1_30', 'b_s1_90', 'b_s1_180', 'b_s2_30', 'b_s2_75',
+    'b_s3_30', 'b_s3_75', 'b_graze_15', 'b_graze_40', 'b_close_5', 'b_close_15', 'b_streak_3', 'b_streak_8', 'b_runs_10',
+    'b_runs_100', 'b_time_1h', 'b_nat_top10', 'b_world_top100', 'ach_glob_top30', 'b_items_5', 'b_items_15', 'b_att_7',
+    'b_mission_1', 'b_mission_10', 'b_newbest_10', 'ach_glob_top10',
+  ];
+
+  /// 이번 판에 새로 얻은 뱃지(결과 화면)
+  static const List<String> freshBadges = ['ach_glob_top10', 'b_newbest_10'];
+
+  /// 남의 프로필(users/{uid} 모양) — 랭킹에서 누른 사람
+  static Map<String, dynamic> userDoc(String uid) {
+    final i = int.tryParse(uid.replaceFirst('shot_user_', '')) ?? 0;
+    final n = i % _names.length;
+    return {
+      'nickname': _names[n],
+      'flag': _flags[n],
+      'characterId': _chars[n % _chars.length],
+      'equipped': {'skin': _skins[n % _skins.length], 'aura': _auras[n % _auras.length]},
+      'createdAt': DateTime(2026, 9, 18),
+      'lastUpdated': DateTime(2026, 9, 29, 21, 40),
+      'achievements': ['ach_legend', 'ach_glob_champion', 'ach_master', 'b_s1_180', 'b_s2_150', 'b_s3_150', 'b_graze_80', 'b_runs_500', 'b_time_10h'],
+      'bestTimes': {'cyber': _timeAt('cyber', n), 'dodgeball': _timeAt('dodgeball', n + 2), 'keeper': _timeAt('keeper', n + 1)},
+      'totalGamesPlayed': 1284 - n * 37,
+      'totalPlayTime': 61234.0 - n * 900,
+    };
+  }
 }

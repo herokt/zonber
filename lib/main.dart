@@ -45,6 +45,7 @@ import 'pages/result_page.dart';
 import 'pages/badges_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/promo_page.dart';
+import 'pages/player_profile_view.dart' show showPlayerCard;
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
 import 'statistics_page.dart'; // Added by instruction

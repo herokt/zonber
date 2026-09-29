@@ -216,6 +216,7 @@ class RankingSystem {
   /// 복합 인덱스를 피하려고 기간 필터 없이 **전체 기간** 기준이다.
   /// 기록 단위(유저 단위 아님)라 표기는 "N개 기록 중".
   Future<({int rank, int total})?> getGlobalRank(String mapId, double time) async {
+    if (kStoreShot) return StoreShot.rankOf(mapId, time);
     if (_db == null) return null;
     try {
       final col = _db!.collection('maps').doc(mapId).collection('records');
