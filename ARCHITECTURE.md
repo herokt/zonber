@@ -381,7 +381,7 @@ HUD는 캐릭터 최대치와 무관하게 **항상 5칸**을 그린다. `i >= m
 
 ### 6.5-1 난이도 — 레벨 (`balance.dart`)
 
-세 존 공통 레벨 `Balance.levelAt(t)` = 15초마다 1, 최고 15(210초)에서 멈춘다. 존별 난이도 값은 모두 레벨로 정하고 `Balance.byLevel(level, 레벨1 값, 최고 값)`으로 같은 폭씩 오른다 — 갤럭시 초당 탄 수 7→20·탄속 160→270·동시 상한 60→140, 피구 턴 1.6→0.45s·속도 170→440, 골키퍼 턴 2.0→0.65s·속도 200→440(×1.22). 패턴 단계(0~6)는 `Balance.tierLevels`(L1·2·4·6·8·10·13). 레벨업 소리·결과 화면·판 기록의 level 이 같은 값이다. 모든 월드의 `layoutId`는 `zone_1_classic`(장애물 없음) — 2026-09-26 `game_config.dart`(기본 탄속·간격)는 레벨 수치로 대체되어 삭제했다.
+세 존 공통 레벨 `Balance.levelAt(t)` = 15초마다 1, 최고 15(210초)에서 멈춘다. 존별 난이도 값은 모두 레벨로 정하고 `Balance.byLevel(level, 레벨1 값, 최고 값)`으로 같은 폭씩 오른다 — 갤럭시 초당 탄 수 7→20·탄속 160→239·동시 상한 60→140, 피구 턴 1.6→0.45s·속도 170→363, 골키퍼 턴 2.0→0.65s·속도 200→371(×1.22). 속도만 `Balance.speedByLevel` — 레벨 5 뒤로 한 칸 폭이 0.6배(2026-09-30, 중·후반 벽 완화). 패턴 단계(0~6)는 `Balance.tierLevels`(L1·2·4·6·8·10·13). 레벨업 소리·결과 화면·판 기록의 level 이 같은 값이다. 모든 월드의 `layoutId`는 `zone_1_classic`(장애물 없음) — 2026-09-26 `game_config.dart`(기본 탄속·간격)는 레벨 수치로 대체되어 삭제했다.
 
 > 2026-09-22 장애물 레이아웃(`zone_2_obstacles` 4기둥 · `zone_5_maze` 미로 + `maze_generator.dart`), 맵 에디터(`editor_game.dart`), 커스텀 맵(`map_service.dart`, `custom_*` mapId 로드)을 코드째 제거했다.
 > 장애물 시스템(`Obstacle`, 탄환 서브스텝 벽 반사·`WallBehavior`, 플레이어 밀어내기)도 함께 제거했다. Firestore `custom_maps` 규칙은 `firestore.rules`에 그대로 있다.

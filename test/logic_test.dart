@@ -478,14 +478,11 @@ void main() {
     });
 
     test('레벨마다 같은 폭으로 조금씩 어려워진다(급한 계단 없음)', () {
-      // 존별 "빈도"(초당 탄·투구·슛)와 속도 — 매 레벨 오르고, 한 번에 전체 폭의 1/(최고-1) 만큼만
+      // 존별 "빈도"(초당 탄·투구·슛) — 매 레벨 오르고, 한 번에 전체 폭의 1/(최고-1) 만큼만
       final curves = <String, double Function(int)>{
         'cyberRate': Balance.cyberRate,
-        'cyberSpeed': Balance.cyberSpeed,
         'dodgeRate': (l) => 1 / Balance.dodgeBeat(l),
-        'dodgeSpeed': Balance.dodgeSpeed,
         'keeperRate': (l) => 1 / Balance.keeperBeat(l),
-        'keeperSpeed': Balance.keeperSpeed,
       };
       for (final e in curves.entries) {
         final f = e.value;
@@ -493,6 +490,23 @@ void main() {
         for (var l = 2; l <= Balance.maxLevel; l++) {
           expect(f(l) - f(l - 1), closeTo(step, 1e-9), reason: '${e.key} L$l');
           expect(f(l) > f(l - 1), isTrue, reason: e.key);
+        }
+        expect(f(Balance.maxLevel + 5), f(Balance.maxLevel), reason: '${e.key} 최고 레벨 이후 그대로');
+      }
+    });
+
+    test('속도는 중반부터 덜 오른다 — 레벨 speedKnee 뒤로 한 칸 폭이 speedLateStep 배', () {
+      final curves = <String, double Function(int)>{
+        'cyberSpeed': Balance.cyberSpeed,
+        'dodgeSpeed': Balance.dodgeSpeed,
+        'keeperSpeed': Balance.keeperSpeed,
+      };
+      for (final e in curves.entries) {
+        final f = e.value;
+        final early = f(2) - f(1);
+        for (var l = 2; l <= Balance.maxLevel; l++) {
+          final want = l <= Balance.speedKnee ? early : early * Balance.speedLateStep;
+          expect(f(l) - f(l - 1), closeTo(want, 1e-9), reason: '${e.key} L$l');
         }
         expect(f(Balance.maxLevel + 5), f(Balance.maxLevel), reason: '${e.key} 최고 레벨 이후 그대로');
       }
