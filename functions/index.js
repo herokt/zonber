@@ -1,6 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // ZONBER 서버 함수
 //
+// 친구(friends.js) — addFriendByCode · sendFriendRequest · answerFriendRequest · removeFriend(앱이 부름)
+//   · onRecordCreated(친구 기록 알림) · onUserDeleted(탈퇴 정리). 알림 보내기는 notify.js, 순수 로직은 logic.js
+//
 // sendPushCampaign — 백오피스가 push_campaigns/{id} 를 status: pending 으로 만들면 보낸다.
 //   언어마다 한 번씩, FCM 토픽 조건으로 — 기기는 언어 토픽 하나(lang_ko …) + member/guest + (관리자) tester 를 구독한다.
 //   약속(토픽 이름·대상·문구 규칙)은 lib/push.dart 가 정본이다. 바꾸면 여기도 같이 고친다.
@@ -90,3 +93,6 @@ exports.sendPushCampaign = onDocumentCreated(
     logger.info('push campaign done', { id: event.params.id, audience, sent, results });
   },
 );
+
+// ── 친구 ──
+Object.assign(exports, require('./friends'));

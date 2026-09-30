@@ -41,6 +41,14 @@ class BoPromo {
   const BoPromo(this.promo, this.claims);
 }
 
+/// 친구 한 명 — users/{uid}/friends/{친구uid} (docs/FRIENDS.md)
+class BoFriend {
+  final String uid;
+  final DateTime? since;
+  final String via; // code | request
+  const BoFriend(this.uid, this.since, this.via);
+}
+
 /// 코드 사용 한 건 — 누가 언제
 class BoCodeUse {
   final String uid;
@@ -95,6 +103,9 @@ abstract class BoSource {
   Future<List<BoRec>> records(String mapId, DateTime? since, int limit);
   Future<List<BoRec>> userRecords(String mapId, String uid, int limit);
   Future<void> deleteRecord(BoRec r);
+
+  /// 이 유저의 친구 — 맺은 순서(최근 먼저)
+  Future<List<BoFriend>> userFriends(String uid);
 
   // ── 이벤트(프로모션) ──
   /// promos 컬렉션 전체(앱 기본 이벤트는 여기 없을 수 있다 — promotions.dart 의 builtIn)

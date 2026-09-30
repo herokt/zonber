@@ -54,6 +54,7 @@ dependencies:
   in_app_review: ^2.0.10
   flutter_local_notifications: ^22.3.1
   firebase_messaging: ^16.2.0
+  cloud_functions: ^6.2.0
 
 dev_dependencies:
   flutter_test:

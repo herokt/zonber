@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'coin_store.dart';
+import 'friends.dart';
 import 'services/analytics_service.dart';
 import 'services/auth_service.dart';
 import 'store_shot.dart';
@@ -514,7 +515,8 @@ class FriendService {
 }
 
 /// 코드 입력 결과 — friendSelf: 내 친구 코드를 넣음 · friendUsed: 친구 코드를 이미 넣은 계정
-enum RedeemResult { ok, guest, invalid, already, disabled, notStarted, expired, exhausted, friendSelf, friendUsed, error }
+/// [friendAdded] = 코드 보상은 예전에 받았지만 이번에 친구가 됐다(docs/FRIENDS.md — 친구 코드는 여러 번 넣을 수 있다)
+enum RedeemResult { ok, guest, invalid, already, disabled, notStarted, expired, exhausted, friendSelf, friendUsed, friendAdded, error }
 
 RedeemResult _resultOf(PromoCodeStatus s) => switch (s) {
       PromoCodeStatus.open => RedeemResult.ok,
@@ -737,7 +739,16 @@ class PromoService {
         return (RedeemResult.ok, pc);
       });
       // 이벤트 코드가 없으면 친구 코드(4~5자)인지 본다 — 두 이름은 겹치지 않게 만든다
-      if (result == RedeemResult.invalid && FriendCodes.isValidFormat(code)) return await FriendService.redeem(code);
+      // 친구 코드면 보상(계정당 한 번)과 함께 친구로도 맺는다(서버 함수 — 여러 번 된다)
+      if (result == RedeemResult.invalid && FriendCodes.isValidFormat(code)) {
+        final reward = await FriendService.redeem(code);
+        if (reward.$1 != RedeemResult.ok && reward.$1 != RedeemResult.friendUsed) return reward;
+        final added = await Friends.addByCode(code);
+        if (reward.$1 == RedeemResult.friendUsed) {
+          return (added == FriendResult.added ? RedeemResult.friendAdded : RedeemResult.friendUsed, null);
+        }
+        return reward;
+      }
       if (result == RedeemResult.ok && pc != null) await _grant(pc.coins, pc.items);
       return (result, pc);
     } on FirebaseException catch (e) {

@@ -26,6 +26,9 @@ class ReminderService {
 
   /// 이벤트·소식 푸시(PushService) 채널 — 서버 함수(functions/index.js)의 android.notification.channelId 와 같다
   static const String newsChannelId = 'news';
+
+  /// 친구 알림 채널 — functions/notify.js 의 CHANNEL 과 같다
+  static const String friendsChannelId = 'friends';
   static const int _newsId = 7002;
   static const String _kAsked = 'reminder_asked'; // 기기 설정 — 권한을 물었나(게스트 진입·로그아웃에도 지우지 않는다)
 
@@ -56,6 +59,10 @@ class ReminderService {
       await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(
             AndroidNotificationChannel(newsChannelId, lm.translate('push_setting'), description: lm.translate('push_setting_desc'), importance: Importance.high),
           );
+      await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(
+            AndroidNotificationChannel(friendsChannelId, lm.translate('friend_push_setting'),
+                description: lm.translate('friend_push_setting_desc'), importance: Importance.high),
+          );
       final launch = await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp ?? false) AnalyticsService().logReminderOpen();
     } catch (e) {
@@ -75,17 +82,20 @@ class ReminderService {
   }
 
   /// 앱을 켜 둔 채 푸시가 오면(Android) 직접 띄운다 — iOS 는 FCM 이 띄운다
-  static Future<void> showNews({required String title, required String body}) async {
+  static Future<void> showNews({required String title, required String body, bool friend = false}) async {
     if (!_ready) return;
     try {
       final lm = LanguageManager();
       await _plugin.show(
-        id: _newsId,
+        id: friend ? _newsId + 1 : _newsId,
         title: title,
         body: body,
         notificationDetails: NotificationDetails(
-          android: AndroidNotificationDetails(newsChannelId, lm.translate('push_setting'),
-              channelDescription: lm.translate('push_setting_desc'), importance: Importance.high, priority: Priority.high),
+          android: friend
+              ? AndroidNotificationDetails(friendsChannelId, lm.translate('friend_push_setting'),
+                  channelDescription: lm.translate('friend_push_setting_desc'), importance: Importance.high, priority: Priority.high)
+              : AndroidNotificationDetails(newsChannelId, lm.translate('push_setting'),
+                  channelDescription: lm.translate('push_setting_desc'), importance: Importance.high, priority: Priority.high),
         ),
       );
     } catch (e) {
