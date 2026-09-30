@@ -6,6 +6,7 @@ import '../design_system.dart';
 import '../friends.dart';
 import '../language_manager.dart';
 import '../player_profile.dart';
+import '../ranking_system.dart';
 import '../services/auth_service.dart';
 import '../world_config.dart';
 
@@ -13,7 +14,7 @@ import '../world_config.dart';
 // 프로필 보여 주기 — 내 프로필(ProfilePage)과 남의 프로필(랭킹에서 이름 누르기)이
 // 같은 부품을 쓴다. 데이터는 전부 PlayerProfile(player_profile.dart) 하나에서 온다.
 //   · [ProfileIdentityCard] 아바타 · 닉네임 · 국기 · 대표 뱃지 (+ 오른쪽 버튼 · 아래 통계)
-//   · [StageRecordRow]      ZONE 한 줄 — 최고 기록 (+ 아는 경우 세계 순위)
+//   · [StageRecordRow]      ZONE 한 줄 — 최고 기록 · 지금 세계 순위(올해 · 사람 단위, RankingSystem.playerRanks)
 //   · [ProfileBadgeStrip]   보유 뱃지 줄
 //   · [showPlayerCard]      남의 프로필을 아래에서 올라오는 창으로
 // ─────────────────────────────────────────────────────────────
@@ -160,7 +161,7 @@ class StageRecordRow extends StatelessWidget {
   final WorldConfig world;
   final double? best;
 
-  /// 세계 순위 — 남의 프로필에서는 모르므로 칸을 그리지 않는다
+  /// 지금 세계 순위(null = 올해 기록 없음 · 아직 못 읽음 → '—')
   final int? worldRank;
   final bool showRank;
 
@@ -311,6 +312,9 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
   PlayerProfile? _profile;
   bool _loading = true;
 
+  /// 존별 지금 세계 순위 — 프로필과 따로 읽는다(늦게 와도 프로필은 먼저 뜬다)
+  Map<String, int>? _ranks;
+
   /// 나와 이 사람 사이(친구 버튼) — 게스트·못 읽음이면 null(버튼 없음)
   FriendState? _friend;
   bool _friendBusy = false;
@@ -326,6 +330,9 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
       setState(() => _loading = false); // 예전 기록 — 불러올 프로필이 없다
       return;
     }
+    RankingSystem().playerRanks(widget.uid).then((r) {
+      if (mounted) setState(() => _ranks = r);
+    });
     final results = await Future.wait<Object?>([PlayerProfileService.fetch(widget.uid), Friends.stateOf(widget.uid)]);
     if (!mounted) return;
     setState(() {
@@ -451,7 +458,7 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
               SectionLabel(lm.translate('world_records')),
               const SizedBox(height: 10),
               for (final w in WorldData.worlds) ...[
-                StageRecordRow(world: w, best: p.bestOf(w.id), bestLabel: lm.translate('record_best'), showRank: false),
+                StageRecordRow(world: w, best: p.bestOf(w.id), bestLabel: lm.translate('record_best'), worldRank: _ranks?[w.id]),
                 const SizedBox(height: 8),
               ],
               const SizedBox(height: 10),

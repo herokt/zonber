@@ -2,6 +2,7 @@ import 'gear.dart';
 import 'season.dart';
 import 'badges.dart';
 import 'store_shot.dart';
+import 'world_config.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -255,6 +256,25 @@ class RankingSystem {
       debugPrint("Top times failed: $e");
       return [];
     }
+  }
+
+  /// [uid] 의 지금 세계 순위(존별, 올해 · 사람 단위 — 랭킹 탭 '올해 · 세계'와 같은 숫자). 올해 기록이 없는 존은 빠진다.
+  /// 스크린샷 모드·Firebase 없음이면 null(부르는 쪽이 캐시를 쓴다)
+  Future<Map<String, int>?> playerRanks(String uid) async {
+    if (kStoreShot || _db == null || uid.isEmpty) return null;
+    final out = <String, int>{};
+    await Future.wait([
+      for (final w in WorldData.worlds)
+        () async {
+          try {
+            final i = (await _bestPlayers(w.rankingMapId, RankingPeriod.allTime)).indexWhere((r) => r['userId'] == uid);
+            if (i >= 0) out[w.id] = i + 1;
+          } catch (e) {
+            debugPrint('Player rank ${w.id} failed: $e');
+          }
+        }(),
+    ]);
+    return out;
   }
 
   /// 이 시간이 우리나라 몇 위인지 — 사람 단위, 나는 빼고 센다(getGlobalRank 와 같은 기준)

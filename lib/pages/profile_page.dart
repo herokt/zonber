@@ -14,6 +14,7 @@ import '../friends.dart';
 import '../game_settings.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
+import '../ranking_system.dart';
 import '../coin_store.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
@@ -77,7 +78,18 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  /// 존별 지금 세계 순위(올해 · 사람 단위) — 못 읽으면 null 이라 결과 화면이 남긴 순위(rankCache)를 쓴다
+  Map<String, int>? _ranks;
+
+  Future<void> _loadRanks() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (_isGuest || uid.isEmpty) return;
+    final r = await RankingSystem().playerRanks(uid);
+    if (mounted) setState(() => _ranks = r);
+  }
+
   Future<void> _load() async {
+    _loadRanks();
     final profile = await UserProfileManager.getProfile();
     final stats = await UserProfileManager.getStatistics();
     final keys = await AchievementManager.getMine();
@@ -351,7 +363,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 world: w,
                 best: widget.bestTimes[w.id],
                 bestLabel: lm.translate('my_best'),
-                worldRank: widget.rankCache[w.id]?.rank,
+                worldRank: _ranks == null ? widget.rankCache[w.id]?.rank : _ranks![w.id],
               ),
               const SizedBox(height: 8),
             ],
