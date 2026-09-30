@@ -72,6 +72,9 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # google_mobile_ads 가 CocoaPods 전용이라 iOS Swift Package Manager 는 끈다
+  config:
+    enable-swift-package-manager: false
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
