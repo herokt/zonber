@@ -75,6 +75,22 @@ service cloud.firestore {
       allow create, update: if isAdmin() || (isOwner(userId) && isMember() && validUser(request.resource.data));
       allow delete: if isAdmin() || isOwner(userId);
 
+      // 친구 목록(docs/FRIENDS.md) — 본인·관리자만 읽는다. 쓰기는 서버 함수만(functions/friends.js — 상대 목록도 같이 써야 해서)
+      match /friends/{friendUid} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow write: if false;
+      }
+
+      // 기기 알림 주소(친구 알림 — lib/services/push_service.dart). 본인만. 보내기는 서버 함수(functions/notify.js)
+      match /devices/{deviceId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create, update: if isOwner(userId) && isMember()
+          && request.resource.data.keys().hasOnly(['token', 'lang', 'platform', 'friend', 'updatedAt'])
+          && request.resource.data.token is string && request.resource.data.token.size() < 4096
+          && request.resource.data.friend is bool;
+        allow delete: if isAdmin() || isOwner(userId);
+      }
+
       // 비공개 — 이메일 등. 본인·관리자만
       match /private/{docId} {
         allow read: if isAdmin() || isOwner(userId);
@@ -130,6 +146,17 @@ service cloud.firestore {
         || (isMember()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claims'])
             && request.resource.data.claims == resource.data.get('claims', 0) + 1);
+    }
+
+    // 친구 요청 — 보낸 사람·받는 사람·관리자만 읽는다. 만들기·수락·거절은 서버 함수(functions/friends.js)
+    match /friend_requests/{id} {
+      allow read: if isAdmin() || (signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid));
+      allow write: if false;
+    }
+
+    // 알림 하루 횟수(친구 기록 알림) — 서버 함수만
+    match /push_state/{uid} {
+      allow read, write: if false;
     }
 
     // 이벤트·소식 푸시 발송 기록(lib/push.dart · 백오피스 푸시 화면). 관리자가 pending 으로 만들면

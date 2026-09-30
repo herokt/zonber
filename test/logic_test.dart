@@ -11,6 +11,7 @@ import 'package:zonber/cosmetics.dart';
 import 'package:zonber/daily_rewards.dart';
 import 'package:zonber/design_system.dart';
 import 'package:zonber/player_profile.dart';
+import 'package:zonber/friends.dart';
 import 'package:zonber/promotions.dart';
 import 'package:zonber/push.dart';
 import 'package:zonber/gear.dart';
@@ -467,6 +468,34 @@ void main() {
       final a = await DailyRewards.attendance();
       expect(a.day, 1);
       expect(a.claimedToday, isFalse);
+    });
+  });
+
+  group('친구', () {
+    test('서버 함수가 돌려주는 결과 코드를 앱이 모두 안다', () {
+      final js = File('functions/friends.js').readAsStringSync();
+      final codes = RegExp(r"result: '([a-z_]+)'").allMatches(js).map((m) => m.group(1)!).toSet();
+      expect(codes, isNotEmpty);
+      for (final c in codes) {
+        expect(friendResultOf(c), isNot(FriendResult.error), reason: '앱이 모르는 결과 $c');
+      }
+    });
+
+    test('결과 안내 문구 키가 번역에 있다', () {
+      for (final r in FriendResult.values) {
+        final key = friendResultKey(r);
+        for (final lang in ['en', 'ko', 'ja', 'zh']) {
+          expect(appTranslations[lang]!.containsKey(key), isTrue, reason: '$lang $key');
+        }
+      }
+    });
+
+    test('제한 값이 서버와 같다(친구 100 · 대기 요청 50 · 요청 7일)', () {
+      final js = File('functions/logic.js').readAsStringSync();
+      int n(String name) => int.parse(RegExp('const $name = (\\d+);').firstMatch(js)!.group(1)!);
+      expect(n('MAX_FRIENDS'), Friends.maxFriends);
+      expect(n('MAX_PENDING'), Friends.maxPending);
+      expect(n('REQUEST_DAYS'), Friends.requestDays);
     });
   });
 

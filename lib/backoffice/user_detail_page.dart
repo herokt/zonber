@@ -388,6 +388,8 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
         ),
         const SizedBox(height: Bo.gap),
         _ownedCard(d),
+        const SizedBox(height: Bo.gap),
+        _FriendsCard(uid: widget.uid),
       ],
     );
   }
@@ -1258,3 +1260,68 @@ class _GrantCoinsDialogState extends State<GrantCoinsDialog> {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// 친구 — users/{uid}/friends (docs/FRIENDS.md). 누르면 그 친구 상세로
+// ─────────────────────────────────────────────────────────────
+class _FriendsCard extends StatefulWidget {
+  final String uid;
+  const _FriendsCard({required this.uid});
+
+  @override
+  State<_FriendsCard> createState() => _FriendsCardState();
+}
+
+class _FriendsCardState extends State<_FriendsCard> {
+  List<BoFriend>? _friends;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      await BoData.users(); // 이름표용 캐시
+      final list = await BoData.src.userFriends(widget.uid);
+      if (mounted) setState(() => _friends = list);
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = _friends;
+    return BoCard(
+      title: '친구',
+      subtitle: list == null ? 'users/{uid}/friends' : '${list.length}명 · 최대 100명',
+      child: _error != null
+          ? BoError(error: _error!, onRetry: _load)
+          : list == null
+              ? const SizedBox(height: 60, child: BoLoading())
+              : list.isEmpty
+                  ? Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('친구가 없습니다', style: Bo.muted))
+                  : Wrap(spacing: 8, runSpacing: 8, children: [
+                      for (final f in list)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => BoNav.openUser(f.uid),
+                          child: Container(
+                            width: 250,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(color: Bo.surface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: Bo.line)),
+                            child: Row(children: [
+                              Expanded(child: BoUserCell(uid: f.uid, data: BoData.cached(f.uid))),
+                              const SizedBox(width: 8),
+                              Text('${f.via == 'code' ? '코드' : '요청'} · ${fmtDate(f.since)}', style: Bo.caption),
+                            ]),
+                          ),
+                        ),
+                    ]),
+    );
+  }
+}
+

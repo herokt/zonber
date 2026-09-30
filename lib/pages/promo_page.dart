@@ -280,6 +280,7 @@ class _PromoPageState extends State<PromoPage> {
       RedeemResult.exhausted => 'promo_code_exhausted',
       RedeemResult.friendSelf => 'friend_code_self',
       RedeemResult.friendUsed => 'friend_code_used',
+      RedeemResult.friendAdded => 'friend_added_toast',
       RedeemResult.error => 'promo_code_error',
       RedeemResult.invalid || RedeemResult.ok => 'promo_code_bad',
     }));

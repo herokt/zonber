@@ -13,6 +13,7 @@ class GameSettings extends ChangeNotifier {
   bool _darkMode = false;
   bool _reminderEnabled = true;
   bool _pushEnabled = true;
+  bool _friendPushEnabled = true;
 
   bool get soundEnabled => _soundEnabled;
   bool get vibrationEnabled => _vibrationEnabled;
@@ -26,6 +27,9 @@ class GameSettings extends ChangeNotifier {
   /// 이벤트·소식 푸시(백오피스에서 보내는 것). 기본 켬 — 끄면 토픽 구독을 전부 푼다(PushService)
   bool get pushEnabled => _pushEnabled;
 
+  /// 친구 알림(요청·수락·친구가 내 기록을 넘음 — docs/FRIENDS.md). 기본 켬. 기기 문서의 friend 값으로 서버가 본다
+  bool get friendPushEnabled => _friendPushEnabled;
+
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -34,6 +38,7 @@ class GameSettings extends ChangeNotifier {
     _darkMode = prefs.getBool('dark_mode') ?? false;
     _reminderEnabled = prefs.getBool('reminder_enabled') ?? true;
     _pushEnabled = prefs.getBool('push_enabled') ?? true;
+    _friendPushEnabled = prefs.getBool('friend_push_enabled') ?? true;
   }
 
   /// 스토어 스크린샷 모드 — 소리·진동을 끄고 라이트 테마로(메모리만, 저장하지 않는다)
@@ -59,6 +64,12 @@ class GameSettings extends ChangeNotifier {
     _reminderEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('reminder_enabled', enabled);
+  }
+
+  Future<void> setFriendPush(bool enabled) async {
+    _friendPushEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('friend_push_enabled', enabled);
   }
 
   Future<void> setPush(bool enabled) async {

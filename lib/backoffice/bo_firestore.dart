@@ -157,6 +157,14 @@ class FirestoreSource implements BoSource {
   Future<void> deletePromo(String id) => _db.collection(PromoService.collection).doc(id).delete();
 
   // ── 이벤트 코드 ──
+  @override
+  Future<List<BoFriend>> userFriends(String uid) async {
+    final snap = await _db.collection('users').doc(uid).collection('friends').get();
+    final list = [for (final d in snap.docs) BoFriend(d.id, tsOf(d.data()['since']), d.data()['via'] as String? ?? '')];
+    list.sort((a, b) => (b.since ?? DateTime(2000)).compareTo(a.since ?? DateTime(2000)));
+    return list;
+  }
+
   // ── 푸시 ──
   CollectionReference<Map<String, dynamic>> get _push => _db.collection('push_campaigns');
 

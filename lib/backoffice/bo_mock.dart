@@ -340,6 +340,15 @@ class MockSource implements BoSource {
   @override
   Future<void> deletePromo(String id) => _later(() => _promos.removeWhere((e) => e.promo.id == id));
 
+  @override
+  Future<List<BoFriend>> userFriends(String uid) => _later(() {
+        final others = _users.where((u) => u.id != uid).take(4).toList();
+        return [
+          for (var i = 0; i < others.length; i++)
+            BoFriend(others[i].id, DateTime(2026, 9, 28 - i, 12), i.isEven ? 'code' : 'request'),
+        ];
+      });
+
   // ── 푸시 ──
   late final List<PushCampaign> _pushes = [
     PushCampaign(

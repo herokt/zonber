@@ -27,6 +27,7 @@ let source = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8'
 source = source.replace(/\n\s*&& request\.resource\.data\.timestamp == request\.time\);/, ');');
 source = source.replace(/\n\s*&& request\.resource\.data\.timestamp == request\.time\n/, '\n');
 source = source.replace(/\n\s*&& request\.resource\.data\.at == request\.time\n/g, '\n'); // 코드 사용 기록·친구 코드 입력의 서버 시각
+source = source.replace(/\n\s*&& request\.resource\.data\.createdAt == request\.time\n/g, '\n'); // 푸시 발송 기록의 서버 시각
 
 const P = (p) => `/databases/(default)/documents/${p}`;
 const anon = { uid: 'guest1', token: { firebase: { sign_in_provider: 'anonymous' } } };
@@ -151,6 +152,32 @@ const cases = [
   ['코드 주인이 내 친구 목록', 'ALLOW', { auth: member2, path: P('friend_invites/u1'), method: 'list' }, invite],
   ['남이 친구 목록', 'DENY', { auth: { ...member, uid: 'u9' }, path: P('friend_invites/u1'), method: 'list' }, invite],
   ['관리자 코드 사용자 목록', 'ALLOW', { auth: admin, path: P('users/u2/codes/ABC'), method: 'list' }, { code: 'ABC' }],
+
+  // ── 친구 목록 · 요청 · 기기(docs/FRIENDS.md) — 쓰기는 서버 함수만 ──
+  ['내 친구 목록 읽기', 'ALLOW', { auth: member, path: P('users/u1/friends/u2'), method: 'get' }, { via: 'code' }],
+  ['남의 친구 목록 읽기', 'DENY', { auth: member2, path: P('users/u1/friends/u3'), method: 'get' }, { via: 'code' }],
+  ['내 친구 목록에 직접 넣기', 'DENY', { auth: member, path: P('users/u1/friends/u2'), method: 'create', resource: { data: { via: 'code' } } }],
+  ['남의 친구 목록에 나 넣기', 'DENY', { auth: member, path: P('users/u2/friends/u1'), method: 'create', resource: { data: { via: 'code' } } }],
+  ['받은 요청 읽기', 'ALLOW', { auth: member2, path: P('friend_requests/u1_u2'), method: 'get' }, { from: 'u1', to: 'u2', status: 'pending' }],
+  ['남의 요청 읽기', 'DENY', { auth: { ...member, uid: 'u9' }, path: P('friend_requests/u1_u2'), method: 'get' }, { from: 'u1', to: 'u2', status: 'pending' }],
+  ['요청 직접 만들기', 'DENY', { auth: member, path: P('friend_requests/u1_u2'), method: 'create', resource: { data: { from: 'u1', to: 'u2', status: 'pending' } } }],
+  ['받은 요청 직접 수락', 'DENY', { auth: member2, path: P('friend_requests/u1_u2'), method: 'update', resource: { data: { from: 'u1', to: 'u2', status: 'accepted' } } }, { from: 'u1', to: 'u2', status: 'pending' }],
+  ['내 기기 등록', 'ALLOW', { auth: member, path: P('users/u1/devices/d1'), method: 'create', resource: { data: { token: 't', lang: 'ko', platform: 'android', friend: true, updatedAt: 1 } } }],
+  ['내 기기에 다른 필드', 'DENY', { auth: member, path: P('users/u1/devices/d1'), method: 'create', resource: { data: { token: 't', friend: true, admin: true } } }],
+  ['남의 기기 등록', 'DENY', { auth: member2, path: P('users/u1/devices/d1'), method: 'create', resource: { data: { token: 't', friend: true } } }],
+  ['남의 기기 토큰 읽기', 'DENY', { auth: member2, path: P('users/u1/devices/d1'), method: 'get' }, { token: 't', friend: true }],
+  ['게스트 기기 등록', 'DENY', { auth: anon, path: P('users/guest1/devices/d1'), method: 'create', resource: { data: { token: 't', friend: true } } }],
+  ['내 기기 지우기', 'ALLOW', { auth: member, path: P('users/u1/devices/d1'), method: 'delete' }, { token: 't', friend: true }],
+  ['알림 횟수 읽기', 'DENY', { auth: member, path: P('push_state/u1'), method: 'get' }, { beat: {} }],
+
+  // ── 푸시 발송 기록(push_campaigns) ──
+  ['관리자 푸시 만들기', 'ALLOW', { auth: admin, path: P('push_campaigns/p1'), method: 'create', resource: { data: { status: 'pending', createdBy: 'herokt851103@gmail.com', audience: 'testers', title: { ko: '가', en: 'A' }, body: { ko: '나', en: 'B' } } } }],
+  ['관리자 푸시 — 남의 이름', 'DENY', { auth: admin, path: P('push_campaigns/p1'), method: 'create', resource: { data: { status: 'pending', createdBy: 'x@y.com', audience: 'all', title: { ko: '가', en: 'A' }, body: { ko: '나', en: 'B' } } } }],
+  ['관리자 푸시 — 영어 없음', 'DENY', { auth: admin, path: P('push_campaigns/p1'), method: 'create', resource: { data: { status: 'pending', createdBy: 'herokt851103@gmail.com', audience: 'all', title: { ko: '가' }, body: { ko: '나' } } } }],
+  ['관리자 푸시 — 보냄으로 만들기', 'DENY', { auth: admin, path: P('push_campaigns/p1'), method: 'create', resource: { data: { status: 'sent', createdBy: 'herokt851103@gmail.com', audience: 'all', title: { ko: '가', en: 'A' }, body: { ko: '나', en: 'B' } } } }],
+  ['회원 푸시 만들기', 'DENY', { auth: member, path: P('push_campaigns/p1'), method: 'create', resource: { data: { status: 'pending', createdBy: 'a@b.com', audience: 'all', title: { ko: '가', en: 'A' }, body: { ko: '나', en: 'B' } } } }],
+  ['보낸 푸시 고치기', 'DENY', { auth: admin, path: P('push_campaigns/p1'), method: 'update', resource: { data: { status: 'pending' } } }, { status: 'sent' }],
+  ['회원 푸시 기록 읽기', 'DENY', { auth: member, path: P('push_campaigns/p1'), method: 'get' }, { status: 'sent' }],
 ];
 
 const testCases = cases.map(([, expectation, request, existing, functionMocks]) => ({

@@ -286,6 +286,41 @@ class RankingSystem {
     }
   }
 
+  /// 친구 랭킹(docs/FRIENDS.md) — [uids](나 + 친구)의 이 기간 최고 기록, 한 사람 한 줄.
+  /// userId in(30명씩) + 기간 → 색인 records(userId, timestamp)
+  Future<List<Map<String, dynamic>>> getFriendRankings(
+    String mapId,
+    Iterable<String> uids, {
+    RankingPeriod period = RankingPeriod.allTime,
+  }) async {
+    if (_db == null) return [];
+    final list = uids.where((u) => u.isNotEmpty).toSet().toList();
+    if (list.isEmpty) return [];
+    try {
+      final periodStart = _getPeriodStart(period);
+      final records = <Map<String, dynamic>>[];
+      for (var i = 0; i < list.length; i += 30) {
+        final snap = await _db!
+            .collection('maps')
+            .doc(mapId)
+            .collection('records')
+            .where('userId', whereIn: list.skip(i).take(30).toList())
+            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart))
+            .get();
+        for (final d in snap.docs) {
+          records.add({...d.data(), 'id': d.id});
+        }
+      }
+      records.sort((a, b) => ((b['survivalTime'] as num?) ?? 0).compareTo((a['survivalTime'] as num?) ?? 0));
+      final out = _uniquePlayers(records).toList();
+      await _enrichWithUserData(out, worldId: mapId);
+      return out;
+    } catch (e) {
+      debugPrint('Friend ranking load failed: $e');
+      return [];
+    }
+  }
+
   // 4. Fetch My Best Record for period (queried by userId)
   Future<Map<String, dynamic>?> getMyRank(
     String mapId,

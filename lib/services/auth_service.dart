@@ -4,7 +4,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
+import '../friends.dart';
 import '../promotions.dart';
+import 'push_service.dart';
 import '../world_config.dart';
 import '../store_shot.dart';
 
@@ -99,6 +101,8 @@ class AuthService {
 
   // Sign Out
   Future<void> signOut() async {
+    await PushService.unregisterDevice(); // 로그인한 동안에 — 이 기기로 친구 알림이 오지 않게
+    Friends.clear();
     await _googleSignIn?.signOut();
     await _auth.signOut();
   }
@@ -126,6 +130,10 @@ class AuthService {
           debugPrint('⚠️ Error deleting ranking records (${w.rankingMapId}): $e');
         }
       }
+
+      // 친구 알림 기기 문서 — 친구 목록·요청은 유저 문서를 지우면 서버 함수(onUserDeleted)가 정리한다
+      await PushService.unregisterDevice();
+      Friends.clear();
 
       // 친구 코드 — 유저 문서를 지우기 전에(거기서 내 코드를 읽는다)
       try {

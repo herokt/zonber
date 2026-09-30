@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../avatar.dart';
 import '../badges.dart';
 import '../design_system.dart';
+import '../friends.dart';
 import '../language_manager.dart';
 import '../player_profile.dart';
+import '../services/auth_service.dart';
 import '../world_config.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -305,6 +307,10 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
   PlayerProfile? _profile;
   bool _loading = true;
 
+  /// 나와 이 사람 사이(친구 버튼) — 게스트·못 읽음이면 null(버튼 없음)
+  FriendState? _friend;
+  bool _friendBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -312,12 +318,74 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
   }
 
   Future<void> _load() async {
-    final p = await PlayerProfileService.fetch(widget.uid);
+    final results = await Future.wait<Object?>([PlayerProfileService.fetch(widget.uid), Friends.stateOf(widget.uid)]);
     if (!mounted) return;
     setState(() {
-      _profile = p;
+      _profile = results[0] as PlayerProfile?;
+      final st = results[1] as FriendState;
+      _friend = st == FriendState.self || AuthService.isGuest ? null : st;
       _loading = false;
     });
+  }
+
+  Future<void> _friendAction(Future<FriendResult> Function() f) async {
+    if (_friendBusy) return;
+    final lm = LanguageManager.of(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _friendBusy = true);
+    final r = await f();
+    final st = await Friends.stateOf(widget.uid);
+    if (!mounted) return;
+    setState(() {
+      _friendBusy = false;
+      _friend = st == FriendState.self ? null : st;
+    });
+    messenger.showSnackBar(SnackBar(content: Text(lm.translate(friendResultKey(r))), duration: const Duration(seconds: 2)));
+  }
+
+  Future<void> _confirmRemove() async {
+    final lm = LanguageManager.of(context, listen: false);
+    final name = _profile?.nickname ?? '';
+    final ok = await showNeonDialog<bool>(
+      context: context,
+      title: lm.translate('friend_remove'),
+      message: lm.translate('friend_remove_confirm').replaceAll('{name}', name),
+      actions: [
+        NeonButton(text: lm.translate('cancel'), isPrimary: false, isCompact: true, onPressed: () => Navigator.of(context).pop(false)),
+        NeonButton(text: lm.translate('friend_remove'), isCompact: true, color: AppColors.secondary, onPressed: () => Navigator.of(context).pop(true)),
+      ],
+    );
+    if (ok == true) await _friendAction(() => Friends.remove(widget.uid));
+  }
+
+  /// 친구 버튼 한 줄 — 요청 / 요청 보냄 / 수락 / 친구(삭제)
+  Widget _friendRow(LanguageManager lm) {
+    final st = _friend;
+    if (st == null) return const SizedBox.shrink();
+    return switch (st) {
+      FriendState.friend => Row(children: [
+          Icon(Icons.people_alt_rounded, size: 18, color: AppColors.primary),
+          const SizedBox(width: 6),
+          Text(lm.translate('friend_is_friend'), style: AppTextStyles.text(13, color: AppColors.primary, weight: FontWeight.w800)),
+          const Spacer(),
+          TextButton(
+            onPressed: _friendBusy ? null : _confirmRemove,
+            child: Text(lm.translate('friend_remove'), style: AppTextStyles.text(12.5, color: AppColors.textDim, weight: FontWeight.w700)),
+          ),
+        ]),
+      FriendState.requested => NeonButton(text: lm.translate('friend_requested_btn'), icon: Icons.schedule_rounded, isPrimary: false, onPressed: null),
+      FriendState.incoming => NeonButton(
+          text: lm.translate('friend_accept_btn'),
+          icon: Icons.person_add_alt_1_rounded,
+          onPressed: _friendBusy ? null : () => _friendAction(() => Friends.answer(widget.uid, accept: true)),
+        ),
+      _ => NeonButton(
+          text: lm.translate('friend_request_btn'),
+          icon: Icons.person_add_alt_1_rounded,
+          isPrimary: false,
+          onPressed: _friendBusy ? null : () => _friendAction(() => Friends.request(widget.uid)),
+        ),
+    };
   }
 
   @override
@@ -362,6 +430,7 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
               ),
               const SizedBox(height: 10),
               ProfileMetaLine(profile: p),
+              if (_friend != null) ...[const SizedBox(height: 12), _friendRow(lm)],
               const SizedBox(height: 18),
               SectionLabel(lm.translate('world_records')),
               const SizedBox(height: 10),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../avatar.dart';
 import '../design_system.dart';
+import '../friends.dart';
 import '../badges.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
@@ -41,7 +42,9 @@ class _RankingPageState extends State<RankingPage> {
   final RankingSystem _ranking = RankingSystem();
   late String _worldId;
   int _period = 2; // 0 주 1 월 2 올해
-  bool _national = false;
+  /// 0 세계 · 1 국가 · 2 친구
+  int _scope = 0;
+  bool get _national => _scope == 1;
   bool _loading = true;
   List<Map<String, dynamic>> _records = const [];
   Map<String, dynamic>? _mine;
@@ -94,7 +97,10 @@ class _RankingPageState extends State<RankingPage> {
     final period = _periods[_period];
 
     List<Map<String, dynamic>> records;
-    if (_national && _myFlag.isNotEmpty) {
+    if (_scope == 2 && !_isGuest) {
+      final ids = await Friends.load();
+      records = await _ranking.getFriendRankings(mapId, {...ids, _myUid}, period: period);
+    } else if (_national && _myFlag.isNotEmpty) {
       records = await _ranking.getNationalRankings(mapId, _myFlag, period: period);
     } else {
       records = await _ranking.getTopRecords(mapId, period: period);
@@ -166,16 +172,21 @@ class _RankingPageState extends State<RankingPage> {
                   ),
                   const SizedBox(width: 8),
                   SizedBox(
-                    width: 116,
+                    width: 168,
                     child: AppSegmented(
-                      items: [lm.translate('rank_world'), flagToIso(_myFlag).isNotEmpty ? flagToIso(_myFlag) : lm.translate('rank_country')],
-                      index: _national ? 1 : 0,
+                      items: [
+                        lm.translate('rank_world'),
+                        flagToIso(_myFlag).isNotEmpty ? flagToIso(_myFlag) : lm.translate('rank_country'),
+                        lm.translate('rank_friends'),
+                      ],
+                      index: _scope,
                       onChanged: (i) {
-                        if (_myFlag.isEmpty && i == 1) {
+                        // 국가·친구는 로그인해야 — 게스트는 로그인으로
+                        if ((i == 1 && _myFlag.isEmpty) || (i == 2 && _isGuest)) {
                           widget.onLogin();
                           return;
                         }
-                        setState(() => _national = i == 1);
+                        setState(() => _scope = i);
                         _load();
                       },
                     ),

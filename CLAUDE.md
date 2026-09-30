@@ -105,6 +105,8 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `push.dart` | **푸시 단일 출처** — 토픽(`lang_{ko|en|ja|zh}` + `member`/`guest` + 관리자 기기 `tester`) · 대상(`PushAudience`) · 발송 문서(`PushCampaign` = `push_campaigns/{id}`) · 템플릿 문구 8종(`PushTemplates`, 4개 언어). `functions/index.js` 와 약속이 같아야 한다. 운영법 [docs/PUSH.md](docs/PUSH.md) |
 | `services/push_service.dart` | 이벤트·소식 푸시(FCM) 받기 — `sync()` 가 언어·로그인·설정에 맞게 토픽 구독(앱 시작·복귀·언어 변경·로그인/로그아웃). 기기 토큰은 저장하지 않는다. 끄기는 프로필 › 설정 › 이벤트·소식 알림 |
 | `admin_emails.dart` | 관리자 이메일 — 백오피스 로그인 · 푸시 tester 토픽. `firestore.rules isAdmin()` · `functions/index.js ADMIN_EMAILS` 와 같게 |
+| `friends.dart` | **친구 단일 출처**(docs/FRIENDS.md) — 읽기는 앱이 직접(`users/{me}/friends` · `friend_requests`), 쓰기는 서버 함수(`addByCode` · `request` · `answer` · `remove` → `functions/friends.js`). `FriendResult` 코드는 서버와 같다. 친구 코드는 바로 친구, 랭킹·프로필 카드에서는 요청→수락. 최대 100명 · 대기 요청 50 · 요청 7일 |
+| `pages/friends_page.dart` | 친구 화면(프로필 탭 › 친구) — 내 코드(복사·공유) · 코드로 추가 · 받은 요청 · 친구 랭킹(존별 최고 기록) |
 | `services/review_service.dart` | `ReviewPrompt` — 신기록·새 뱃지가 있었던 회원이 홈으로 나갈 때, 5판 이상 · 120일에 한 번 앱 리뷰 창(`in_app_review`) |
 | `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
@@ -114,7 +116,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 ### 백오피스 (별도 관리자 앱)
 `lib/backoffice/`에 위치. 진입점: `lib/backoffice/main_backoffice.dart`.
 Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) — 주소 `https://stayzone-88364.web.app/secret_admin/`.
-배포는 `deploy_admin.bat` 하나로: 백오피스 웹 번들 + **Firestore 규칙·색인** + **서버 함수**(`functions/` — 푸시 발송 `sendPushCampaign`, us-central1)까지 같이 올린다.
+배포는 `deploy_admin.bat` 하나로: 백오피스 웹 번들 + **Firestore 규칙·색인** + **서버 함수**(`functions/` — 푸시 발송 `sendPushCampaign` · 친구 `friends.js` · 탈퇴 정리, us-central1. `cd functions && npm test`)까지 같이 올린다.
 규칙·색인을 빼먹으면 플레이 기록(`users/{uid}/runs` 쓰기 · collection group 읽기)이 조용히 막힌다.
 백오피스 카탈로그(`bo_catalog.dart`)는 캐릭터·장비·꾸미기 목록을 **게임 파일에서 그대로 읽는다** — 목록을 베껴 두지 않는다(아이템이 늘면 저절로 따라온다).
 - `dashboard_page.dart` — 실시간 유저/플레이 지표 및 스테이지 성과
@@ -122,6 +124,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 - `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
 - `promo_page.dart` · `promo_codes_page.dart` — 이벤트 · 이벤트 코드(만들기·검증·사용한 사람)
 - `push_page.dart` — 푸시 보내기(템플릿 · 4개 언어 문구 · 대상 · 미리보기 · 테스트 발송) + 보낸 기록
+- 유저 상세 개요 탭 아래 **친구** 카드(`users/{uid}/friends`)
 - 이름표(캐릭터·장비·뱃지 한글명)는 `bo_catalog.dart`
 
 ### 디자인 시스템
@@ -252,6 +255,9 @@ friend_invites/{uid}        # 친구 코드 입력 기록(계정당 한 번) {co
 custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규칙만 남음)
 
 push_campaigns/             # 백오피스 푸시 발송 기록 — 만들면 서버 함수가 보낸다(status · results)
+friend_requests/            # 친구 요청 {from, to, status, expiresAt} — 쓰기는 서버 함수만
+push_state/                 # 친구 기록 알림 하루 횟수(서버만)
+# users/{uid}/friends/{친구uid} · users/{uid}/devices/{기기 id}(친구 알림 토큰, 본인만)
 ```
 
 랭킹 기록은 3개 기간 지원: `weekly`, `monthly`, `allTime` (현재 연도). 일일은 2026-09-18 제거.
@@ -276,6 +282,8 @@ push_campaigns/             # 백오피스 푸시 발송 기록 — 만들면 �
 | `reminder_asked` | 주간 알림 권한을 이미 물었나 (기기 설정 — 로그아웃에도 지우지 않음) |
 | `push_enabled` | 이벤트·소식 푸시 토글 (기본 켬) |
 | `push_topics` | 지금 구독 중인 푸시 토픽 (차이만 고치려고 적어 둔다) |
+| `friend_push_enabled` | 친구 알림 토글 (기본 켬 — 기기 문서 friend 값) |
+| `push_device_id` · `push_device_sig` | 친구 알림 기기 문서 id · 마지막으로 서버에 쓴 값 |
 | `drag_sensitivity` | 드래그 감도 (0.6 ~ 1.8, 기본 1.0) |
 | `user_achievements` | 획득 업적 키 배열 (캐릭터 해금 판정에도 사용) |
 | `user_nickname` | 플레이어 표시 이름 (최대 8자) |

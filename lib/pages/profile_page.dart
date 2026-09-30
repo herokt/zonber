@@ -10,6 +10,7 @@ import '../avatar.dart';
 import '../player_profile.dart';
 import 'player_profile_view.dart';
 import '../design_system.dart';
+import '../friends.dart';
 import '../game_settings.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
@@ -26,6 +27,9 @@ class ProfilePage extends StatefulWidget {
   final Future<void> Function() onLogout;
   final VoidCallback onLogin;
   final VoidCallback onStatistics;
+
+  /// 친구 화면(docs/FRIENDS.md)
+  final VoidCallback onFriends;
   final VoidCallback onBack;
   final Map<String, double> bestTimes;
   final Map<String, RankCacheEntry> rankCache;
@@ -36,6 +40,7 @@ class ProfilePage extends StatefulWidget {
     required this.onLogout,
     required this.onLogin,
     required this.onStatistics,
+    required this.onFriends,
     required this.onBack,
     required this.bestTimes,
     required this.rankCache,
@@ -55,6 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _vibrationEnabled = true;
   bool _reminderEnabled = true;
   bool _pushEnabled = true;
+  bool _friendPushEnabled = true;
   bool _darkMode = false;
   bool _adPrivacyRequired = false;
   String _appVersion = '';
@@ -64,6 +70,11 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _load();
+    // 친구 수 · 받은 요청 수(카드에 보인다)
+    if (!AuthService.isGuest) {
+      Friends.load();
+      Friends.incoming();
+    }
   }
 
   Future<void> _load() async {
@@ -97,6 +108,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _vibrationEnabled = GameSettings().vibrationEnabled;
       _reminderEnabled = GameSettings().reminderEnabled;
       _pushEnabled = GameSettings().pushEnabled;
+      _friendPushEnabled = GameSettings().friendPushEnabled;
       _darkMode = GameSettings().darkMode;
       _adPrivacyRequired = adPrivacyRequired;
       _appVersion = version;
@@ -324,6 +336,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
 
+            // ── 친구 — 누르면 친구 화면. 받은 요청이 있으면 숫자 ──
+            if (!_isGuest) ...[
+              const SizedBox(height: 12),
+              _friendsCard(lm),
+            ],
+
             // ── 내 기록 — 스테이지별 최고 기록과 세계 순위를 같은 무게로 ──
             const SizedBox(height: 22),
             SectionLabel(lm.translate('world_records')),
@@ -392,6 +410,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
                     }),
                   ),
+                  // 친구 알림(요청·수락·친구가 내 기록을 넘음) — 회원만
+                  if (!_isGuest)
+                    _row(
+                      lm.translate('friend_push_setting'),
+                      trailing: _switch(_friendPushEnabled, (v) async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        setState(() => _friendPushEnabled = v);
+                        final on = await PushService.setFriendEnabled(v);
+                        if (!mounted) return;
+                        setState(() => _friendPushEnabled = on);
+                        if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
+                      }),
+                    ),
                   // 이벤트·소식 푸시(백오피스에서 보내는 것) — 끄면 토픽 구독을 전부 푼다
                   _row(
                     lm.translate('push_setting'),
@@ -470,6 +501,38 @@ class _ProfilePageState extends State<ProfilePage> {
     for (final b in Badges.all)
       if (_achievementKeys.contains(b.key)) b.key,
   };
+
+  /// 친구 카드 — "친구 N명" · 받은 요청 수 · 누르면 친구 화면
+  Widget _friendsCard(LanguageManager lm) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onFriends,
+        child: NeonCard(
+          child: Row(children: [
+            Icon(Icons.people_alt_rounded, color: AppColors.primary, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ValueListenableBuilder<Set<String>>(
+                valueListenable: Friends.ids,
+                builder: (_, ids, _) => Text(lm.translate('friends_count').replaceAll('{n}', '${ids.length}'),
+                    style: AppTextStyles.text(14, weight: FontWeight.w800)),
+              ),
+            ),
+            ValueListenableBuilder<int>(
+              valueListenable: Friends.incomingCount,
+              builder: (_, n, _) => n <= 0
+                  ? const SizedBox.shrink()
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(999)),
+                      child: Text('${lm.translate('friend_requests')} $n',
+                          style: AppTextStyles.text(11, color: Colors.white, weight: FontWeight.w800)),
+                    ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 20),
+          ]),
+        ),
+      );
 
   Widget _row(String label, {Widget? trailing, VoidCallback? onTap, Color? color, bool last = false}) {
     return GestureDetector(

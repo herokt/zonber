@@ -26,6 +26,8 @@ import 'design_system.dart';
 import 'shop_page.dart';
 import 'services/auth_service.dart';
 import 'services/analytics_service.dart';
+import 'friends.dart';
+import 'pages/friends_page.dart';
 import 'services/push_service.dart';
 import 'services/reminder_service.dart';
 import 'world_config.dart';
@@ -225,6 +227,9 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     await _checkAuth();
     ReminderService.reschedule(); // 주간 알림 — 켤 때마다 "7일 뒤"로 다시 건다
     PushService.sync(); // 이벤트·소식 푸시 — 언어·회원 여부에 맞게 토픽 구독
+    // 친구 알림을 눌러 열렸으면(또는 켜 둔 채 눌렀으면) 친구 화면으로
+    if (PushService.openFriends.value > 0) _openFriendsFromPush();
+    PushService.openFriends.addListener(_openFriendsFromPush);
 
     // 4. Check Ads
     await _checkAdStatus();
@@ -333,6 +338,11 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     } else {
       await _checkProfile();
     }
+  }
+
+  void _openFriendsFromPush() {
+    if (!mounted || AuthService.isGuest || _currentPage == 'Game') return;
+    _navigateTo('Friends');
   }
 
   /// 게스트로 메뉴에 진입한다. 최초 실행과 로그아웃 직후에 쓴다.
@@ -536,6 +546,10 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         _navigateTo('Menu');
         break;
 
+      case 'Friends':
+        _navigateTo('MyProfile');
+        break;
+
       case 'Statistics':
         _navigateTo('Menu');
         break;
@@ -618,6 +632,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       case 'Badges':
         return 3;
       case 'MyProfile':
+      case 'Friends':
         return 4;
     }
     return null;
@@ -653,7 +668,8 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       case 'Login':
         return LoginPage(
           onLoginSuccess: () {
-            PushService.sync(); // 게스트 → 회원 토픽으로
+            PushService.sync(); // 게스트 → 회원 토픽으로 · 친구 알림 기기 등록
+            Friends.refresh();
             _checkProfile();
           },
           onGuestContinue: () {
@@ -738,6 +754,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           rankCache: _rankCache,
           onOpenShop: () => _navigateTo('Shop'),
           onStatistics: () => _navigateTo('Statistics'),
+          onFriends: () => _navigateTo('Friends'),
           onBack: () => _navigateTo('Menu'),
           onLogin: () => _navigateTo('Login'),
           onLogout: () async {
@@ -803,6 +820,13 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         return StatisticsPage(onBack: () => _navigateTo('MyProfile'));
       case 'Promo':
         return PromoPage(onBack: () => _navigateTo('Menu'));
+      case 'Friends':
+        return FriendsPage(
+          initialWorldId: _currentWorldId,
+          onBack: () => _navigateTo('MyProfile'),
+          onLogin: () => _navigateTo('Login'),
+          onChallenge: (worldId, name, time) => _play(worldId, source: 'rival', rival: (name: name, time: time)),
+        );
       case 'Menu':
       default:
         return HomePage(
