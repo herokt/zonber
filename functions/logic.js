@@ -16,8 +16,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // 푸시 유효 시간 — 이보다 늦게 도착할 푸시는 버린다(폰이 꺼져 있다 켜져도 지난 알림이 쏟아지지 않게).
 // 친구 알림은 알림함에 늘 남으니 짧게, 이벤트·소식은 조금 길게
-const FRIEND_TTL_MS = 30 * 60 * 1000;
-const NEWS_TTL_MS = 60 * 60 * 1000;
+const FRIEND_TTL_MS = 10 * 60 * 1000;
+const NEWS_TTL_MS = 30 * 60 * 1000;
 // 알림함 한 사람당 최대(넘으면 오래된 것부터 지운다) · 이벤트·소식은 이 날수 안의 것만 보여 준다
 const INBOX_MAX = 100;
 const NEWS_DAYS = 30;

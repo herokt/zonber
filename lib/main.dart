@@ -226,7 +226,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
 
     // 3. Check Auth & Profile
     await _checkAuth();
-    ReminderService.reschedule(); // 주간 알림 — 켤 때마다 "7일 뒤"로 다시 건다
+    ReminderService.clearShown().then((_) => ReminderService.reschedule()); // 트레이의 지난 알림을 치우고, 주간 알림은 "7일 뒤"로 다시 건다
     PushService.sync(); // 이벤트·소식 푸시 — 언어·회원 여부에 맞게 토픽 구독
     // 알림(친구·이벤트 소식)을 눌러 열렸으면(또는 켜 둔 채 눌렀으면) 알림 페이지로
     if (PushService.openInbox.value > 0) _openInboxFromPush();
@@ -286,7 +286,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
-    ReminderService.reschedule(); // 주간 알림 — 돌아올 때도 "7일 뒤"로 다시 건다
+    ReminderService.clearShown().then((_) => ReminderService.reschedule()); // 돌아올 때도 같게
     PushService.sync();
     if (AuthService.isGuest) return;
     UserProfileManager.syncProfile().then((_) async {

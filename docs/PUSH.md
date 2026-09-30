@@ -16,7 +16,8 @@
 - **기기 토큰은 저장하지 않는다.** 토픽만 쓰므로 정확한 받는 수는 모른다 — 효과는 분석의 `push_open`(campaign = 문서 id)으로 본다.
 - 언어는 **앱 언어**를 따른다. 문구를 비운 언어(ja·zh)는 영어로 간다. ko·en 은 필수(규칙이 막는다).
 - 설정 › **이벤트·소식 알림**을 끄면 토픽을 전부 해제한다. OS 알림 권한은 주간 알림과 같은 권한이다.
-- **1시간 안에 못 받으면 버린다**(TTL) · 여러 개가 쌓였으면 최신 하나만(collapse `news`) — 지난 소식이 뒤늦게 쏟아지지 않게.
+- **30분 안에 못 받으면 버린다**(TTL) · 여러 개가 쌓였으면 최신 하나만(collapse `news`) — 지난 소식이 뒤늦게 쏟아지지 않게.
+- **앱을 켜 둔 동안에는 띄우지 않는다**(Android · iOS) — 종 아이콘 점만 켠다. 앱을 켜거나 돌아오면 트레이의 이 앱 알림을 비운다(`ReminderService.clearShown`).
 - 보낸 소식은 `news/{id}` 에 남아 앱 **알림 페이지**에 30일 동안 보인다(대상·언어로 걸러서). 읽음은 `users/{uid}/inbox_state/news`.
 
 | 대상 | 조건 |
@@ -53,7 +54,7 @@ Android 는 추가 설정이 없다(`google-services.json` 그대로). iOS 는 �
 
 ```
 lib/push.dart                    토픽 · 대상 · PushCampaign(문서) · PushTemplates  ← 정본
-lib/services/push_service.dart   앱 — 토픽 구독(sync) · 켜 둔 채 오면 Android 는 직접 띄움 · push_open
+lib/services/push_service.dart   앱 — 토픽 구독(sync) · 켜 둔 채 오면 띄우지 않음(종 아이콘 점만) · push_open
 lib/services/reminder_service.dart  알림 권한 · news 채널(Android)
 lib/backoffice/push_page.dart    백오피스 화면
 functions/index.js               sendPushCampaign (push_campaigns 생성 트리거, us-central1)

@@ -25,7 +25,7 @@ import 'reminder_service.dart';
 /// - [sync] 가 지금 상태(언어·로그인·설정)에 맞게 구독을 고친다 — 앱 시작·돌아올 때·언어 변경·로그인/로그아웃 때 부른다.
 ///   구독한 목록은 기기에 적어 두고(차이만 고친다) 설정에서 끄면 전부 해제한다
 /// - 권한은 주간 알림과 같은 OS 권한(ReminderService). 권한이 없어도 구독은 해 둔다 — 나중에 허락하면 바로 받는다
-/// - 앱을 켜 둔 채 오면 Android 는 직접 띄우고(ReminderService.showNews) iOS 는 FCM 이 띄운다
+/// - 앱을 켜 둔 채 오면 **띄우지 않는다**(Android · iOS 모두) — 종 아이콘 점만 켠다. 내용은 알림 페이지에 있다
 class PushService {
   static const String _kTopics = 'push_topics'; // 기기 설정 — 지금 구독 중인 토픽
   static const String _kDeviceId = 'push_device_id'; // 기기 설정 — 기기 문서 id(한 번 만들고 그대로)
@@ -45,14 +45,11 @@ class PushService {
     try {
       final m = FirebaseMessaging.instance;
       // iOS — 앱을 켜 둔 채 와도 배너로 보이게
-      await m.setForegroundNotificationPresentationOptions(alert: true, badge: false, sound: true);
+      // 앱을 켜 둔 채 온 푸시는 띄우지 않는다(iOS 는 이 옵션, Android 는 원래 안 띄운다) — 종 아이콘 점만
+      await m.setForegroundNotificationPresentationOptions(alert: false, badge: false, sound: false);
       FirebaseMessaging.onMessage.listen((msg) {
-        final n = msg.notification;
-        if (n == null) return;
-        Inbox.unread.value = Inbox.unread.value + 1; // 앱을 켜 둔 채 왔다 — 종 아이콘 점
-        if (!Platform.isAndroid) return;
-        final friend = (msg.data['kind'] as String? ?? '').startsWith('friend_');
-        ReminderService.showNews(title: n.title ?? 'ZONBER', body: n.body ?? '', friend: friend);
+        if (msg.notification == null) return;
+        Inbox.unread.value = Inbox.unread.value + 1;
       });
       m.onTokenRefresh.listen((_) => sync(force: true));
       FirebaseMessaging.onMessageOpenedApp.listen(_opened);

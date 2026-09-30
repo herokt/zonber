@@ -101,9 +101,9 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `game_guide_sheet.dart` | 게임 방법 가이드 바텀시트 (아이템 탭은 파워업 제거와 함께 삭제) |
 | `services/analytics_service.dart` | Firebase Analytics 래퍼. **이벤트 이름·파라미터는 이 파일에만** 둔다 (모바일 외 no-op) |
 | `services/share_service.dart` | **공유 단일 출처** — `ShareLinks.url(lang, src, code)`(공유용 페이지 `/get/{lang}/?src=&c=` 주소 — `c` = 내 친구 코드) + `ShareService.share`(OS 공유 창 · 안 되면 복사 · `share` 이벤트). 공유 문구에 스토어 주소를 직접 쓰지 않는다 |
-| `services/reminder_service.dart` | **주간 알림**(로컬 알림, 서버 없음) — 앱을 켜거나 돌아올 때마다 `reschedule()` 이 "7일 뒤, 그 뒤 매주"로 다시 건다 → **일주일 동안 안 들어온 사람에게만** 간다. 권한은 첫 판 뒤 홈으로 나갈 때 한 번(`maybeAsk`, 리뷰 창과 겹치지 않게), 끄기는 프로필 › 설정 › 주간 알림. Android 는 desugaring·수신기·`ic_notification`(+ `res/raw/keep.xml`) 필요 |
+| `services/reminder_service.dart` | **주간 알림**(로컬 알림, 서버 없음) — 앱을 켜거나 돌아올 때마다 `reschedule()` 이 날짜를 박은 한 번짜리 알림을 7·14·21·28일 뒤로 다시 건다(반복 예약 periodicallyShow 는 켜자마자 뜨는 플러그인 버그가 있어 쓰지 않는다 — 한 달 넘게 안 오면 더 보내지 않는다). 켤 때 트레이의 지난 알림도 비운다(`clearShown`) → **일주일 동안 안 들어온 사람에게만** 간다. 권한은 첫 판 뒤 홈으로 나갈 때 한 번(`maybeAsk`, 리뷰 창과 겹치지 않게), 끄기는 프로필 › 설정 › 주간 알림. Android 는 desugaring·수신기·`ic_notification`(+ `res/raw/keep.xml`) 필요 |
 | `push.dart` | **푸시 단일 출처** — 토픽(`lang_{ko|en|ja|zh}` + `member`/`guest` + 관리자 기기 `tester`) · 대상(`PushAudience`) · 발송 문서(`PushCampaign` = `push_campaigns/{id}`) · 템플릿 문구 8종(`PushTemplates`, 4개 언어). `functions/index.js` 와 약속이 같아야 한다. 운영법 [docs/PUSH.md](docs/PUSH.md) |
-| `services/push_service.dart` | 이벤트·소식 푸시(FCM) 받기 — `sync()` 가 언어·로그인·설정에 맞게 토픽 구독(앱 시작·복귀·언어 변경·로그인/로그아웃). 기기 토큰은 저장하지 않는다. 끄기는 프로필 › 설정 › 이벤트·소식 알림 |
+| `services/push_service.dart` | 이벤트·소식 푸시(FCM) 받기 — `sync()` 가 언어·로그인·설정에 맞게 토픽 구독(앱 시작·복귀·언어 변경·로그인/로그아웃). 앱을 켜 둔 채 온 푸시는 띄우지 않는다(종 아이콘 점만). 기기 토큰은 저장하지 않는다. 끄기는 프로필 › 설정 › 이벤트·소식 알림 |
 | `admin_emails.dart` | 관리자 이메일 — 백오피스 로그인 · 푸시 tester 토픽. `firestore.rules isAdmin()` · `functions/index.js ADMIN_EMAILS` 와 같게 |
 | `friends.dart` | **친구 단일 출처**(docs/FRIENDS.md) — 읽기는 앱이 직접(`users/{me}/friends` · `friend_requests`), 쓰기는 서버 함수(`addByCode` · `request` · `answer` · `remove` → `functions/friends.js`). `FriendResult` 코드는 서버와 같다. 친구 코드는 바로 친구, 랭킹·프로필 카드에서는 요청→수락. 최대 100명 · 대기 요청 50 · 요청 7일 |
 | `pages/friends_page.dart` | 친구 화면(프로필 탭 › 친구) — 내 코드(복사·공유) · 코드로 추가 · 받은 요청 · 친구 랭킹(존별 최고 기록) |

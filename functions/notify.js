@@ -50,8 +50,9 @@ async function notifyUser(uid, kind, params) {
     if (dev.friend === false || !dev.token) continue;
     const text = textFor(kind, dev.lang, params);
     if (!text) continue;
-    // 같은 종류·같은 친구 알림이 쌓여 있으면 최신 하나만(collapse) · 알림 트레이에서도 덮어쓴다(tag)
-    const collapse = `${kind}_${(params && params.from) || ''}`.slice(0, 60);
+    // 친구 알림은 한 칸 — 못 받은 것이 여러 개 쌓여 있어도 최신 하나만 오고(collapse), 트레이에서도 덮어쓴다(tag).
+    // 나머지는 알림 페이지(inbox)에 남아 있다
+    const collapse = 'friends';
     try {
       await getMessaging().send({
         token: dev.token,
