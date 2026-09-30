@@ -279,6 +279,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'home': 'Home',
     'guest_lost_rank': 'This run would have been world #{rank}.',
     'guest_login_gift': 'Log in now for {reward}',
+    'reminder_setting': 'Weekly reminder', 'reminder_setting_desc': "Only once a week, when you haven't played", 'reminder_title': 'The zone is waiting', 'reminder_body': 'How long can you last today? Just one run.', 'reminder_gift_title': '🎁 Your weekly gift is here', 'reminder_gift_body': "Grab {n} coins and beat last week's time by one second.", 'reminder_denied': 'Allow notifications for ZONBER in your phone settings.',
     'guest_login_to_save': 'Log in to keep coins, badges and records.',
     'world_records': 'ZONE RECORDS',
     'guest_profile_hint': 'Log in to keep records, coins and badges.',
@@ -625,6 +626,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'home': '홈으로',
     'guest_lost_rank': '이 기록은 세계 #{rank}였어요.',
     'guest_login_gift': '지금 로그인하면 {reward}',
+    'reminder_setting': '주간 알림', 'reminder_setting_desc': '일주일 동안 안 들어왔을 때만 한 번', 'reminder_title': '존이 기다려요', 'reminder_body': '오늘은 몇 초 버틸 수 있을까? 한 판만 해 봐요.', 'reminder_gift_title': '🎁 주간 선물이 도착했어요', 'reminder_gift_body': '코인 {n} 받고, 지난 기록 1초만 더 버텨 볼까요?', 'reminder_denied': '휴대폰 설정에서 ZONBER 알림을 허용해 주세요.',
     'guest_login_to_save': '로그인하면 코인·뱃지·기록이 저장돼요.',
     'world_records': 'ZONE별 기록',
     'guest_profile_hint': '로그인하면 기록·코인·뱃지가 저장돼요.',
@@ -828,7 +830,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'att_claim': '领取签到奖励  +{n}', 'att_done_today': '今日已签到',
     'mis_runs': '玩 {n} 局', 'mis_total_time': '累计生存 {n} 秒', 'mis_stage_time': '在{s}单局生存 {n} 秒',
     'mis_stat': '在{s}完成{stat} {n} 次', 'mis_all_stages': '每个关卡各玩一局',
-    'home': '首页', 'guest_login_gift': '现在登录即可领取 {reward}', 'guest_lost_rank': '这一局本可以是世界第 {rank} 名。', 'guest_login_to_save': '登录后可保存金币、徽章和记录。',
+    'home': '首页', 'guest_login_gift': '现在登录即可领取 {reward}', 'reminder_setting': '每周提醒', 'reminder_setting_desc': '一周没玩时才提醒一次', 'reminder_title': '区域在等你', 'reminder_body': '今天能坚持几秒？来一局吧。', 'reminder_gift_title': '🎁 每周礼物到了', 'reminder_gift_body': '领取 {n} 金币，比上次多坚持一秒吧。', 'reminder_denied': '请在手机设置中允许 ZONBER 的通知。', 'guest_lost_rank': '这一局本可以是世界第 {rank} 名。', 'guest_login_to_save': '登录后可保存金币、徽章和记录。',
     'world_records': '区域记录',
     'guest_profile_hint': '登录后可保存记录、金币和徽章。',
     // ── 뱃지(badges.dart) ──
@@ -1031,7 +1033,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'att_claim': 'ログインボーナスを受け取る  +{n}', 'att_done_today': '今日は受取済み',
     'mis_runs': '{n}回プレイする', 'mis_total_time': '合計{n}秒生き残る', 'mis_stage_time': '{s}の1回で{n}秒生き残る',
     'mis_stat': '{s}で{stat}を{n}回', 'mis_all_stages': '全ステージを1回ずつプレイ',
-    'home': 'ホーム', 'guest_login_gift': '今ログインで {reward}', 'guest_lost_rank': 'このプレイは世界 {rank} 位になるはずでした。', 'guest_login_to_save': 'ログインするとコイン・バッジ・記録が保存されます。',
+    'home': 'ホーム', 'guest_login_gift': '今ログインで {reward}', 'reminder_setting': '週間リマインダー', 'reminder_setting_desc': '1週間遊んでいないときだけ1回', 'reminder_title': 'ゾーンが待っています', 'reminder_body': '今日は何秒耐えられる？1回だけ遊んでみよう。', 'reminder_gift_title': '🎁 週間ギフトが届きました', 'reminder_gift_body': 'コイン{n}を受け取って、前回の記録をあと1秒更新しよう。', 'reminder_denied': 'スマホの設定でZONBERの通知を許可してください。', 'guest_lost_rank': 'このプレイは世界 {rank} 位になるはずでした。', 'guest_login_to_save': 'ログインするとコイン・バッジ・記録が保存されます。',
     'world_records': 'ゾーン別記録',
     'guest_profile_hint': 'ログインすると記録・コイン・バッジが保存されます。',
     // ── 뱃지(badges.dart) ──

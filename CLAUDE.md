@@ -101,6 +101,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `game_guide_sheet.dart` | 게임 방법 가이드 바텀시트 (아이템 탭은 파워업 제거와 함께 삭제) |
 | `services/analytics_service.dart` | Firebase Analytics 래퍼. **이벤트 이름·파라미터는 이 파일에만** 둔다 (모바일 외 no-op) |
 | `services/share_service.dart` | **공유 단일 출처** — `ShareLinks.url(lang, src, code)`(공유용 페이지 `/get/{lang}/?src=&c=` 주소 — `c` = 내 친구 코드) + `ShareService.share`(OS 공유 창 · 안 되면 복사 · `share` 이벤트). 공유 문구에 스토어 주소를 직접 쓰지 않는다 |
+| `services/reminder_service.dart` | **주간 알림**(로컬 알림, 서버 없음) — 앱을 켜거나 돌아올 때마다 `reschedule()` 이 "7일 뒤, 그 뒤 매주"로 다시 건다 → **일주일 동안 안 들어온 사람에게만** 간다. 권한은 첫 판 뒤 홈으로 나갈 때 한 번(`maybeAsk`, 리뷰 창과 겹치지 않게), 끄기는 프로필 › 설정 › 주간 알림. Android 는 desugaring·수신기·`ic_notification`(+ `res/raw/keep.xml`) 필요 |
 | `services/review_service.dart` | `ReviewPrompt` — 신기록·새 뱃지가 있었던 회원이 홈으로 나갈 때, 5판 이상 · 120일에 한 번 앱 리뷰 창(`in_app_review`) |
 | `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
@@ -265,6 +266,8 @@ custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규�
 |----|------|
 | `sound_enabled` | BGM/SFX 토글 |
 | `vibration_enabled` | 햅틱 피드백 토글 |
+| `reminder_enabled` | 주간 알림 토글 (기본 켬) |
+| `reminder_asked` | 주간 알림 권한을 이미 물었나 (기기 설정 — 로그아웃에도 지우지 않음) |
 | `drag_sensitivity` | 드래그 감도 (0.6 ~ 1.8, 기본 1.0) |
 | `user_achievements` | 획득 업적 키 배열 (캐릭터 해금 판정에도 사용) |
 | `user_nickname` | 플레이어 표시 이름 (최대 8자) |

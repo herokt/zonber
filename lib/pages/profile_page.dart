@@ -15,6 +15,7 @@ import '../language_manager.dart';
 import '../progress_store.dart';
 import '../coin_store.dart';
 import '../services/auth_service.dart';
+import '../services/reminder_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
 
@@ -51,6 +52,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _firstEdit = true;
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
+  bool _reminderEnabled = true;
   bool _darkMode = false;
   bool _adPrivacyRequired = false;
   String _appVersion = '';
@@ -91,6 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _firstEdit = firstEdit;
       _soundEnabled = GameSettings().soundEnabled;
       _vibrationEnabled = GameSettings().vibrationEnabled;
+      _reminderEnabled = GameSettings().reminderEnabled;
       _darkMode = GameSettings().darkMode;
       _adPrivacyRequired = adPrivacyRequired;
       _appVersion = version;
@@ -372,6 +375,18 @@ class _ProfilePageState extends State<ProfilePage> {
                     trailing: _switch(_vibrationEnabled, (v) async {
                       setState(() => _vibrationEnabled = v);
                       await GameSettings().setVibration(v);
+                    }),
+                  ),
+                  // 주간 알림 — 켜는데 OS 권한을 끝내 못 받으면 스위치를 되돌리고 설정에서 허용하라고 알린다
+                  _row(
+                    lm.translate('reminder_setting'),
+                    trailing: _switch(_reminderEnabled, (v) async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      setState(() => _reminderEnabled = v);
+                      final on = await ReminderService.setEnabled(v);
+                      if (!mounted) return;
+                      setState(() => _reminderEnabled = on);
+                      if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
                     }),
                   ),
                   if (_adPrivacyRequired)

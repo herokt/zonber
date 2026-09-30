@@ -202,6 +202,12 @@ class AnalyticsService {
   /// 앱 리뷰 창을 요청한 시점(OS 가 실제로 띄웠는지는 알 수 없다)
   Future<void> logReviewPrompt({required int runs}) => _log('review_prompt', {'runs': runs});
 
+  /// 주간 알림 권한을 물은 결과 — 허락 비율을 본다
+  Future<void> logReminderPermission({required bool granted}) => _log('reminder_permission', {'granted': granted ? 1 : 0});
+
+  /// 주간 알림을 눌러 앱에 들어온 시점 — 알림이 복귀로 이어지는지 본다
+  Future<void> logReminderOpen() => _log('reminder_open');
+
   // ── 코인 / 뱃지 ─────────────────────────────────────────────────────
 
   /// 표준 `earn_virtual_currency` — [source] run · ad_double · mission · all_clear · check_in · promo · friend

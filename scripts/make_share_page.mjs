@@ -22,7 +22,7 @@ const base = 'https://stayzone-88364.web.app/get';
 const PACKAGE = 'com.zonber.game';
 const APPLE_ID = '6757195275';
 // App Store Connect › 앱 분석 › 획득 › 캠페인 링크 만들기 에 나오는 pt 값(제공자 토큰). 비어 있으면 ct 도 붙이지 않는다
-const APPLE_PT = '';
+const APPLE_PT = '128319263';
 
 // 친구 코드를 넣은 사람이 받는 코인 — 앱 값(lib/promotions.dart FriendCodes.newcomerCoins)을 그대로 읽는다
 const FRIEND_COINS = Number(

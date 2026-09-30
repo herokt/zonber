@@ -16,6 +16,7 @@ import '../promotions.dart';
 import '../ranking_system.dart';
 import '../services/analytics_service.dart';
 import '../services/auth_service.dart';
+import '../services/reminder_service.dart';
 import '../services/review_service.dart';
 import '../services/share_service.dart';
 import '../user_profile.dart';
@@ -684,7 +685,10 @@ class _ResultPageState extends State<ResultPage> {
                 height: 44,
                 child: TextButton(
                   onPressed: () {
-                    ReviewPrompt.maybeAsk(); // 신기록·새 뱃지가 있었던 판이면 리뷰를 한 번 부탁한다
+                    // 신기록·새 뱃지가 있었던 판이면 리뷰를 한 번 부탁하고, 아니면 주간 알림 권한을 (처음 한 번) 묻는다
+                    ReviewPrompt.maybeAsk().then((asked) {
+                      if (!asked) ReminderService.maybeAsk();
+                    });
                     widget.onExit();
                   },
                   child: Text(lm.translate('home'), style: AppTextStyles.text(14, color: AppColors.textDim, weight: FontWeight.w700)),

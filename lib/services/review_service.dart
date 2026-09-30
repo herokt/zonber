@@ -21,23 +21,26 @@ class ReviewPrompt {
 
   static void markHappy() => _happy = true;
 
-  static Future<void> maybeAsk() async {
-    if (!_happy) return;
+  /// 리뷰 창을 띄웠으면 true — 같은 때 다른 창(주간 알림 권한)을 겹쳐 띄우지 않게
+  static Future<bool> maybeAsk() async {
+    if (!_happy) return false;
     _happy = false;
-    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS) || AuthService.isGuest) return;
+    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS) || AuthService.isGuest) return false;
     try {
       final p = await SharedPreferences.getInstance();
       final last = p.getInt(_kAskedAt);
-      if (last != null && DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(last)) < gap) return;
+      if (last != null && DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(last)) < gap) return false;
       final runs = (await BadgeStatsStore.load()).runs;
-      if (runs < minRuns) return;
+      if (runs < minRuns) return false;
       final review = InAppReview.instance;
-      if (!await review.isAvailable()) return;
+      if (!await review.isAvailable()) return false;
       await p.setInt(_kAskedAt, DateTime.now().millisecondsSinceEpoch);
       AnalyticsService().logReviewPrompt(runs: runs);
       await review.requestReview();
+      return true;
     } catch (e) {
       debugPrint('review prompt failed: $e');
+      return false;
     }
   }
 }
