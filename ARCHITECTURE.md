@@ -377,7 +377,7 @@ HUD는 캐릭터 최대치와 무관하게 **항상 5칸**을 그린다. `i >= m
 
 `WorldData.worlds`가 스테이지 목록의 단일 진실 공급원(난이도 순 3개, 항상 열림). 월드 = `difficulty` + `mode`(dodge/keeper) + `layoutId`(모두 `zone_1_classic`) + `projectiles`(`ProjectileDef`: 속도 배수·히트박스 반지름·시각 크기·straight/curve/homing/bounce·vanish/reflect·maxBounces·색) + `spawner`(ring = 플레이어/골대 중심 원주, sideline = 맵 4변 바깥 36px) + 테마(accent/floor/line) + `rankingMapId`(월드별 완전 분리·신규). **Keeper 모드:** `GoalZone`이 맵 중앙 `goalRadius` 원을 그리고, `Bullet.update()`가 원 안에 들어온 공을 `Player.concedeGoal()`로 실점 처리(목숨 = `lives` 5, 회복 없음). 플레이어가 공에 닿으면 `Player.onCollisionStart`가 세이브로 처리(카운터는 `grazeNotifier` 재사용, HUD 라벨 SAVES). 스포너는 골대 중심 반경에서 골대를 조준한다. **예고:** `BulletWarningOverlay`가 맵 밖 탄의 진입 지점에 그림자 타원을 그린다(막대·색·와인드업 없음). **아트 슬롯:** `assets/images/worlds/{id}_bg.png`(게임 배경, `_addStageBackground`)·`{id}_hero.png`(홈 카드) — 없으면 코드 드로잉. 현재 실아트(2026-09-18). 상세 기획: [docs/STAGES.md](docs/STAGES.md), 리소스: [docs/RESOURCES.md](docs/RESOURCES.md).
 
-진행 데이터(`progress_store.dart`): 월드별 최고 기록(`world_best_times`, 해금 판정) · 순위 캐시(`world_rank_cache`, 결과 화면이 채움) — 로컬 + `users/{uid}.bestTimes`. 옛 명패(`world_plates`/`plates`)는 로그인 때 뱃지로 옮긴다. 순위는 `RankingSystem.getGlobalRank()`의 **count 집계**(전체 기간, 기록 단위)로 계산해 복합 인덱스를 피한다.
+진행 데이터(`progress_store.dart`): 월드별 최고 기록(`world_best_times`, 해금 판정) · 순위 캐시(`world_rank_cache`, 결과 화면이 채움) — 로컬 + `users/{uid}.bestTimes`. 옛 명패(`world_plates`/`plates`)는 로그인 때 뱃지로 옮긴다. 순위는 `RankingSystem.getGlobalRank()` — 올해 기록을 사람마다 가장 좋은 기록 하나로 묶은 목록(랭킹 탭과 같다)에서 나를 빼고 센다(2026-09-30, 예전 count 집계는 기록 단위라 한 사람의 여러 기록이 순위를 밀었다).
 
 ### 6.5-1 난이도 — 레벨 (`balance.dart`)
 

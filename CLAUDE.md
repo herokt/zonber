@@ -80,9 +80,9 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `progress_store.dart` | 월드별 최고 기록·순위 캐시. SharedPreferences + Firestore `users/{uid}.bestTimes` (옛 `plates` 는 로그인 때 뱃지로 옮김) |
 | `pages/home_page.dart` | 홈 — 월드 캐러셀·캐릭터·START |
 | `pages/ranking_page.dart` | 랭킹 탭 — 월드 탭 × 기간 × 세계/국가, 포디움, 내 행 고정 |
-| `pages/result_page.dart` | 결과 — 기록 제출, 순위 카드(count 집계), 새로 얻은 뱃지 |
+| `pages/result_page.dart` | 결과 — 기록 제출, 순위 카드(사람 단위 — 랭킹 탭과 같은 목록), 새로 얻은 뱃지 |
 | `pages/profile_page.dart` | 프로필 탭 — 대표 뱃지·월드별 기록·캐릭터·설정·계정 (구 `MyProfilePage` 대체) |
-| `ranking_system.dart` | Firestore 리더보드: 기록 저장/조회, 국가별 랭킹, 3개 기간(주/월/올해) + count 집계 순위 |
+| `ranking_system.dart` | Firestore 리더보드: 기록 저장/조회, 국가별 랭킹, 3개 기간(주/월/올해). 랭킹·결과 화면 순위·목표선 모두 **사람 단위**(한 사람 = 가장 좋은 기록, `_bestPlayers` 30초 캐시, 순위는 나를 빼고 센다) |
 | `achievement_manager.dart` | 9개 업적 (생존 티어, 국가/글로벌 랭킹); SharedPreferences + Firestore 이중 저장 |
 | `statistics_page.dart` | 유저 통계 + 획득 타이틀 (일간/주간/월간 랭커, 전설적 생존자) |
 | `translations.dart` | 200개+ 이중 언어 문자열 (EN/KO); `{placeholder}` 보간 지원 |

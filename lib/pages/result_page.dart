@@ -241,12 +241,8 @@ class _ResultPageState extends State<ResultPage> {
 
     // 2. 순위 계산 — 게스트도 "잃어버린 순위"를 보여준다
     final global = await _ranking.getGlobalRank(mapId, _time);
-    final topTimes = await _ranking.getTopTimes(mapId, limit: 100);
-    int? natRank;
-    if (flag.isNotEmpty) {
-      final nat = await _ranking.getNationalRankings(mapId, flag, period: RankingPeriod.allTime, limit: 500);
-      natRank = nat.where((r) => ((r['survivalTime'] as num?) ?? 0).toDouble() > _time).length + 1;
-    }
+    final topTimes = await _ranking.getTopTimes(mapId, limit: 100, excludeMe: true);
+    final natRank = await _ranking.getNationalRank(mapId, flag, _time);
     if (!mounted) return;
     setState(() {
       _worldRank = global?.rank;

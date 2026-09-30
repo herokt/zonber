@@ -77,6 +77,7 @@ class RankingSystem {
             'season': Season.current,
             'timestamp': FieldValue.serverTimestamp(),
           });
+      _bestCache.clear();
 
       return docRef.id;
     } catch (e) {
@@ -95,9 +96,45 @@ class RankingSystem {
           .collection('records')
           .doc(recordId)
           .delete();
+      _bestCache.clear();
     } catch (e) {
       debugPrint("ERROR: Delete record failed - $e");
     }
+  }
+
+  /// 기간 안 기록을 사람마다 가장 좋은 기록 하나로(좋은 순) — 랭킹 탭 · 결과 화면 순위 · 목표선이 모두 이 목록을 쓴다.
+  /// 결과 화면이 순위 · 목표선 · 국가 순위를 연달아 부르므로 잠깐 캐시한다(기록을 내거나 지우면 비운다).
+  /// 돌려주는 줄은 복사본이다(부르는 쪽이 닉네임·국기를 채워 넣어도 캐시가 바뀌지 않게).
+  static final Map<String, ({DateTime at, List<Map<String, dynamic>> players})> _bestCache = {};
+  static const Duration _bestCacheFor = Duration(seconds: 30);
+
+  Future<List<Map<String, dynamic>>> _bestPlayers(String mapId, RankingPeriod period) async {
+    final key = '$mapId|${period.name}';
+    final hit = _bestCache[key];
+    if (hit == null || DateTime.now().difference(hit.at) >= _bestCacheFor) {
+      final snap = await _db!
+          .collection('maps')
+          .doc(mapId)
+          .collection('records')
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(_getPeriodStart(period)))
+          .limit(_scanLimit)
+          .get();
+      final records = [
+        for (final doc in snap.docs) {...doc.data(), 'id': doc.id},
+      ]..sort((a, b) => _timeOf(b).compareTo(_timeOf(a)));
+      _bestCache[key] = (at: DateTime.now(), players: _uniquePlayers(records));
+    }
+    return [for (final r in _bestCache[key]!.players) {...r}];
+  }
+
+  static double _timeOf(Map<String, dynamic> r) => ((r['survivalTime'] as num?) ?? 0).toDouble();
+
+  static String get _myUid => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  /// 나를 뺀 사람들(로그인하지 않았으면 그대로) — 내 예전 더 좋은 기록이 내 위에 서지 않게
+  static List<Map<String, dynamic>> _others(List<Map<String, dynamic>> players) {
+    final me = _myUid;
+    return me.isEmpty ? players : players.where((r) => r['userId'] != me).toList();
   }
 
   /// 시간순으로 정렬된 기록에서 사람마다 첫(=가장 좋은) 기록만 남긴다.
@@ -180,30 +217,8 @@ class RankingSystem {
     if (kStoreShot) return StoreShot.records(mapId);
     if (_db == null) return [];
     try {
-      final periodStart = _getPeriodStart(period);
-
-      QuerySnapshot snapshot = await _db!
-          .collection('maps')
-          .doc(mapId)
-          .collection('records')
-          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart))
-          .limit(_scanLimit)
-          .get();
-
-      List<Map<String, dynamic>> records = snapshot.docs.map((doc) {
-        var data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-
-      records.sort((a, b) {
-        double timeA = (a['survivalTime'] as num).toDouble();
-        double timeB = (b['survivalTime'] as num).toDouble();
-        return timeB.compareTo(timeA);
-      });
-
       // 한 사람은 한 번만 — 가장 좋은 기록으로
-      final top30 = _uniquePlayers(records).take(30).toList();
+      final top30 = (await _bestPlayers(mapId, period)).take(30).toList();
       await _enrichWithUserData(top30, worldId: mapId);
       return top30;
     } catch (e) {
@@ -212,45 +227,41 @@ class RankingSystem {
     }
   }
 
-  /// 이 시간이 전체 기록 중 몇 위인지 — count 집계 2회(더 좋은 기록 수, 전체 수).
-  /// 복합 인덱스를 피하려고 기간 필터 없이 **전체 기간** 기준이다.
-  /// 기록 단위(유저 단위 아님)라 표기는 "N개 기록 중".
+  /// 이 시간이 올해 세계 몇 위인지 — **사람 단위**(한 사람 = 가장 좋은 기록 하나, 랭킹 탭 '올해'와 같은 목록).
+  /// 나는 빼고 센다(내 예전 더 좋은 기록이 내 위에 서지 않게). total = 기록이 있는 사람 수(나 포함)
   Future<({int rank, int total})?> getGlobalRank(String mapId, double time) async {
     if (kStoreShot) return StoreShot.rankOf(mapId, time);
     if (_db == null) return null;
     try {
-      final col = _db!.collection('maps').doc(mapId).collection('records');
-      final better = await col.where('survivalTime', isGreaterThan: time).count().get();
-      final all = await col.count().get();
-      return (rank: (better.count ?? 0) + 1, total: all.count ?? 0);
+      final others = _others(await _bestPlayers(mapId, RankingPeriod.allTime));
+      final better = others.where((r) => _timeOf(r) > time).length;
+      return (rank: better + 1, total: others.length + 1);
     } catch (e) {
-      debugPrint("Rank count failed: $e");
+      debugPrint("Rank failed: $e");
       return null;
     }
   }
 
-  /// 올해 상위 기록 시간 목록(내림차순, 최대 limit). 목표선·TOP N 진입선 계산용.
-  Future<List<double>> getTopTimes(String mapId, {int limit = 100}) async {
+  /// 올해 상위 기록 시간 — 사람 단위(한 사람 = 가장 좋은 기록 하나), 내림차순 최대 limit. 목표선·TOP N 진입선 계산용.
+  /// [excludeMe] = 나를 빼고(목표선은 "남을 몇 명 제쳐야 TOP N 인가" 라서 getGlobalRank 와 같은 기준)
+  Future<List<double>> getTopTimes(String mapId, {int limit = 100, bool excludeMe = false}) async {
     if (kStoreShot) return StoreShot.topTimes(mapId, limit: limit);
     if (_db == null) return [];
     try {
-      final periodStart = _getPeriodStart(RankingPeriod.allTime);
-      final snap = await _db!
-          .collection('maps')
-          .doc(mapId)
-          .collection('records')
-          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart))
-          .limit(_scanLimit)
-          .get();
-      final times = snap.docs
-          .map((d) => ((d.data()['survivalTime'] as num?) ?? 0).toDouble())
-          .toList()
-        ..sort((a, b) => b.compareTo(a));
-      return times.take(limit).toList();
+      var players = await _bestPlayers(mapId, RankingPeriod.allTime);
+      if (excludeMe) players = _others(players);
+      return players.take(limit).map(_timeOf).toList();
     } catch (e) {
       debugPrint("Top times failed: $e");
       return [];
     }
+  }
+
+  /// 이 시간이 우리나라 몇 위인지 — 사람 단위, 나는 빼고 센다(getGlobalRank 와 같은 기준)
+  Future<int?> getNationalRank(String mapId, String flag, double time) async {
+    if (flag.isEmpty) return null;
+    final nat = await getNationalRankings(mapId, flag, limit: _scanLimit);
+    return _others(nat).where((r) => _timeOf(r) > time).length + 1;
   }
 
   // 3. Fetch National Top 30 — query by flag field (works for all records including legacy)
@@ -266,18 +277,7 @@ class RankingSystem {
     if (kStoreShot) return StoreShot.records(mapId, limit: limit);
     if (_db == null) return [];
     try {
-      final periodStart = _getPeriodStart(period);
-      final snap = await _db!
-          .collection('maps')
-          .doc(mapId)
-          .collection('records')
-          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart))
-          .limit(_scanLimit)
-          .get();
-      final records = [
-        for (final doc in snap.docs) {...doc.data(), 'id': doc.id},
-      ]..sort((a, b) => ((b['survivalTime'] as num).toDouble()).compareTo((a['survivalTime'] as num).toDouble()));
-      final players = _uniquePlayers(records);
+      final players = await _bestPlayers(mapId, period);
       await _enrichWithUserData(players, worldId: mapId); // flag = 유저의 현재 국가
       return players.where((r) => r['flag'] == flag).take(limit).toList();
     } catch (e) {

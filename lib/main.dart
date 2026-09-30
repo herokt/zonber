@@ -483,7 +483,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     if (cached != null && DateTime.now().difference(cached.at).inMinutes < 10) {
       times = cached.times;
     } else {
-      times = await RankingSystem().getTopTimes(world.rankingMapId, limit: 100);
+      times = await RankingSystem().getTopTimes(world.rankingMapId, limit: 100, excludeMe: true);
       _targetCache[world.id] = (times: times, at: DateTime.now());
     }
     final targets = <({String label, double time})>[];
