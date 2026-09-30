@@ -1,4 +1,4 @@
-# ZONBER — Google Play 스토어 등록 정보 (2.0.4)
+# ZONBER — Google Play 스토어 등록 정보 (2.0.5)
 
 Play Console › 성장 › 스토어 등록정보 › 기본 스토어 등록정보(언어별 번역 추가)에 붙여 넣는다. 괄호 안은 글자 수 제한.
 App Store 문구(`app_store_listing.md`)를 Play 칸에 맞춰 옮긴 것 — Play 에는 부제·프로모션 텍스트·키워드 칸이 없고
@@ -74,7 +74,8 @@ ZONBER: 탄막 피하기 생존게임
 오늘 기록, 어제보다 1초만 더 버텨 보세요.
 
 ### 출시 노트 (500)
-ZONBER 2.0.4
+ZONBER 2.0.5
+• 이벤트·소식 알림 — 새 이벤트와 선물 소식을 알려 드려요(설정에서 끌 수 있어요)
 • 기록 자랑이 그림으로 — 결과 카드를 이미지로 공유해요
 • 친구 코드가 링크에 담겨요 — 받은 친구는 설치 버튼만 누르면 코드가 복사돼요
 • 주간 알림 — 일주일 동안 쉬었을 때만 한 번 알려 드려요(설정에서 끌 수 있어요)
@@ -128,12 +129,13 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 Beat yesterday by just one more second.
 
 ### Release notes (500)
-ZONBER 2.0.4
+ZONBER 2.0.5
+• Event & news alerts — hear about new events and gifts (turn off in Settings)
 • Brag with a picture — share your results card as an image
 • Friend codes ride along in your link — friends just tap install and the code is copied
 • Weekly reminder — only once, if you've been away for a week (turn it off in Settings)
-• Smoother mid and late game — balls and bullets speed up more gently at higher levels
-• Guests now see the login gift on the results screen
+• Smoother mid/late game — balls and bullets speed up more gently at higher levels
+• Guests see the login gift on the results screen
 • Small improvements and bug fixes
 
 ---
@@ -182,7 +184,8 @@ ZONBER: 弾幕よけサバイバル
 昨日より、あと1秒だけ長く。
 
 ### リリースノート (500)
-ZONBER 2.0.4
+ZONBER 2.0.5
+• イベント・お知らせ通知 — 新しいイベントやギフトをお知らせ（設定でオフにできます）
 • 記録自慢が画像に — 結果カードを画像でシェア
 • フレンドコードがリンクに — 友だちはインストールボタンを押すだけでコードがコピーされる
 • 週間リマインダー — 1週間遊んでいないときだけ1回お知らせ（設定でオフにできます）
@@ -236,7 +239,8 @@ ZONBER：躲弹幕生存挑战
 今天，比昨天多坚持一秒。
 
 ### 版本说明 (500)
-ZONBER 2.0.4
+ZONBER 2.0.5
+• 活动与消息通知——新活动和礼物第一时间告诉你（可在设置中关闭）
 • 炫耀成绩更直观——结算卡片以图片分享
 • 好友码随链接一起发送——好友点安装即可自动复制好友码
 • 每周提醒——一周没玩时才提醒一次（可在设置中关闭）
