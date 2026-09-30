@@ -1,4 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:share_plus/share_plus.dart' show XFile;
 
 import '../badges.dart';
 import '../audio_manager.dart';
@@ -194,7 +198,15 @@ class _ResultPageState extends State<ResultPage> {
     Badges.fresh.addListener(_soundBadges);
     // 신기록(첫 기록 제외)은 리뷰를 부탁하기 좋은 순간 — 홈으로 나갈 때 묻는다
     if (!_isGuest && ((widget.previousBest > 0 && _time > widget.previousBest) || _rivalBeaten)) ReviewPrompt.markHappy();
+    // 게스트 — 로그인하면 받는 선물을 순위 안내 아래에 한 줄로(로그인 동기)
+    if (_isGuest) {
+      PromoService.loginGifts().then((g) {
+        if (mounted && (g.$1 > 0 || g.$2.isNotEmpty)) setState(() => _loginGifts = g);
+      });
+    }
   }
+
+  (int, List<String>)? _loginGifts;
 
   void _soundBadges() {
     if (!mounted) return;
@@ -440,6 +452,50 @@ class _ResultPageState extends State<ResultPage> {
 
   bool _sharing = false;
 
+  /// 기록 카드(존 · 생존 시간 · 순위 · 스탯) — 자랑하기 그림으로 뜬다
+  final GlobalKey _cardKey = GlobalKey();
+
+  /// 기록 카드 그림 — 화면의 카드를 그대로 뜨고, 둘레 여백과 아래 ZONBER 한 줄을 붙인다(화면은 그대로 둔다).
+  /// 못 뜨면 null(문구만 공유)
+  Future<XFile?> _cardImage(String footer) async {
+    try {
+      final boundary = _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null || !boundary.hasSize) return null;
+      final r = MediaQuery.devicePixelRatioOf(context).clamp(2.0, 3.0);
+      final card = await boundary.toImage(pixelRatio: r);
+      final pad = 20 * r, footerH = 44 * r;
+      final w = card.width + pad * 2, h = card.height + pad * 2 + footerH;
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawRect(Rect.fromLTWH(0, 0, w, h), Paint()..color = AppColors.background);
+      canvas.drawImage(card, Offset(pad, pad), Paint());
+      final footerTop = pad + card.height + pad * 0.4;
+      final brand = TextPainter(
+        text: TextSpan(text: 'ZONBER', style: AppTextStyles.display(18 * r, color: widget.world.accent).copyWith(letterSpacing: 3 * r)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      brand.paint(canvas, Offset(pad, footerTop + (footerH - brand.height) / 2));
+      final line = TextPainter(
+        text: TextSpan(text: footer, style: AppTextStyles.text(13 * r, color: AppColors.textDim, weight: FontWeight.w700)),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: (w - pad * 3 - brand.width).clamp(0, w));
+      line.paint(canvas, Offset(w - pad - line.width, footerTop + (footerH - line.height) / 2));
+
+      final out = await recorder.endRecording().toImage(w.round(), h.round());
+      final png = await out.toByteData(format: ui.ImageByteFormat.png);
+      card.dispose();
+      out.dispose();
+      if (png == null) return null;
+      return XFile.fromData(png.buffer.asUint8List(), mimeType: 'image/png', name: 'zonber_record.png');
+    } catch (e) {
+      debugPrint('record card image failed: $e');
+      return null;
+    }
+  }
+
   /// 자랑하기 — 이번 판 기록 · 세계 순위(기록을 낸 회원만) · 도전 문장 · 내 친구 코드 · 공유 링크로 OS 공유 창을 띄운다.
   /// 공유하면 이벤트의 공유 보상(하루 한 번)도 여기서 받는다
   Future<void> _share(Rect? origin) async {
@@ -467,10 +523,13 @@ class _ResultPageState extends State<ResultPage> {
               .translate('friend_share_line')
               .replaceAll('{code}', code)
               .replaceAll('{reward}', rewardText(lm, FriendCodes.newcomerCoins, const [])),
-        ShareLinks.url(lang: lm.currentLanguage, src: 'result'),
+        ShareLinks.url(lang: lm.currentLanguage, src: 'result', code: code),
       ].join('\n'));
-      final outcome = await ShareService.share(text: text, src: 'result', itemId: widget.world.rankingMapId, origin: origin);
-      if (outcome == ShareOutcome.copied) toast(lm.translate('promo_share_copied'));
+      final image = await _cardImage(lm.translate('result_share_challenge'));
+      if (!mounted) return;
+      final outcome = await ShareService.share(text: text, src: 'result', itemId: widget.world.rankingMapId, origin: origin, image: image);
+      // 그림과 같이 보냈으면 문구(링크)도 클립보드에 들어 있다 — 그림만 받는 앱이면 붙여넣기로 링크를
+      if (outcome == ShareOutcome.copied || (outcome == ShareOutcome.shared && image != null)) toast(lm.translate('promo_share_copied'));
       if (outcome == ShareOutcome.dismissed || _isGuest) return;
       final got = await PromoService.claimShare();
       if (got != null && mounted) {
@@ -528,47 +587,56 @@ class _ResultPageState extends State<ResultPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Text(lm.translate('game_over'), style: AppTextStyles.label().copyWith(letterSpacing: 2)),
-                  const Spacer(),
-                  AppChip(
-                    label: lm.translate(widget.world.nameKey).toUpperCase(),
-                    icon: Icons.circle,
-                    color: accent,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              // 생존 시간과 세계 순위를 같은 무게로
-              _hero(lm, accent, isBest, delta),
-              if (_rivalName != null) ...[
-                const SizedBox(height: 10),
-                _rivalRow(lm, accent),
-              ],
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  _stat(
-                    lm.translate(widget.world.statKey),
+              // 기록 카드 — 자랑하기 그림으로 이 부분만 뜬다(_cardImage)
+              RepaintBoundary(
+                key: _cardKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
                       children: [
-                        Text('$graze', style: AppTextStyles.display(22)),
-                        if (_coinsBonus > 0) ...[
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(lm.translate('coin_bonus').replaceAll('{n}', formatCount(_coinsBonus)),
-                                maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.text(11, color: AppColors.coin, weight: FontWeight.w800)),
-                          ),
-                        ],
+                        Text(lm.translate('game_over'), style: AppTextStyles.label().copyWith(letterSpacing: 2)),
+                        const Spacer(),
+                        AppChip(
+                          label: lm.translate(widget.world.nameKey).toUpperCase(),
+                          icon: Icons.circle,
+                          color: accent,
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  _stat(lm.translate('level'), Text('$level', style: AppTextStyles.display(22))),
-                ],
+                    const SizedBox(height: 18),
+                    // 생존 시간과 세계 순위를 같은 무게로
+                    _hero(lm, accent, isBest, delta),
+                    if (_rivalName != null) ...[
+                      const SizedBox(height: 10),
+                      _rivalRow(lm, accent),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _stat(
+                          lm.translate(widget.world.statKey),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text('$graze', style: AppTextStyles.display(22)),
+                              if (_coinsBonus > 0) ...[
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(lm.translate('coin_bonus').replaceAll('{n}', formatCount(_coinsBonus)),
+                                      maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.text(11, color: AppColors.coin, weight: FontWeight.w800)),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        _stat(lm.translate('level'), Text('$level', style: AppTextStyles.display(22))),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               if (_isGuest) ...[
                 const SizedBox(height: 10),
@@ -668,19 +736,33 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
-  /// 게스트 안내는 한 줄 — 이번 판이 몇 위였는지만 알려 주고 로그인으로 보낸다
+  /// 게스트 안내 — 이번 판이 몇 위였는지 + 로그인하면 받는 선물(있을 때) 한 줄씩, 누르면 로그인으로 보낸다
   Widget _guestRank(LanguageManager lm, Color accent) {
+    final gifts = _loginGifts;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onNavigateToLogin,
       child: Row(
         children: [
           Expanded(
-            child: OneLineText(
-              _worldRank == null
-                  ? lm.translate('guest_no_ranking_note')
-                  : lm.translate('guest_lost_rank').replaceAll('{rank}', formatCount(_worldRank!)),
-              style: AppTextStyles.text(13, weight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OneLineText(
+                  _worldRank == null
+                      ? lm.translate('guest_no_ranking_note')
+                      : lm.translate('guest_lost_rank').replaceAll('{rank}', formatCount(_worldRank!)),
+                  style: AppTextStyles.text(13, weight: FontWeight.w700),
+                ),
+                if (gifts != null) ...[
+                  const SizedBox(height: 3),
+                  OneLineText(
+                    lm.translate('guest_login_gift').replaceAll('{reward}', rewardText(lm, gifts.$1, gifts.$2)),
+                    style: AppTextStyles.text(12, color: AppColors.coin, weight: FontWeight.w800),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),

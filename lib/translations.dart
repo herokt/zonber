@@ -278,6 +278,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'mis_stat': '{stat} ×{n} in {s}', 'mis_all_stages': 'Play every stage once',
     'home': 'Home',
     'guest_lost_rank': 'This run would have been world #{rank}.',
+    'guest_login_gift': 'Log in now for {reward}',
     'guest_login_to_save': 'Log in to keep coins, badges and records.',
     'world_records': 'ZONE RECORDS',
     'guest_profile_hint': 'Log in to keep records, coins and badges.',
@@ -623,6 +624,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'mis_stat': '{s}에서 {stat} {n}번', 'mis_all_stages': '모든 스테이지 한 판씩',
     'home': '홈으로',
     'guest_lost_rank': '이 기록은 세계 #{rank}였어요.',
+    'guest_login_gift': '지금 로그인하면 {reward}',
     'guest_login_to_save': '로그인하면 코인·뱃지·기록이 저장돼요.',
     'world_records': 'ZONE별 기록',
     'guest_profile_hint': '로그인하면 기록·코인·뱃지가 저장돼요.',
@@ -826,7 +828,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'att_claim': '领取签到奖励  +{n}', 'att_done_today': '今日已签到',
     'mis_runs': '玩 {n} 局', 'mis_total_time': '累计生存 {n} 秒', 'mis_stage_time': '在{s}单局生存 {n} 秒',
     'mis_stat': '在{s}完成{stat} {n} 次', 'mis_all_stages': '每个关卡各玩一局',
-    'home': '首页', 'guest_lost_rank': '这一局本可以是世界第 {rank} 名。', 'guest_login_to_save': '登录后可保存金币、徽章和记录。',
+    'home': '首页', 'guest_login_gift': '现在登录即可领取 {reward}', 'guest_lost_rank': '这一局本可以是世界第 {rank} 名。', 'guest_login_to_save': '登录后可保存金币、徽章和记录。',
     'world_records': '区域记录',
     'guest_profile_hint': '登录后可保存记录、金币和徽章。',
     // ── 뱃지(badges.dart) ──
@@ -1029,7 +1031,7 @@ const Map<String, Map<String, String>> appTranslations = {
     'att_claim': 'ログインボーナスを受け取る  +{n}', 'att_done_today': '今日は受取済み',
     'mis_runs': '{n}回プレイする', 'mis_total_time': '合計{n}秒生き残る', 'mis_stage_time': '{s}の1回で{n}秒生き残る',
     'mis_stat': '{s}で{stat}を{n}回', 'mis_all_stages': '全ステージを1回ずつプレイ',
-    'home': 'ホーム', 'guest_lost_rank': 'このプレイは世界 {rank} 位になるはずでした。', 'guest_login_to_save': 'ログインするとコイン・バッジ・記録が保存されます。',
+    'home': 'ホーム', 'guest_login_gift': '今ログインで {reward}', 'guest_lost_rank': 'このプレイは世界 {rank} 位になるはずでした。', 'guest_login_to_save': 'ログインするとコイン・バッジ・記録が保存されます。',
     'world_records': 'ゾーン別記録',
     'guest_profile_hint': 'ログインすると記録・コイン・バッジが保存されます。',
     // ── 뱃지(badges.dart) ──

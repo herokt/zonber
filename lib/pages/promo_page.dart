@@ -247,7 +247,7 @@ class _PromoPageState extends State<PromoPage> {
             .translate('friend_share_line')
             .replaceAll('{code}', code)
             .replaceAll('{reward}', rewardText(lm, FriendCodes.newcomerCoins, const [])),
-      ShareLinks.url(lang: lm.currentLanguage, src: 'promo'),
+      ShareLinks.url(lang: lm.currentLanguage, src: 'promo', code: code),
     ].join('\n'));
     final outcome = await ShareService.share(text: text, src: 'promo', itemId: p.id, origin: origin);
     if (outcome == ShareOutcome.copied) _toast(lm.translate('promo_share_copied'));

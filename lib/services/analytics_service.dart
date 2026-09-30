@@ -177,11 +177,12 @@ class AnalyticsService {
   /// 표준 `share` — [src] 어디서(result · promo) · [itemId] 무엇을(맵 id · 이벤트 id) ·
   /// [method] 어느 앱으로(iOS·일부 Android 는 고른 앱, 모르면 os, 공유 창이 없으면 clipboard).
   /// 게스트 공유와 하루 두 번째 공유도 센다(백오피스 share_daily 수령 수는 회원 하루 한 번뿐).
-  Future<void> logShare({required String src, required String itemId, required String method}) async {
+  /// [withImage] 기록 카드 그림을 같이 보냈나 — 그림 공유가 설치로 더 이어지는지 본다
+  Future<void> logShare({required String src, required String itemId, required String method, bool withImage = false}) async {
     final a = _analytics;
     if (a == null) return;
     try {
-      await a.logShare(contentType: src, itemId: itemId, method: _cut(method));
+      await a.logShare(contentType: src, itemId: itemId, method: _cut(method), parameters: {'with_image': withImage ? 1 : 0});
     } catch (e) {
       debugPrint('Analytics share failed: $e');
     }
