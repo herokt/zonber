@@ -571,6 +571,19 @@ class PromoService {
 
   static void invalidate() => _cacheAt = null;
 
+  /// 로그인하면 바로 받는 선물 합계(환영 선물 + 진행 중인 기간 보상) — 게스트 로그인 안내 한 줄용.
+  /// 게스트는 받은 기록이 없으니 계정마다 이미 받았는지는 따지지 않는다
+  static Future<(int, List<String>)> loginGifts() async {
+    var coins = 0;
+    final items = <String>[];
+    for (final p in await load()) {
+      if (p.kind != PromoKind.welcome && p.kind != PromoKind.bonus) continue;
+      coins += p.coins;
+      items.addAll(p.items);
+    }
+    return (coins, items);
+  }
+
   // ── 받은 기록(기기 + 계정) ──
 
   static Future<Map<String, int>> _claims() async {

@@ -15,12 +15,14 @@ android {
     ndkVersion = "27.0.12077973"
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        // flutter_local_notifications(주간 알림)가 desugaring 을 요구한다
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     sourceSets {
@@ -80,6 +82,8 @@ android {
 dependencies {
     // [추가 2] 멀티덱스 라이브러리
     implementation("androidx.multidex:multidex:2.0.1")
+    // 주간 알림(flutter_local_notifications) — Java 8+ API desugaring
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {

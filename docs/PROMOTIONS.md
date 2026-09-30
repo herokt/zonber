@@ -25,8 +25,12 @@
 나 ZONBER에서 이만큼 버텼다!
 ZONE 1 갤럭시 128.456s · ZONE 2 피구 96.212s
 내 코드 K7PQ — 이벤트 화면에서 입력하면 코인 200!
-https://play.google.com/store/apps/details?id=com.zonber.game
+https://stayzone-88364.web.app/get/ko/?src=promo&c=K7PQ
 ```
+
+링크는 스토어가 아니라 공유용 페이지다(`ShareLinks.url` · `scripts/make_share_page.mjs`). 휴대폰 종류를 보고 Play / App Store 로 보내는데,
+`c`(친구 코드)가 붙어 오면 바로 넘기지 않고 **코드를 크게 보여 준 뒤 설치 버튼을 누를 때 복사**한다 — 친구가 코드를 외울 필요가 없다.
+Play 로 갈 때는 `utm_content=코드` 도 넘겨서 Firebase 설치 캠페인에서 어느 코드로 들어왔는지 보인다.
 
 `공유하기`를 누르면 OS 공유 창(`share_plus`)이 바로 떠서 카톡·인스타·X·디스코드 등 SNS로 보낸다.
 공유 창을 닫기만 하면 보상은 없고, 이미 받은 날에도 공유 자체는 된다. 공유 창을 못 띄우는 기기는 문구를 클립보드에 복사해 준다.

@@ -13,6 +13,7 @@ import 'package:zonber/promotions.dart';
 import 'package:zonber/gear.dart';
 import 'package:zonber/season.dart';
 import 'package:zonber/services/auth_service.dart';
+import 'package:zonber/services/share_service.dart';
 import 'package:zonber/translations.dart';
 import 'package:zonber/world_config.dart';
 
@@ -409,6 +410,19 @@ void main() {
       final card = Promotions.builtIn.firstWhere((p) => p.kind == PromoKind.code);
       expect(await PromoService.isFresh(card), isFalse);
       expect(await PromoService.claim(card), isFalse);
+    });
+
+    test('게스트 로그인 선물 = 환영 선물 + 진행 중인 기간 보상(공유·코드는 빼고)', () async {
+      final (coins, items) = await PromoService.loginGifts();
+      final live = Promotions.live(Promotions.builtIn).where((p) => p.kind == PromoKind.welcome || p.kind == PromoKind.bonus);
+      expect(coins, live.fold<int>(0, (s, p) => s + p.coins));
+      expect(coins, greaterThanOrEqualTo(300));
+      expect(items, contains('skin_cloud'));
+    });
+
+    test('공유 링크 — 언어 폴더 · 출처 · 친구 코드', () {
+      expect(ShareLinks.url(lang: 'ko', src: 'result'), '${ShareLinks.landing}/ko/?src=result');
+      expect(ShareLinks.url(lang: 'fr', src: 'promo', code: 'AB12'), '${ShareLinks.landing}/en/?src=promo&c=AB12');
     });
 
     test('기간 이벤트는 그 기간에만 보인다(UTC)', () {

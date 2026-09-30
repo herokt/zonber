@@ -26,6 +26,7 @@ import 'design_system.dart';
 import 'shop_page.dart';
 import 'services/auth_service.dart';
 import 'services/analytics_service.dart';
+import 'services/reminder_service.dart';
 import 'world_config.dart';
 import 'progress_store.dart';
 import 'coin_store.dart';
@@ -215,9 +216,11 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     await AudioManager().initialize();
     await LanguageManager().init();
     await AnalyticsService().initialize();
+    await ReminderService.init();
 
     // 3. Check Auth & Profile
     await _checkAuth();
+    ReminderService.reschedule(); // 주간 알림 — 켤 때마다 "7일 뒤"로 다시 건다
 
     // 4. Check Ads
     await _checkAdStatus();
@@ -272,7 +275,9 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   /// 앱으로 돌아올 때 원격을 다시 읽는다 — 백오피스에서 준 코인·아이템이 여기서 들어온다
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed || AuthService.isGuest) return;
+    if (state != AppLifecycleState.resumed) return;
+    ReminderService.reschedule(); // 주간 알림 — 돌아올 때도 "7일 뒤"로 다시 건다
+    if (AuthService.isGuest) return;
     UserProfileManager.syncProfile().then((_) async {
       await _loadProgress();
       if (mounted) setState(() {});

@@ -13,9 +13,10 @@ class ShareLinks {
   static const String landing = 'https://stayzone-88364.web.app/get';
   static const Set<String> _langs = {'ko', 'en', 'ja', 'zh'};
 
-  /// [src] = 어디서 공유했나(result · promo) — 스토어 캠페인 이름으로 넘어간다
-  static String url({required String lang, required String src}) =>
-      '$landing/${_langs.contains(lang) ? lang : 'en'}/?src=$src';
+  /// [src] = 어디서 공유했나(result · promo) — 스토어 캠페인 이름으로 넘어간다.
+  /// [code] = 내 친구 코드 — 페이지가 코드를 크게 보여 주고, 설치 버튼을 누르면 복사해 준다(친구가 외울 필요 없게)
+  static String url({required String lang, required String src, String? code}) =>
+      '$landing/${_langs.contains(lang) ? lang : 'en'}/?src=$src${code == null ? '' : '&c=$code'}';
 }
 
 enum ShareOutcome { shared, dismissed, copied }
@@ -23,18 +24,28 @@ enum ShareOutcome { shared, dismissed, copied }
 /// OS 공유 창(카톡·인스타·메신저)을 띄운다. 못 띄우는 기기는 문구를 복사한다.
 /// 공유 창을 닫기만 하면 [ShareOutcome.dismissed] — 보상을 주지 않는다.
 /// Android 는 공유했는지 알려 주지 않아 닫은 게 아니면 공유한 것으로 친다.
+///
+/// [image] 를 주면 그림 + 문구로 보낸다. 그림을 받으면 문구를 버리는 앱(인스타·카톡 일부)이 있어
+/// 그때는 문구(링크)를 클립보드에도 넣어 둔다 — 붙여넣기로 링크를 살린다.
 class ShareService {
   static Future<ShareOutcome> share({
     required String text,
     required String src,
     required String itemId,
     Rect? origin,
+    XFile? image,
   }) async {
     try {
+      if (image != null) await Clipboard.setData(ClipboardData(text: text));
       // iPad 는 공유 창을 띄울 자리(버튼 위치)가 있어야 한다
-      final r = await SharePlus.instance.share(ShareParams(text: text, subject: 'ZONBER', sharePositionOrigin: origin));
+      final r = await SharePlus.instance.share(ShareParams(
+        text: text,
+        subject: 'ZONBER',
+        files: image == null ? null : [image],
+        sharePositionOrigin: origin,
+      ));
       if (r.status == ShareResultStatus.dismissed) return ShareOutcome.dismissed;
-      AnalyticsService().logShare(src: src, itemId: itemId, method: r.raw.isEmpty ? 'os' : r.raw);
+      AnalyticsService().logShare(src: src, itemId: itemId, method: r.raw.isEmpty ? 'os' : r.raw, withImage: image != null);
       return ShareOutcome.shared;
     } catch (e) {
       debugPrint('share failed: $e');

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 주간 알림 상태 표시줄 아이콘 — 흰색 한 가지 색만(Android 가 색을 입힌다). 모양은 ZONBER 의 Z -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,4.5h14v3L9.6,16.5H19v3H5v-3L14.4,7.5H5z" />
+</vector>
