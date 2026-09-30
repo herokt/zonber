@@ -107,6 +107,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `admin_emails.dart` | 관리자 이메일 — 백오피스 로그인 · 푸시 tester 토픽. `firestore.rules isAdmin()` · `functions/index.js ADMIN_EMAILS` 와 같게 |
 | `friends.dart` | **친구 단일 출처**(docs/FRIENDS.md) — 읽기는 앱이 직접(`users/{me}/friends` · `friend_requests`), 쓰기는 서버 함수(`addByCode` · `request` · `answer` · `remove` → `functions/friends.js`). `FriendResult` 코드는 서버와 같다. 친구 코드는 바로 친구, 랭킹·프로필 카드에서는 요청→수락. 최대 100명 · 대기 요청 50 · 요청 7일 |
 | `pages/friends_page.dart` | 친구 화면(프로필 탭 › 친구) — 내 코드(복사·공유) · 코드로 추가 · 받은 요청 · 친구 랭킹(존별 최고 기록) |
+| `inbox.dart` · `pages/inbox_page.dart` | **알림 페이지**(홈 위 종 아이콘) — 친구 알림 `users/{uid}/inbox`(서버 함수가 쓴다) + 이벤트 소식 `news/{id}`(푸시를 보내면 남는다) 최근 순, 읽음/안 읽음. 푸시를 누르면 여기로 온다 |
 | `services/review_service.dart` | `ReviewPrompt` — 신기록·새 뱃지가 있었던 회원이 홈으로 나갈 때, 5판 이상 · 120일에 한 번 앱 리뷰 창(`in_app_review`) |
 | `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
@@ -257,6 +258,7 @@ custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규�
 push_campaigns/             # 백오피스 푸시 발송 기록 — 만들면 서버 함수가 보낸다(status · results)
 friend_requests/            # 친구 요청 {from, to, status, expiresAt} — 쓰기는 서버 함수만
 push_state/                 # 친구 기록 알림 하루 횟수(서버만)
+news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공개 읽기) — users/{uid}/inbox(친구 알림) · users/{uid}/inbox_state/news(읽은 소식)
 # users/{uid}/friends/{친구uid} · users/{uid}/devices/{기기 id}(친구 알림 토큰, 본인만)
 ```
 

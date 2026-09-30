@@ -28,6 +28,7 @@ import 'services/auth_service.dart';
 import 'services/analytics_service.dart';
 import 'friends.dart';
 import 'pages/friends_page.dart';
+import 'pages/inbox_page.dart';
 import 'services/push_service.dart';
 import 'services/reminder_service.dart';
 import 'world_config.dart';
@@ -227,9 +228,9 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     await _checkAuth();
     ReminderService.reschedule(); // 주간 알림 — 켤 때마다 "7일 뒤"로 다시 건다
     PushService.sync(); // 이벤트·소식 푸시 — 언어·회원 여부에 맞게 토픽 구독
-    // 친구 알림을 눌러 열렸으면(또는 켜 둔 채 눌렀으면) 친구 화면으로
-    if (PushService.openFriends.value > 0) _openFriendsFromPush();
-    PushService.openFriends.addListener(_openFriendsFromPush);
+    // 알림(친구·이벤트 소식)을 눌러 열렸으면(또는 켜 둔 채 눌렀으면) 알림 페이지로
+    if (PushService.openInbox.value > 0) _openInboxFromPush();
+    PushService.openInbox.addListener(_openInboxFromPush);
 
     // 4. Check Ads
     await _checkAdStatus();
@@ -340,9 +341,9 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     }
   }
 
-  void _openFriendsFromPush() {
-    if (!mounted || AuthService.isGuest || _currentPage == 'Game') return;
-    _navigateTo('Friends');
+  void _openInboxFromPush() {
+    if (!mounted || _currentPage == 'Game') return;
+    _navigateTo('Inbox');
   }
 
   /// 게스트로 메뉴에 진입한다. 최초 실행과 로그아웃 직후에 쓴다.
@@ -548,6 +549,10 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
 
       case 'Friends':
         _navigateTo('MyProfile');
+        break;
+
+      case 'Inbox':
+        _navigateTo('Menu');
         break;
 
       case 'Statistics':
@@ -820,6 +825,11 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         return StatisticsPage(onBack: () => _navigateTo('MyProfile'));
       case 'Promo':
         return PromoPage(onBack: () => _navigateTo('Menu'));
+      case 'Inbox':
+        return InboxPage(
+          onBack: () => _navigateTo('Menu'),
+          onOpenFriends: () => _navigateTo('Friends'),
+        );
       case 'Friends':
         return FriendsPage(
           initialWorldId: _currentWorldId,
@@ -842,6 +852,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           onRanking: () => _navigateTo('Ranking'),
           onShop: () => _navigateTo('Shop'),
           onPromo: () => _navigateTo('Promo'),
+          onInbox: () => _navigateTo('Inbox'),
         );
     }
   }

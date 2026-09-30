@@ -178,6 +178,20 @@ const cases = [
   ['회원 푸시 만들기', 'DENY', { auth: member, path: P('push_campaigns/p1'), method: 'create', resource: { data: { status: 'pending', createdBy: 'a@b.com', audience: 'all', title: { ko: '가', en: 'A' }, body: { ko: '나', en: 'B' } } } }],
   ['보낸 푸시 고치기', 'DENY', { auth: admin, path: P('push_campaigns/p1'), method: 'update', resource: { data: { status: 'pending' } } }, { status: 'sent' }],
   ['회원 푸시 기록 읽기', 'DENY', { auth: member, path: P('push_campaigns/p1'), method: 'get' }, { status: 'sent' }],
+
+  // ── 알림함(inbox) · 소식(news) ──
+  ['내 알림함 읽기', 'ALLOW', { auth: member, path: P('users/u1/inbox/i1'), method: 'get' }, { kind: 'friend_request', read: false }],
+  ['남의 알림함 읽기', 'DENY', { auth: member2, path: P('users/u1/inbox/i1'), method: 'get' }, { kind: 'friend_request', read: false }],
+  ['알림함 읽음 표시', 'ALLOW', { auth: member, path: P('users/u1/inbox/i1'), method: 'update', resource: { data: { kind: 'friend_request', read: true } } }, { kind: 'friend_request', read: false }],
+  ['알림함 내용 고치기', 'DENY', { auth: member, path: P('users/u1/inbox/i1'), method: 'update', resource: { data: { kind: 'friend_beat', read: true } } }, { kind: 'friend_request', read: false }],
+  ['알림함 안읽음으로 되돌리기', 'DENY', { auth: member, path: P('users/u1/inbox/i1'), method: 'update', resource: { data: { kind: 'friend_request', read: false } } }, { kind: 'friend_request', read: true }],
+  ['알림함 직접 만들기', 'DENY', { auth: member, path: P('users/u1/inbox/i2'), method: 'create', resource: { data: { kind: 'friend_request', read: false } } }],
+  ['내 알림 지우기', 'ALLOW', { auth: member, path: P('users/u1/inbox/i1'), method: 'delete' }, { kind: 'friend_request', read: true }],
+  ['읽은 소식 적기', 'ALLOW', { auth: member, path: P('users/u1/inbox_state/news'), method: 'create', resource: { data: { read: ['n1'] } } }],
+  ['남의 읽은 소식 적기', 'DENY', { auth: member2, path: P('users/u1/inbox_state/news'), method: 'create', resource: { data: { read: ['n1'] } } }],
+  ['게스트 소식 읽기', 'ALLOW', { auth: anon, path: P('news/n1'), method: 'get' }, { audience: 'all' }],
+  ['소식 만들기', 'DENY', { auth: member, path: P('news/n1'), method: 'create', resource: { data: { audience: 'all' } } }],
+  ['없는 요청 문서 확인', 'ALLOW', { auth: member, path: P('friend_requests/u1_u2'), method: 'get' }],
 ];
 
 const testCases = cases.map(([, expectation, request, existing, functionMocks]) => ({

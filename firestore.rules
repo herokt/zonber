@@ -81,6 +81,24 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // 알림함(lib/inbox.dart) — 서버 함수가 쓰고(functions/notify.js), 본인은 읽기 · 읽음 표시(false → true)만 · 지우기
+      match /inbox/{itemId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow create: if false;
+        allow update: if isOwner(userId) && isMember()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+          && request.resource.data.read == true;
+        allow delete: if isOwner(userId);
+      }
+
+      // 알림함 상태 — 읽은 이벤트·소식 id 목록(news 는 모두가 같은 문서라 읽음을 여기 적는다)
+      match /inbox_state/{docId} {
+        allow read: if isAdmin() || isOwner(userId);
+        allow write: if isOwner(userId) && isMember()
+          && request.resource.data.keys().hasOnly(['read'])
+          && request.resource.data.read is list && request.resource.data.read.size() <= 100;
+      }
+
       // 기기 알림 주소(친구 알림 — lib/services/push_service.dart). 본인만. 보내기는 서버 함수(functions/notify.js)
       match /devices/{deviceId} {
         allow read: if isAdmin() || isOwner(userId);
@@ -150,7 +168,15 @@ service cloud.firestore {
 
     // 친구 요청 — 보낸 사람·받는 사람·관리자만 읽는다. 만들기·수락·거절은 서버 함수(functions/friends.js)
     match /friend_requests/{id} {
-      allow read: if isAdmin() || (signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid));
+      // 문서 id = 보낸uid_받는uid — id 에 내 uid 가 있는 문서만 읽는다(없는 문서여도 — uid 에는 _ 가 없다)
+      allow get: if isAdmin() || (signedIn() && (id.split('_')[0] == request.auth.uid || id.split('_')[1] == request.auth.uid));
+      allow list: if isAdmin() || (signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid));
+      allow write: if false;
+    }
+
+    // 이벤트·소식(앱 알림 페이지) — 푸시를 보내면 서버 함수가 남긴다. 누구나 읽기(앱이 대상·언어로 거른다)
+    match /news/{id} {
+      allow read: if true;
       allow write: if false;
     }
 

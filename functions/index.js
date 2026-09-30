@@ -17,6 +17,7 @@ const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
+const { NEWS_TTL_MS } = require('./logic');
 
 initializeApp();
 
@@ -76,11 +77,17 @@ exports.sendPushCampaign = onDocumentCreated(
           condition: condition(lang, audience),
           notification: { title, body },
           data: { campaign: event.params.id, kind: 'news' },
+          // 늦게 도착할 것은 버리고(TTL), 여러 개가 쌓였으면 최신 하나만(collapse) — 지난 소식이 뒤늦게 쏟아지지 않게
           android: {
             priority: 'high',
-            notification: { channelId: 'news', icon: 'ic_notification', color: '#37E0FF' },
+            ttl: NEWS_TTL_MS,
+            collapseKey: 'news',
+            notification: { channelId: 'news', icon: 'ic_notification', color: '#37E0FF', tag: 'news' },
           },
-          apns: { payload: { aps: { sound: 'default' } } },
+          apns: {
+            headers: { 'apns-expiration': String(Math.floor((Date.now() + NEWS_TTL_MS) / 1000)), 'apns-collapse-id': 'news' },
+            payload: { aps: { sound: 'default' } },
+          },
         });
         results[lang] = `ok ${id}`;
         sent++;
@@ -90,6 +97,14 @@ exports.sendPushCampaign = onDocumentCreated(
       }
     }
     await ref.update({ status: sent > 0 ? 'sent' : 'failed', results, sentAt: FieldValue.serverTimestamp() });
+    // 앱 알림 페이지(이벤트·소식)에 남긴다 — news/{id} 공개 읽기. 앱이 대상·언어로 걸러 보여 준다(lib/inbox.dart)
+    if (sent > 0) {
+      await getFirestore()
+        .collection('news')
+        .doc(event.params.id)
+        .set({ title: c.title || {}, body: c.body || {}, langs, audience, at: FieldValue.serverTimestamp() })
+        .catch((e) => logger.warn('news write failed', { id: event.params.id, error: String(e) }));
+    }
     logger.info('push campaign done', { id: event.params.id, audience, sent, results });
   },
 );

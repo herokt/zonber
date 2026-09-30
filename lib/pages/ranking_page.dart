@@ -68,8 +68,8 @@ class _RankingPageState extends State<RankingPage> {
 
   /// 랭킹에서 누군가를 누르면 그 사람 프로필을 연다(users/{uid} 는 공개 — player_profile.dart)
   void _openPlayer(Map<String, dynamic> record) {
+    // userId 가 없는 기록(예전 버전에서 옮겨 온 갤럭시 기록)도 창은 연다 — 이름·국기 + 도전만
     final uid = (record['userId'] as String?) ?? '';
-    if (uid.isEmpty) return;
     final worldId = _worldId;
     final time = ((record['survivalTime'] as num?) ?? 0).toDouble();
     final name = (record['nickname'] as String?) ?? '';
@@ -77,8 +77,10 @@ class _RankingPageState extends State<RankingPage> {
       context,
       uid: uid,
       zone: worldId,
+      name: name,
+      flag: (record['flag'] as String?) ?? '',
       // 내 기록에는 도전하지 않는다. 기록은 랭킹에 보이던 그 값(이 기간 기록)
-      challenge: uid == _myUid || time <= 0
+      challenge: (uid.isNotEmpty && uid == _myUid) || time <= 0
           ? null
           : (time: time, onTap: () => widget.onChallenge(worldId, name.isEmpty ? '?' : name, time)),
     );

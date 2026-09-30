@@ -283,21 +283,25 @@ class ProfileBadgeStrip extends StatelessWidget {
 /// 남의 프로필 — 랭킹에서 이름을 누르면 아래에서 올라온다
 /// [challenge] 가 있으면 아래에 "이 기록 깨러 가기" 버튼 — 누르면 창을 닫고 [challenge].onTap
 /// (그 기록을 목표로 판을 연다). 기록은 랭킹 줄에 보이던 값
+/// [uid] 가 비었으면(예전 버전에서 옮겨 온 랭킹 기록 — userId 없음) [name]·[flag] 로 이름만 보여 주고
+/// "예전 기록이라 프로필이 없다"고 알린다. 도전 버튼은 그대로
 Future<void> showPlayerCard(BuildContext context,
-        {required String uid, String? zone, ({double time, VoidCallback onTap})? challenge}) =>
+        {required String uid, String? zone, ({double time, VoidCallback onTap})? challenge, String name = '', String flag = ''}) =>
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.background,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => PlayerCardSheet(uid: uid, zone: zone, challenge: challenge),
+      builder: (_) => PlayerCardSheet(uid: uid, zone: zone, challenge: challenge, name: name, flag: flag),
     );
 
 class PlayerCardSheet extends StatefulWidget {
   final String uid;
   final String? zone;
   final ({double time, VoidCallback onTap})? challenge;
-  const PlayerCardSheet({super.key, required this.uid, this.zone, this.challenge});
+  final String name;
+  final String flag;
+  const PlayerCardSheet({super.key, required this.uid, this.zone, this.challenge, this.name = '', this.flag = ''});
 
   @override
   State<PlayerCardSheet> createState() => _PlayerCardSheetState();
@@ -318,6 +322,10 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
   }
 
   Future<void> _load() async {
+    if (widget.uid.isEmpty) {
+      setState(() => _loading = false); // 예전 기록 — 불러올 프로필이 없다
+      return;
+    }
     final results = await Future.wait<Object?>([PlayerProfileService.fetch(widget.uid), Friends.stateOf(widget.uid)]);
     if (!mounted) return;
     setState(() {
@@ -414,10 +422,18 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
               )
             else if (p == null)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                child: Center(
-                  child: Text(lm.translate('profile_not_found'), style: AppTextStyles.text(13, color: AppColors.textDim)),
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                child: Column(children: [
+                  if (widget.name.isNotEmpty) ...[
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Flexible(child: OneLineText(widget.name, style: AppTextStyles.display(22))),
+                      if (widget.flag.isNotEmpty) ...[const SizedBox(width: 8), CountryChip(flag: widget.flag)],
+                    ]),
+                    const SizedBox(height: 10),
+                  ],
+                  Text(lm.translate(widget.uid.isEmpty ? 'profile_legacy' : 'profile_not_found'),
+                      textAlign: TextAlign.center, style: AppTextStyles.text(13, color: AppColors.textDim)),
+                ]),
               )
             else ...[
               ProfileIdentityCard(

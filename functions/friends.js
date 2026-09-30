@@ -77,7 +77,7 @@ exports.addFriendByCode = onCall({ region: REGION }, async (req) => {
   const problem = await limitProblem(me, owner);
   if (problem) return { result: problem };
   await makeFriends(me, owner, 'code');
-  await notifyUser(owner, 'friend_added', { name: await nickname(me) }).catch((e) => logger.warn('notify', e));
+  await notifyUser(owner, 'friend_added', { name: await nickname(me), from: me }).catch((e) => logger.warn('notify', e));
   return { result: 'added', uid: owner };
 });
 
@@ -97,7 +97,7 @@ exports.sendFriendRequest = onCall({ region: REGION }, async (req) => {
     const problem = await limitProblem(me, to);
     if (problem) return { result: problem };
     await makeFriends(me, to, 'request');
-    await notifyUser(to, 'friend_accepted', { name: await nickname(me) }).catch((e) => logger.warn('notify', e));
+    await notifyUser(to, 'friend_accepted', { name: await nickname(me), from: me }).catch((e) => logger.warn('notify', e));
     return { result: 'added' };
   }
 
@@ -128,7 +128,7 @@ exports.sendFriendRequest = onCall({ region: REGION }, async (req) => {
     at: FieldValue.serverTimestamp(),
     expiresAt: Timestamp.fromMillis(Date.now() + L.REQUEST_DAYS * L.DAY_MS),
   });
-  await notifyUser(to, 'friend_request', { name: await nickname(me) }).catch((e) => logger.warn('notify', e));
+  await notifyUser(to, 'friend_request', { name: await nickname(me), from: me }).catch((e) => logger.warn('notify', e));
   return { result: 'requested' };
 });
 
@@ -151,7 +151,7 @@ exports.answerFriendRequest = onCall({ region: REGION }, async (req) => {
   const problem = await limitProblem(me, from);
   if (problem) return { result: problem };
   await makeFriends(me, from, 'request');
-  await notifyUser(from, 'friend_accepted', { name: await nickname(me) }).catch((e) => logger.warn('notify', e));
+  await notifyUser(from, 'friend_accepted', { name: await nickname(me), from: me }).catch((e) => logger.warn('notify', e));
   return { result: 'added' };
 });
 
@@ -200,11 +200,11 @@ exports.onRecordCreated = onDocumentCreated({ document: 'maps/{mapId}/records/{r
       tx.set(stateRef, { beat: next }, { merge: true });
       return true;
     });
-    if (ok) await notifyUser(fid, 'friend_beat', { name, zone: mapId, time: best }).catch((e) => logger.warn('notify', e));
+    if (ok) await notifyUser(fid, 'friend_beat', { name, zone: mapId, time: best, from: uid }).catch((e) => logger.warn('notify', e));
   }
 });
 
-// ── 탈퇴 정리 — 친구(양쪽) · 요청 · 기기 · 알림 상태 ──
+// ── 탈퇴 정리 — 친구(양쪽) · 요청 · 기기 · 알림함 · 알림 상태 ──
 exports.onUserDeleted = onDocumentDeleted({ document: 'users/{uid}', region: REGION, retry: false }, async (event) => {
   const uid = event.params.uid;
   const refs = [];
@@ -212,8 +212,10 @@ exports.onUserDeleted = onDocumentDeleted({ document: 'users/{uid}', region: REG
   for (const f of friends.docs) {
     refs.push(f.ref, friendRef(f.id, uid));
   }
-  const devices = await users().doc(uid).collection('devices').get();
-  for (const d of devices.docs) refs.push(d.ref);
+  for (const sub of ['devices', 'inbox', 'inbox_state']) {
+    const q = await users().doc(uid).collection(sub).get();
+    for (const d of q.docs) refs.push(d.ref);
+  }
   for (const field of ['from', 'to']) {
     const q = await requests().where(field, '==', uid).get();
     for (const d of q.docs) refs.push(d.ref);

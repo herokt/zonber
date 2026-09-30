@@ -12,6 +12,7 @@ import 'package:zonber/daily_rewards.dart';
 import 'package:zonber/design_system.dart';
 import 'package:zonber/player_profile.dart';
 import 'package:zonber/friends.dart';
+import 'package:zonber/inbox.dart';
 import 'package:zonber/promotions.dart';
 import 'package:zonber/push.dart';
 import 'package:zonber/gear.dart';
@@ -496,6 +497,27 @@ void main() {
       expect(n('MAX_FRIENDS'), Friends.maxFriends);
       expect(n('MAX_PENDING'), Friends.maxPending);
       expect(n('REQUEST_DAYS'), Friends.requestDays);
+    });
+  });
+
+  group('알림함', () {
+    test('친구 알림 종류가 서버와 같고, 4개 언어 제목·본문이 있다', () {
+      final js = File('functions/logic.js').readAsStringSync();
+      for (final kind in kInboxFriendKinds) {
+        expect(js.contains('  $kind: {'), isTrue, reason: '서버에 없는 종류 $kind');
+        for (final lang in ['en', 'ko', 'ja', 'zh']) {
+          expect(appTranslations[lang]!.containsKey('inbox_${kind}_t'), isTrue, reason: '$lang $kind 제목');
+          expect(appTranslations[lang]!.containsKey('inbox_${kind}_b'), isTrue, reason: '$lang $kind 본문');
+        }
+      }
+    });
+
+    test('소식은 언어가 없으면 영어로', () {
+      const item = InboxItem(id: 'n', kind: 'news', title: {'ko': '가', 'en': 'A'}, body: {'en': 'B'});
+      expect(item.newsTitle('ja'), 'A');
+      expect(item.newsTitle('ko'), '가');
+      expect(item.newsBody('ko'), 'B');
+      expect(item.asRead().read, isTrue);
     });
   });
 

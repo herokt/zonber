@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../admin_emails.dart';
 import '../game_settings.dart';
+import '../inbox.dart';
 import '../language_manager.dart';
 import '../push.dart';
 import 'analytics_service.dart';
@@ -30,8 +31,8 @@ class PushService {
   static const String _kDeviceId = 'push_device_id'; // 기기 설정 — 기기 문서 id(한 번 만들고 그대로)
   static const String _kDeviceSig = 'push_device_sig'; // 마지막으로 서버에 쓴 값(uid|토큰|언어|친구) — 같으면 안 쓴다
 
-  /// 친구 알림을 눌러 앱이 열렸다 — main 이 친구 화면으로 간다
-  static final ValueNotifier<int> openFriends = ValueNotifier(0);
+  /// 알림(친구·이벤트 소식)을 눌러 앱이 열렸다 — main 이 알림 페이지로 간다
+  static final ValueNotifier<int> openInbox = ValueNotifier(0);
 
   static bool _ready = false;
   static Future<void>? _syncing;
@@ -47,7 +48,9 @@ class PushService {
       await m.setForegroundNotificationPresentationOptions(alert: true, badge: false, sound: true);
       FirebaseMessaging.onMessage.listen((msg) {
         final n = msg.notification;
-        if (n == null || !Platform.isAndroid) return;
+        if (n == null) return;
+        Inbox.unread.value = Inbox.unread.value + 1; // 앱을 켜 둔 채 왔다 — 종 아이콘 점
+        if (!Platform.isAndroid) return;
         final friend = (msg.data['kind'] as String? ?? '').startsWith('friend_');
         ReminderService.showNews(title: n.title ?? 'ZONBER', body: n.body ?? '', friend: friend);
       });
@@ -64,7 +67,7 @@ class PushService {
   static void _opened(RemoteMessage msg) {
     final kind = msg.data['kind'] as String? ?? '';
     AnalyticsService().logPushOpen(campaign: msg.data['campaign'] as String? ?? kind);
-    if (kind.startsWith('friend_')) openFriends.value++;
+    openInbox.value++;
   }
 
   /// 토픽 구독 · 기기 문서를 지금 상태에 맞춘다(겹쳐 불러도 한 번씩 차례로). [force] = 토큰이 바뀌었다

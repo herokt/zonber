@@ -5,6 +5,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import '../friends.dart';
+import '../inbox.dart';
 import '../promotions.dart';
 import 'push_service.dart';
 import '../world_config.dart';
@@ -103,6 +104,7 @@ class AuthService {
   Future<void> signOut() async {
     await PushService.unregisterDevice(); // 로그인한 동안에 — 이 기기로 친구 알림이 오지 않게
     Friends.clear();
+    Inbox.clear();
     await _googleSignIn?.signOut();
     await _auth.signOut();
   }

@@ -215,6 +215,8 @@ class _FriendsPageState extends State<FriendsPage> {
                   const SizedBox(width: 8),
                   if (_myCode != null) Icon(Icons.copy_rounded, size: 16, color: AppColors.primary),
                 ]),
+                const SizedBox(height: 4),
+                Text(lm.translate('friend_my_code_hint'), style: AppTextStyles.text(11.5, color: AppColors.textDim)),
               ]),
             ),
           ),

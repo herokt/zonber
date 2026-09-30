@@ -4,6 +4,7 @@ import '../avatar.dart';
 import '../character_data.dart';
 import '../coin_store.dart';
 import '../design_system.dart';
+import '../inbox.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
 import '../ranking_system.dart';
@@ -28,6 +29,9 @@ class HomePage extends StatefulWidget {
   final VoidCallback onShop;
   final VoidCallback onPromo;
 
+  /// 알림 페이지(친구 알림 · 이벤트 소식)
+  final VoidCallback onInbox;
+
   const HomePage({
     super.key,
     required this.selectedWorldId,
@@ -41,6 +45,7 @@ class HomePage extends StatefulWidget {
     required this.onRanking,
     required this.onShop,
     required this.onPromo,
+    required this.onInbox,
   });
 
   @override
@@ -64,6 +69,10 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     DailyRewards.refresh(); // 받을 보상 빨간 점
+    // 안 읽은 알림 수(종 아이콘 점) — 첫 프레임 뒤 언어를 읽어서
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Inbox.refreshUnread(lang: LanguageManager.of(context, listen: false).currentLanguage);
+    });
     _index = WorldData.worlds.indexWhere((w) => w.id == widget.selectedWorldId);
     if (_index < 0) _index = 0;
     _pager = PageController(initialPage: _index, viewportFraction: 0.9);
@@ -202,6 +211,8 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const Spacer(),
+            // 알림 — 안 읽은 게 있으면 점
+            _inboxButton(lm),
             // 오늘의 미션 — 받을 보상이 있으면 점으로 알린다
             _missionButton(lm),
             const SizedBox(width: 6),
@@ -215,6 +226,36 @@ class _HomePageState extends State<HomePage> {
       );
 
   /// 오늘의 미션 — 눌러서 바로 연다. 받을 게 있으면 오른쪽 위에 점
+  Widget _inboxButton(LanguageManager lm) => ValueListenableBuilder<int>(
+        valueListenable: Inbox.unread,
+        builder: (context, n, _) => Stack(
+          clipBehavior: Clip.none,
+          children: [
+            AppIconButton(
+              icon: n > 0 ? Icons.notifications_active_rounded : Icons.notifications_none_rounded,
+              onTap: widget.onInbox,
+              label: lm.translate('inbox_title'),
+              background: Colors.transparent,
+              color: n > 0 ? AppColors.primary : AppColors.textDim,
+            ),
+            if (n > 0)
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: AppColors.danger,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.background, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+
   Widget _missionButton(LanguageManager lm) => ValueListenableBuilder<int>(
         valueListenable: DailyRewards.claimable,
         builder: (context, n, _) => Stack(
