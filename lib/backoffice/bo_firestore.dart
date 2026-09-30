@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -65,6 +66,43 @@ class FirestoreSource implements BoSource {
 
   @override
   Future<void> deleteUser(String uid) => _users.doc(uid).delete();
+
+  @override
+  Future<void> incrementField(String uid, String field, int amount) => _users.doc(uid).update({field: FieldValue.increment(amount)});
+
+  // 관리 서버 함수(functions/admin.js) — 오래 걸릴 수 있다(한 번에 50명)
+  HttpsCallable _admin(String name) => FirebaseFunctions.instanceFor(region: 'us-central1')
+      .httpsCallable(name, options: HttpsCallableOptions(timeout: const Duration(minutes: 9)));
+
+  @override
+  Future<Map<String, String>> deleteUsersFully(List<String> uids) async {
+    final out = <String, String>{};
+    for (var i = 0; i < uids.length; i += 50) {
+      final r = await _admin('adminDeleteUsers').call<Map<String, dynamic>>({'uids': uids.skip(i).take(50).toList()});
+      final res = r.data['results'];
+      if (res is Map) {
+        for (final e in res.entries) {
+          out['${e.key}'] = '${e.value}';
+        }
+      }
+    }
+    return out;
+  }
+
+  @override
+  Future<BoOrphans> orphanRecords({bool apply = false}) async {
+    final r = await _admin('adminOrphanRecords').call<Map<String, dynamic>>({'apply': apply});
+    final d = r.data;
+    return BoOrphans(
+      intOf(d['count']),
+      intOf(d['people']),
+      [
+        for (final t in (d['top'] as List? ?? const []))
+          if (t is Map) ('${t['name']}', intOf(t['n'])),
+      ],
+      intOf(d['deleted']),
+    );
+  }
 
   // ── runs ──
   Query<Map<String, dynamic>> _since(DateTime since) => _db

@@ -119,13 +119,13 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
     final ok = await confirmCode(
       context,
       '계정 삭제 확인',
-      '${nickOf(_d)} (${widget.uid})\n\n정말로 이 사용자 문서를 삭제하시겠습니까? 되돌릴 수 없습니다.\n'
-          '(플레이 기록·비공개 문서 등 하위 컬렉션과 랭킹 기록은 남습니다)',
+      '${nickOf(_d)} (${widget.uid})\n\n로그인 계정 · 랭킹 기록 · 플레이 기록 · 친구 · 코인·아이템까지 통째로 지웁니다.\n되돌릴 수 없습니다.',
       ok: '삭제',
     );
     if (!ok) return;
     try {
-      await BoData.src.deleteUser(widget.uid);
+      final r = await BoData.src.deleteUsersFully([widget.uid]); // 서버 함수 adminDeleteUsers
+      if (r[widget.uid] != 'ok') throw r[widget.uid] ?? '응답 없음';
       if (mounted) toast(context, '삭제했습니다');
       BoNav.closeUser();
       BoData.refreshAll();
@@ -562,7 +562,7 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
                   action(Icons.paid_outlined, '코인 지급', 'coins 를 더합니다(increment). 음수를 넣으면 회수합니다.',
                       OutlinedButton(onPressed: _grantCoins, child: const Text('지급')),
                       color: Bo.amber),
-                  action(Icons.delete_outline_rounded, '유저 삭제', 'users 문서만 지웁니다. 되돌릴 수 없습니다.',
+                  action(Icons.delete_outline_rounded, '유저 삭제', '로그인 계정 · 랭킹 기록 · 플레이 기록 · 친구까지 통째로 지웁니다. 되돌릴 수 없습니다.',
                       OutlinedButton(
                         onPressed: _delete,
                         style: OutlinedButton.styleFrom(foregroundColor: Bo.red, side: BorderSide(color: Bo.dangerBorder)),
@@ -578,7 +578,8 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
                   '· 수정은 users 문서만 바꿉니다. 게임이 실행 중이면 앱이 로컬 값으로 다시 덮어쓸 수 있습니다.\n'
                   '· 아이템 지급은 ownedItems 에 추가(arrayUnion)합니다. 착용은 유저가 직접 합니다.\n'
                   '· 코인 지급은 coins 를 더합니다(increment). 음수를 넣으면 회수합니다.\n'
-                  '· 삭제는 users 문서만 지웁니다. 하위 컬렉션(runs·private)과 랭킹 기록은 남습니다.',
+                  '· 삭제는 계정을 통째로 지웁니다(서버 함수 adminDeleteUsers) — 로그인 계정 · 랭킹 기록 · 하위 문서 · 친구 · 친구 코드.\n'
+                  '· 여러 명은 유저 목록에서 골라 한꺼번에 지우거나 바꿀 수 있습니다.',
                   style: Bo.body.copyWith(color: Bo.text2, height: 1.7),
                 ),
               ),

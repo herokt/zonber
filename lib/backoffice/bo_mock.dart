@@ -264,6 +264,27 @@ class MockSource implements BoSource {
   @override
   Future<void> deleteUser(String uid) => _later(() => _users.removeWhere((u) => u.id == uid));
 
+  @override
+  Future<void> incrementField(String uid, String field, int amount) => _later(() {
+        final u = _users.firstWhere((u) => u.id == uid);
+        u.data[field] = intOf(u.data[field]) + amount;
+      });
+
+  @override
+  Future<Map<String, String>> deleteUsersFully(List<String> uids) => _later(() {
+        _users.removeWhere((u) => uids.contains(u.id));
+        return {for (final id in uids) id: 'ok'};
+      });
+
+  int _mockOrphans = 244;
+
+  @override
+  Future<BoOrphans> orphanRecords({bool apply = false}) => _later(() {
+        final n = _mockOrphans;
+        if (apply) _mockOrphans = 0;
+        return BoOrphans(n, n == 0 ? 0 : 50, n == 0 ? const [] : const [('cyber · kk851103', 30), ('cyber · 탑랭커', 24), ('cyber · tsettt', 17)], apply ? n : 0);
+      });
+
   // ── runs ──
   Iterable<RunRow> _since(DateTime since) => _runs.where((r) => r.at != null && !r.at!.isBefore(since));
 

@@ -111,3 +111,6 @@ exports.sendPushCampaign = onDocumentCreated(
 
 // ── 친구 ──
 Object.assign(exports, require('./friends'));
+
+// ── 백오피스 관리(일괄 삭제 · 랭킹 정리) ──
+Object.assign(exports, require('./admin'));

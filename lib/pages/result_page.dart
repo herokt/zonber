@@ -104,7 +104,8 @@ class _ResultPageState extends State<ResultPage> {
             ),
           ],
           const SizedBox(width: 8),
-          Flexible(
+          // 잔액이 남는 칸을 다 차지한다 — 2배 버튼이 늘 오른쪽 끝에 붙게(예전엔 Flexible + Spacer 가 칸을 반씩 나눠 가운데쯤 떴다)
+          Expanded(
             child: ValueListenableBuilder<int>(
               valueListenable: CoinStore.balance,
               builder: (context, b, _) => Text(
@@ -115,7 +116,7 @@ class _ResultPageState extends State<ResultPage> {
               ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           if (_coinsDoubled)
             Text(lm.translate('coin_doubled'), style: AppTextStyles.text(12, color: AppColors.coin, weight: FontWeight.w800))
           else if (_coinsEarned > 0)

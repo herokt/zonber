@@ -49,6 +49,15 @@ class BoFriend {
   const BoFriend(this.uid, this.since, this.via);
 }
 
+/// 주인 없는 랭킹 기록(userId 없음 · 유저 문서 없음) — 서버 함수 adminOrphanRecords
+class BoOrphans {
+  final int count;
+  final int people;
+  final List<(String, int)> top; // "존 · 닉네임", 건수
+  final int deleted;
+  const BoOrphans(this.count, this.people, this.top, this.deleted);
+}
+
 /// 코드 사용 한 건 — 누가 언제
 class BoCodeUse {
   final String uid;
@@ -83,6 +92,16 @@ abstract class BoSource {
   /// coins 를 [amount] 만큼 더한다(음수면 회수)
   Future<void> grantCoins(String uid, int amount);
   Future<void> deleteUser(String uid);
+
+  /// [field] 정수 값을 [amount] 만큼 더한다(닉네임·국가 변경권 등)
+  Future<void> incrementField(String uid, String field, int amount);
+
+  /// 계정을 통째로 지운다(서버 함수 adminDeleteUsers — 로그인 계정 · 랭킹 기록 · 하위 문서 · 친구 · 코드).
+  /// uid → 'ok' | 'error: …'
+  Future<Map<String, String>> deleteUsersFully(List<String> uids);
+
+  /// 주인 없는 랭킹 기록 — [apply] 가 아니면 세기만
+  Future<BoOrphans> orphanRecords({bool apply = false});
 
   // ── 플레이 기록(runs, collection group) ──
   /// since 이후 전체 유저 판(최신순, limit 까지)
