@@ -4,13 +4,15 @@ import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'bo_common.dart';
+import 'legacy_records_panel.dart';
 import 'user_detail_page.dart' show GrantItemDialog;
 
 // ─────────────────────────────────────────────────────────────
 // 유저 목록 — users 전체를 한 번 읽어(BoData 캐시) 검색·필터·정렬·페이지는 화면에서 한다. 기본 필터 = 회원.
 // 이메일 검색은 옛 문서의 users.email 만 대상(새 문서는 private/account 에 있어 목록에서 읽지 않는다).
 // 왼쪽 칸으로 여러 명을 골라 한꺼번에: 코인 지급·회수 · 아이템 지급 · 변경권 지급 · 국가 바꾸기 · 계정 삭제(서버 함수 adminDeleteUsers).
-// [주인 없는 랭킹 기록] — userId 없음 · 유저 문서 없음인 기록을 세고 지운다(서버 함수 adminOrphanRecords).
+// [유저 ID 없는 기록] 으로 바꾸면 랭킹 기록만 있고 회원이 아닌 사람(옛 기록 · 탈퇴)을 사람별로 보고 회원에 연결하거나 지운다
+// (legacy_records_panel.dart).
 // 바꾸는 동작은 모두 숫자 확인(confirmCode)을 거친다.
 // ─────────────────────────────────────────────────────────────
 class UserListPage extends StatefulWidget {
@@ -38,6 +40,9 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
 
   /// 일괄 작업 중 — (한 일, 전체)
   (int, int)? _progress;
+
+  /// false = 회원 · true = 유저 ID 없는 기록
+  bool _legacy = false;
 
   static const _cols = [
     BoCol('', width: 44),
@@ -138,11 +143,14 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
         child: BoCard(
           fill: true,
           padding: EdgeInsets.zero,
-          child: Column(
+          child: _legacy
+              ? LegacyRecordsPanel(leading: _modeSwitch())
+              : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               BoToolbar(
                 filters: [
+                  _modeSwitch(),
                   BoSearchField(
                     controller: _search,
                     hint: '닉네임 · UID · 이메일 검색',
@@ -155,15 +163,7 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
                     onChanged: (v) => _set(() => _country = v),
                   ),
                 ],
-                trailing: [
-                  OutlinedButton.icon(
-                    onPressed: _progress != null ? null : _orphans,
-                    icon: const Icon(Icons.cleaning_services_outlined, size: 16),
-                    label: const Text('주인 없는 랭킹 기록'),
-                  ),
-                  const SizedBox(width: 12),
-                  Text('${fmtNum(rows.length)}명', style: Bo.muted),
-                ],
+                trailing: [Text('${fmtNum(rows.length)}명', style: Bo.muted)],
               ),
               _bulkBar(view),
               Expanded(child: _body(view, rows.length, page, start)),
@@ -173,6 +173,13 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
       ),
     );
   }
+
+  /// 회원 ↔ 유저 ID 없는 기록
+  Widget _modeSwitch() => BoSegmented<bool>(
+        options: const [(false, '회원'), (true, '유저 ID 없는 기록')],
+        value: _legacy,
+        onChanged: _progress != null ? (_) {} : (v) => setState(() => _legacy = v),
+      );
 
   Widget _body(List<BoUser> view, int total, int page, int start) {
     if (_loading && _all.isEmpty) return const BoLoading();
@@ -406,61 +413,6 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
     if (res.isNotEmpty) _done('$ok명 삭제', res.length - ok);
   }
 
-  /// 주인 없는 랭킹 기록 — 세고 보여 준 뒤 지울지 묻는다
-  Future<void> _orphans() async {
-    setState(() => _progress = (0, 1));
-    BoOrphans? o;
-    try {
-      o = await BoData.src.orphanRecords();
-    } catch (e) {
-      if (mounted) toast(context, '불러오기 실패: $e', error: true);
-    }
-    if (mounted) setState(() => _progress = null);
-    if (o == null || !mounted) return;
-    final found = o;
-    if (found.count == 0) return toast(context, '주인 없는 랭킹 기록이 없습니다');
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('주인 없는 랭킹 기록 ${fmtNum(found.count)}건'),
-        content: SizedBox(
-          width: 460,
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('userId 가 없거나 유저 문서가 없는(탈퇴 등) 기록입니다 — ${found.people}명', style: Bo.muted),
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 300),
-              child: SingleChildScrollView(
-                child: Text([for (final (name, n) in found.top) '$name — $n건'].join('\n'), style: Bo.body.copyWith(height: 1.6)),
-              ),
-            ),
-          ]),
-        ),
-        actions: [
-          OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('닫기')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Bo.red),
-            child: const Text('모두 지우기'),
-          ),
-        ],
-      ),
-    );
-    if (go != true || !mounted) return;
-    if (!await confirmCode(context, '랭킹 기록 지우기', '주인 없는 랭킹 기록 ${fmtNum(found.count)}건을 지웁니다.\n되돌릴 수 없습니다.',
-        ok: '지우기', okColor: Bo.red)) {
-      return;
-    }
-    setState(() => _progress = (0, 1));
-    try {
-      final r = await BoData.src.orphanRecords(apply: true);
-      if (mounted) toast(context, '랭킹 기록 ${fmtNum(r.deleted)}건을 지웠습니다');
-    } catch (e) {
-      if (mounted) toast(context, '지우기 실패: $e', error: true);
-    }
-    if (mounted) setState(() => _progress = null);
-    BoData.refreshAll();
-  }
 }
 
 /// 숫자 하나 받는 창 — 입력칸은 창이 닫힌 뒤에 정리한다(닫히는 동안에도 쓰인다)

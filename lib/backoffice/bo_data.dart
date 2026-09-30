@@ -49,13 +49,68 @@ class BoFriend {
   const BoFriend(this.uid, this.since, this.via);
 }
 
-/// 주인 없는 랭킹 기록(userId 없음 · 유저 문서 없음) — 서버 함수 adminOrphanRecords
-class BoOrphans {
-  final int count;
-  final int people;
-  final List<(String, int)> top; // "존 · 닉네임", 건수
-  final int deleted;
-  const BoOrphans(this.count, this.people, this.top, this.deleted);
+/// 유저 ID 없는 랭킹 기록 한 사람분 — userId 가 없거나(옛 기록) 유저 문서가 없는(탈퇴 등) 기록을 묶는다.
+/// 묶는 기준: 유저 문서가 없는 uid 가 있으면 그 uid, 없으면 닉네임(대소문자·앞뒤 공백 무시)
+class BoLegacy {
+  final String key;
+  final String oldUid; // 유저 문서가 없는 uid('' = userId 없음)
+  final List<BoRec> records;
+  const BoLegacy(this.key, this.oldUid, this.records);
+
+  String get nickname {
+    for (final r in records) {
+      final n = (r.data['nickname'] as String? ?? '').trim();
+      if (n.isNotEmpty) return n;
+    }
+    return '(닉네임 없음)';
+  }
+
+  /// 가장 많이 나온 국기
+  String get flag {
+    final m = <String, int>{};
+    for (final r in records) {
+      final f = (r.data['flag'] as String? ?? '').trim();
+      if (f.isNotEmpty) m[f] = (m[f] ?? 0) + 1;
+    }
+    if (m.isEmpty) return '';
+    return (m.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).first.key;
+  }
+
+  /// 존 최고 기록(없으면 null)
+  double? best(String mapId) {
+    double? b;
+    for (final r in records) {
+      if (r.mapId == mapId && (b == null || r.time > b)) b = r.time;
+    }
+    return b;
+  }
+
+  DateTime? get last {
+    DateTime? l;
+    for (final r in records) {
+      final a = r.at;
+      if (a != null && (l == null || a.isAfter(l))) l = a;
+    }
+    return l;
+  }
+
+  static String normNick(String? s) => (s ?? '').trim().toLowerCase();
+
+  /// 기록 전부 + 있는 유저 uid → 사람별 묶음(최근 기록 순)
+  static List<BoLegacy> group(Iterable<BoRec> records, Set<String> userIds) {
+    final m = <String, List<BoRec>>{};
+    final old = <String, String>{};
+    for (final r in records) {
+      final uid = r.userId;
+      if (uid.isNotEmpty && userIds.contains(uid)) continue;
+      final key = uid.isNotEmpty ? 'uid:$uid' : 'nick:${normNick(r.data['nickname'] as String?)}';
+      (m[key] ??= []).add(r);
+      if (uid.isNotEmpty) old[key] = uid;
+    }
+    final out = [for (final e in m.entries) BoLegacy(e.key, old[e.key] ?? '', e.value)];
+    out.sort((a, b) => (b.last?.millisecondsSinceEpoch ?? 0).compareTo(a.last?.millisecondsSinceEpoch ?? 0));
+    return out;
+  }
 }
 
 /// 코드 사용 한 건 — 누가 언제
@@ -100,8 +155,14 @@ abstract class BoSource {
   /// uid → 'ok' | 'error: …'
   Future<Map<String, String>> deleteUsersFully(List<String> uids);
 
-  /// 주인 없는 랭킹 기록 — [apply] 가 아니면 세기만
-  Future<BoOrphans> orphanRecords({bool apply = false});
+  /// 한 존의 랭킹 기록 전부(유저 ID 없는 기록 찾기용)
+  Future<List<BoRec>> allRecords(String mapId);
+
+  /// 랭킹 기록을 회원 [uid] 에게 붙인다(userId). 붙인 기록이 그 회원의 존 최고 기록(users.bestTimes)보다 좋으면 올린다
+  Future<void> linkRecords(List<BoRec> recs, String uid);
+
+  /// 랭킹 기록 여러 건 지우기
+  Future<void> deleteRecords(List<BoRec> recs);
 
   // ── 플레이 기록(runs, collection group) ──
   /// since 이후 전체 유저 판(최신순, limit 까지)

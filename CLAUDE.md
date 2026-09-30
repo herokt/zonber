@@ -121,7 +121,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 규칙·색인을 빼먹으면 플레이 기록(`users/{uid}/runs` 쓰기 · collection group 읽기)이 조용히 막힌다.
 백오피스 카탈로그(`bo_catalog.dart`)는 캐릭터·장비·꾸미기 목록을 **게임 파일에서 그대로 읽는다** — 목록을 베껴 두지 않는다(아이템이 늘면 저절로 따라온다).
 - `dashboard_page.dart` — 실시간 유저/플레이 지표 및 스테이지 성과
-- `user_list_page.dart` — 유저 관리 UI — 왼쪽 칸으로 여러 명을 골라 **일괄 코인·아이템·변경권·국가·삭제**, [주인 없는 랭킹 기록] 세고 지우기. 삭제는 서버 함수 `adminDeleteUsers`(로그인 계정·랭킹 기록·하위 문서·친구까지), 정리는 `adminOrphanRecords` — `functions/admin.js`, 관리자만
+- `user_list_page.dart` — 유저 관리 UI — 왼쪽 칸으로 여러 명을 골라 **일괄 코인·아이템·변경권·국가·삭제**. 삭제는 서버 함수 `adminDeleteUsers`(로그인 계정·랭킹 기록·하위 문서·친구까지 — `functions/admin.js`, 관리자만). 위 전환 [유저 ID 없는 기록](`legacy_records_panel.dart`) = userId 없는 옛 기록 · 유저 문서 없는(탈퇴) 기록을 사람별로 묶어 **회원에 연결**(uid 붙이기 + 더 좋으면 프로필 최고 기록 올림) · **기록 삭제**
 - `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
 - `promo_page.dart` · `promo_codes_page.dart` — 이벤트 · 이벤트 코드(만들기·검증·사용한 사람)
 - `push_page.dart` — 푸시 보내기(템플릿 · 4개 언어 문구 · 대상 · 미리보기 · 테스트 발송) + 보낸 기록

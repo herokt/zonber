@@ -208,6 +208,16 @@ class MockSource implements BoSource {
     // 의심 기록 몇 개
     _recs['cyber']!.add(_rec('cyber', _users[11], 742.5, 1.2));
     _recs['dodgeball']!.add(_rec('dodgeball', _users[23], 690.1, 3));
+    final legacy = [('탑랭커', '🇰🇷', 24), ('kk851103', '🇰🇷', 30), ('tsettt', '🇺🇸', 17), ('Mina', '🇯🇵', 5), ('${_users[3].data['nickname']}', '🇰🇷', 3)];
+    for (final (name, flag, n) in legacy) {
+      for (int k = 0; k < n; k++) {
+        final map = kStages[k % kStages.length].id;
+        _recs[map]!.add(BoRec('rec_legacy_${_recN++}', map, {
+          'survivalTime': 20 + _r.nextDouble() * 200, 'timestamp': _ago(60 + _r.nextDouble() * 200), 'nickname': name, 'flag': flag,
+          'characterId': 'neon_green', 'season': 0,
+        }));
+      }
+    }
     _recs['cyber']!.add(BoRec('rec_orphan', 'cyber', {
       'userId': 'mock_deleted_1', 'survivalTime': 120.4, 'timestamp': _ago(2), 'nickname': '탈퇴한유저', 'flag': '🇰🇷',
       'characterId': 'void_dark', 'season': 0,
@@ -276,13 +286,25 @@ class MockSource implements BoSource {
         return {for (final id in uids) id: 'ok'};
       });
 
-  int _mockOrphans = 244;
+  @override
+  Future<List<BoRec>> allRecords(String mapId) => _later(() => List.of(_recs[mapId] ?? const <BoRec>[]));
 
   @override
-  Future<BoOrphans> orphanRecords({bool apply = false}) => _later(() {
-        final n = _mockOrphans;
-        if (apply) _mockOrphans = 0;
-        return BoOrphans(n, n == 0 ? 0 : 50, n == 0 ? const [] : const [('cyber · kk851103', 30), ('cyber · 탑랭커', 24), ('cyber · tsettt', 17)], apply ? n : 0);
+  Future<void> linkRecords(List<BoRec> recs, String uid) => _later(() {
+        final ids = {for (final r in recs) r.id};
+        for (final e in _recs.entries) {
+          e.value.replaceRange(0, e.value.length, [
+            for (final r in e.value) ids.contains(r.id) ? BoRec(r.id, r.mapId, {...r.data, 'userId': uid}) : r,
+          ]);
+        }
+      });
+
+  @override
+  Future<void> deleteRecords(List<BoRec> recs) => _later(() {
+        final ids = {for (final r in recs) r.id};
+        for (final l in _recs.values) {
+          l.removeWhere((r) => ids.contains(r.id));
+        }
       });
 
   // ── runs ──

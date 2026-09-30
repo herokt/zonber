@@ -90,18 +90,41 @@ class FirestoreSource implements BoSource {
   }
 
   @override
-  Future<BoOrphans> orphanRecords({bool apply = false}) async {
-    final r = await _admin('adminOrphanRecords').call<Map<String, dynamic>>({'apply': apply});
-    final d = r.data;
-    return BoOrphans(
-      intOf(d['count']),
-      intOf(d['people']),
-      [
-        for (final t in (d['top'] as List? ?? const []))
-          if (t is Map) ('${t['name']}', intOf(t['n'])),
-      ],
-      intOf(d['deleted']),
-    );
+  Future<List<BoRec>> allRecords(String mapId) async {
+    final snap = await _records(mapId).get();
+    return [for (final d in snap.docs) BoRec(d.id, mapId, d.data())];
+  }
+
+  @override
+  Future<void> linkRecords(List<BoRec> recs, String uid) async {
+    if (recs.isEmpty) return;
+    final user = (await _users.doc(uid).get()).data() ?? const {};
+    final best = (user['bestTimes'] as Map?) ?? const {};
+    final raise = <String, double>{};
+    for (final r in recs) {
+      if (r.time > dblOf(best[r.mapId]) && r.time > (raise[r.mapId] ?? 0)) raise[r.mapId] = r.time;
+    }
+    for (var i = 0; i < recs.length; i += 400) {
+      final b = _db.batch();
+      for (final r in recs.skip(i).take(400)) {
+        b.update(_records(r.mapId).doc(r.id), {'userId': uid});
+      }
+      await b.commit();
+    }
+    if (raise.isNotEmpty) {
+      await _users.doc(uid).update({for (final e in raise.entries) 'bestTimes.${e.key}': e.value});
+    }
+  }
+
+  @override
+  Future<void> deleteRecords(List<BoRec> recs) async {
+    for (var i = 0; i < recs.length; i += 400) {
+      final b = _db.batch();
+      for (final r in recs.skip(i).take(400)) {
+        b.delete(_records(r.mapId).doc(r.id));
+      }
+      await b.commit();
+    }
   }
 
   // ── runs ──
