@@ -49,6 +49,7 @@ void _applyPreviewRoute() {
     'ranking' => BoSection.ranking,
     'runs' => BoSection.runs,
     'economy' => BoSection.economy,
+    'push' => BoSection.push,
     _ => BoSection.dashboard,
   };
   BoNav.go(section);

@@ -3,6 +3,7 @@ import 'dart:math';
 import '../badges.dart';
 import '../gear.dart';
 import '../promotions.dart';
+import '../push.dart';
 import 'bo_catalog.dart';
 import 'bo_data.dart';
 
@@ -338,6 +339,59 @@ class MockSource implements BoSource {
 
   @override
   Future<void> deletePromo(String id) => _later(() => _promos.removeWhere((e) => e.promo.id == id));
+
+  // ── 푸시 ──
+  late final List<PushCampaign> _pushes = [
+    PushCampaign(
+      id: 'mock_push_2',
+      title: PushTemplates.all[0].title,
+      body: PushTemplates.all[0].body,
+      templateId: PushTemplates.all[0].id,
+      status: PushStatus.sent,
+      createdBy: adminEmail,
+      createdAt: DateTime(2026, 9, 29, 19, 0),
+      sentAt: DateTime(2026, 9, 29, 19, 0, 3),
+      results: const {'ko': 'ok projects/demo/messages/1', 'en': 'ok projects/demo/messages/2', 'ja': 'ok projects/demo/messages/3', 'zh': 'ok projects/demo/messages/4'},
+    ),
+    PushCampaign(
+      id: 'mock_push_1',
+      title: PushTemplates.all[3].title,
+      body: PushTemplates.all[3].body,
+      langs: const ['ko'],
+      audience: PushAudience.testers,
+      templateId: PushTemplates.all[3].id,
+      status: PushStatus.sent,
+      createdBy: adminEmail,
+      createdAt: DateTime(2026, 9, 28, 12, 30),
+      sentAt: DateTime(2026, 9, 28, 12, 30, 2),
+      results: const {'ko': 'ok projects/demo/messages/0'},
+    ),
+  ];
+
+  @override
+  Future<List<PushCampaign>> pushCampaigns(int limit) => _later(() => _pushes.take(limit).toList());
+
+  @override
+  Future<String> sendPush(PushCampaign c) => _later(() {
+        final id = 'mock_push_${_pushes.length + 1}';
+        _pushes.insert(
+          0,
+          PushCampaign(
+            id: id,
+            title: c.title,
+            body: c.body,
+            langs: c.langs,
+            audience: c.audience,
+            templateId: c.templateId,
+            status: PushStatus.sent,
+            createdBy: adminEmail,
+            createdAt: DateTime.now(),
+            sentAt: DateTime.now(),
+            results: {for (final l in c.targetLangs) l: 'ok (미리보기 — 실제로 보내지 않음)'},
+          ),
+        );
+        return id;
+      });
 
   // ── 이벤트 코드 ──
   final List<PromoCode> _codes = [

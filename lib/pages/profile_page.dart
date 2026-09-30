@@ -15,6 +15,7 @@ import '../language_manager.dart';
 import '../progress_store.dart';
 import '../coin_store.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 import '../services/reminder_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
@@ -53,6 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
   bool _reminderEnabled = true;
+  bool _pushEnabled = true;
   bool _darkMode = false;
   bool _adPrivacyRequired = false;
   String _appVersion = '';
@@ -94,6 +96,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _soundEnabled = GameSettings().soundEnabled;
       _vibrationEnabled = GameSettings().vibrationEnabled;
       _reminderEnabled = GameSettings().reminderEnabled;
+      _pushEnabled = GameSettings().pushEnabled;
       _darkMode = GameSettings().darkMode;
       _adPrivacyRequired = adPrivacyRequired;
       _appVersion = version;
@@ -386,6 +389,18 @@ class _ProfilePageState extends State<ProfilePage> {
                       final on = await ReminderService.setEnabled(v);
                       if (!mounted) return;
                       setState(() => _reminderEnabled = on);
+                      if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
+                    }),
+                  ),
+                  // 이벤트·소식 푸시(백오피스에서 보내는 것) — 끄면 토픽 구독을 전부 푼다
+                  _row(
+                    lm.translate('push_setting'),
+                    trailing: _switch(_pushEnabled, (v) async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      setState(() => _pushEnabled = v);
+                      final on = await PushService.setEnabled(v);
+                      if (!mounted) return;
+                      setState(() => _pushEnabled = on);
                       if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
                     }),
                   ),

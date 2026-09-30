@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../promotions.dart';
+import '../push.dart';
 import 'bo_catalog.dart';
 import 'bo_data.dart';
 
@@ -156,6 +157,21 @@ class FirestoreSource implements BoSource {
   Future<void> deletePromo(String id) => _db.collection(PromoService.collection).doc(id).delete();
 
   // ── 이벤트 코드 ──
+  // ── 푸시 ──
+  CollectionReference<Map<String, dynamic>> get _push => _db.collection('push_campaigns');
+
+  @override
+  Future<List<PushCampaign>> pushCampaigns(int limit) async {
+    final snap = await _push.orderBy('createdAt', descending: true).limit(limit).get();
+    return [for (final d in snap.docs) PushCampaign.fromDoc(d.id, d.data())];
+  }
+
+  @override
+  Future<String> sendPush(PushCampaign c) async {
+    final ref = await _push.add(c.toNewDoc());
+    return ref.id;
+  }
+
   CollectionReference<Map<String, dynamic>> get _codes => _db.collection(PromoCodes.collection);
 
   @override

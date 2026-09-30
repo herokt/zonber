@@ -2,15 +2,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../admin_emails.dart';
 import 'bo_common.dart';
+
+export '../admin_emails.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 백오피스 관리자 확인 — Google 로그인 + 이메일 허용 목록.
-// firestore.rules 의 isAdmin() 과 같은 목록을 쓴다(바꾸면 둘 다 고칠 것).
+// 목록은 lib/admin_emails.dart — firestore.rules 의 isAdmin() 과 같게.
 // 익명·다른 계정은 관리 화면을 볼 수 없고, 규칙상 다른 사람 문서도 못 고친다.
 // ─────────────────────────────────────────────────────────────
-const Set<String> kAdminEmails = {'herokt851103@gmail.com'};
-
 bool isAdminUser(User? u) =>
     u != null && !u.isAnonymous && u.emailVerified && kAdminEmails.contains((u.email ?? '').toLowerCase());
 

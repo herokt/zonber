@@ -1,7 +1,7 @@
 @echo off
-REM 백오피스 배포 — 웹 번들 + Firestore 규칙·색인까지 함께 올린다.
+REM 백오피스 배포 — 웹 번들 + Firestore 규칙·색인 + 서버 함수(푸시 발송)까지 함께 올린다.
 REM  규칙(firestore.rules)·색인(firestore.indexes.json)을 안 올리면 플레이 기록(users/{uid}/runs) 저장·조회가 막힌다.
-echo [1/3] Building backoffice...
+echo [1/4] Building backoffice...
 set MSYS_NO_PATHCONV=1
 call flutter build web --target=lib/backoffice/main_backoffice.dart --output=hosting_root/secret_admin --base-href=/secret_admin/
 if errorlevel 1 (
@@ -10,7 +10,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [2/3] Deploying Firestore rules and indexes...
+echo [2/4] Deploying Firestore rules and indexes...
 call firebase deploy --only firestore:rules,firestore:indexes
 if errorlevel 1 (
     echo Firestore deploy failed!
@@ -18,7 +18,21 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [3/3] Deploying hosting (with share page /get/)...
+echo [3/4] Deploying functions (push campaigns)...
+REM 푸시 발송 함수(functions/index.js) — node_modules 가 없으면 먼저 설치
+if not exist functions\node_modules (
+    pushd functions
+    call npm install --no-audit --no-fund
+    popd
+)
+call firebase deploy --only functions
+if errorlevel 1 (
+    echo Functions deploy failed!
+    pause
+    exit /b 1
+)
+
+echo [4/4] Deploying hosting (with share page /get/)...
 REM 공유용 페이지(OS별 스토어 이동 + 미리보기) — hosting_root 는 git 에 없어서 매번 만든다
 call node scripts/make_share_page.mjs
 if errorlevel 1 (

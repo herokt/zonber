@@ -208,6 +208,9 @@ class AnalyticsService {
   /// 주간 알림을 눌러 앱에 들어온 시점 — 알림이 복귀로 이어지는지 본다
   Future<void> logReminderOpen() => _log('reminder_open');
 
+  /// 이벤트·소식 푸시를 눌러 앱에 들어온 시점 — [campaign] = push_campaigns 문서 id(백오피스 발송 기록과 맞춰 본다)
+  Future<void> logPushOpen({required String campaign}) => _log('push_open', {'campaign': _cut(campaign)});
+
   // ── 코인 / 뱃지 ─────────────────────────────────────────────────────
 
   /// 표준 `earn_virtual_currency` — [source] run · ad_double · mission · all_clear · check_in · promo · friend
