@@ -1,4 +1,4 @@
-# ZONBER — Google Play 스토어 등록 정보 (2.0.3 예정)
+# ZONBER — Google Play 스토어 등록 정보 (2.0.4)
 
 Play Console › 성장 › 스토어 등록정보 › 기본 스토어 등록정보(언어별 번역 추가)에 붙여 넣는다. 괄호 안은 글자 수 제한.
 App Store 문구(`app_store_listing.md`)를 Play 칸에 맞춰 옮긴 것 — Play 에는 부제·프로모션 텍스트·키워드 칸이 없고
@@ -74,12 +74,12 @@ ZONBER: 탄막 피하기 생존게임
 오늘 기록, 어제보다 1초만 더 버텨 보세요.
 
 ### 출시 노트 (500)
-• 랭킹에서 바로 도전 — 보고 있던 존으로 곧장 시작해요
-• 이 기록 깨러 가기 — 랭커의 기록을 목표로 달리고, 넘는 순간 알려 줘요
-• 결과 화면에서 바로 기록 자랑하기 — 세계 순위와 내 친구 코드가 함께 나갑니다
-• 친구 코드: 입력하면 친구와 나 모두 코인 200
-• 이벤트: 환영 선물, 매일 공유 보상, SNS 이벤트 코드
-• 공유 링크가 iPhone·Android 모두 알맞은 스토어로 연결됩니다
+ZONBER 2.0.4
+• 기록 자랑이 그림으로 — 결과 카드를 이미지로 공유해요
+• 친구 코드가 링크에 담겨요 — 받은 친구는 설치 버튼만 누르면 코드가 복사돼요
+• 주간 알림 — 일주일 동안 쉬었을 때만 한 번 알려 드려요(설정에서 끌 수 있어요)
+• 중·후반 난이도 완화 — 레벨이 올라도 공·탄 속도가 덜 가파르게 빨라져요
+• 게스트 결과 화면에 로그인 선물 안내
 • 작은 개선과 버그 수정
 
 ---
@@ -128,12 +128,12 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 Beat yesterday by just one more second.
 
 ### Release notes (500)
-• Play straight from the rankings — jump into the zone you were viewing
-• Beat this record — chase any ranked player's time and see the moment you pass it
-• Brag right from the results screen — your world rank and friend code go with it
-• Friend codes: enter one and you both get 200 coins
-• Events: welcome gift, daily share reward and codes from our socials
-• Shared links now open the right store on both iPhone and Android
+ZONBER 2.0.4
+• Brag with a picture — share your results card as an image
+• Friend codes ride along in your link — friends just tap install and the code is copied
+• Weekly reminder — only once, if you've been away for a week (turn it off in Settings)
+• Smoother mid and late game — balls and bullets speed up more gently at higher levels
+• Guests now see the login gift on the results screen
 • Small improvements and bug fixes
 
 ---
@@ -182,12 +182,12 @@ ZONBER: 弾幕よけサバイバル
 昨日より、あと1秒だけ長く。
 
 ### リリースノート (500)
-• ランキングからすぐ挑戦 — 見ていたゾーンでそのままスタート
-• この記録を超えにいく — ランカーの記録を目標に走り、超えた瞬間にお知らせ
-• 結果画面からすぐに記録を自慢 — 世界順位とフレンドコードも一緒に
-• フレンドコード：入力すると自分も友だちもコイン200
-• イベント：歓迎ギフト、毎日のシェア報酬、SNSのイベントコード
-• シェアしたリンクが iPhone・Android どちらでも正しいストアに
+ZONBER 2.0.4
+• 記録自慢が画像に — 結果カードを画像でシェア
+• フレンドコードがリンクに — 友だちはインストールボタンを押すだけでコードがコピーされる
+• 週間リマインダー — 1週間遊んでいないときだけ1回お知らせ（設定でオフにできます）
+• 中盤・終盤の難易度を緩和 — レベルが上がってもボールと弾の速さがゆるやかに上がる
+• ゲストの結果画面にログインギフトの案内
 • 細かな改善と不具合の修正
 
 ---
@@ -236,10 +236,10 @@ ZONBER：躲弹幕生存挑战
 今天，比昨天多坚持一秒。
 
 ### 版本说明 (500)
-• 从排行榜直接挑战——马上进入正在查看的区域
-• 去打破这个记录——以排行榜玩家的成绩为目标，超越的瞬间立即提示
-• 结算画面一键炫耀成绩——全球排名和好友代码一起分享
-• 好友代码：输入即可让你和好友各得 200 金币
-• 活动：欢迎礼、每日分享奖励、社媒兑换码
-• 分享链接在 iPhone 和 Android 上都会打开对应的应用商店
+ZONBER 2.0.4
+• 炫耀成绩更直观——结算卡片以图片分享
+• 好友码随链接一起发送——好友点安装即可自动复制好友码
+• 每周提醒——一周没玩时才提醒一次（可在设置中关闭）
+• 中后期难度更平缓——等级越高，球和子弹的提速更温和
+• 游客结算画面显示登录礼物提示
 • 细节优化与问题修复
