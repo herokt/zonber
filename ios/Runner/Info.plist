@@ -224,5 +224,10 @@
 			<string>f7s53z58qe.skadnetwork</string>
 		</dict>
 	</array>
+	<!-- 이벤트·소식 푸시(FCM) — 백그라운드에서 원격 알림을 받는다 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

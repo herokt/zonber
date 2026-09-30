@@ -1,0 +1,13 @@
+{
+  "name": "zonber-functions",
+  "private": true,
+  "description": "ZONBER 서버 함수 — 백오피스 푸시 발송(push_campaigns)",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0"
+  }
+}

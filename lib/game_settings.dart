@@ -12,6 +12,7 @@ class GameSettings extends ChangeNotifier {
   bool _vibrationEnabled = true;
   bool _darkMode = false;
   bool _reminderEnabled = true;
+  bool _pushEnabled = true;
 
   bool get soundEnabled => _soundEnabled;
   bool get vibrationEnabled => _vibrationEnabled;
@@ -22,6 +23,9 @@ class GameSettings extends ChangeNotifier {
   /// 주간 알림(일주일 동안 안 들어왔을 때만 한 번). 기본 켬 — OS 알림 권한은 따로 받는다(ReminderService)
   bool get reminderEnabled => _reminderEnabled;
 
+  /// 이벤트·소식 푸시(백오피스에서 보내는 것). 기본 켬 — 끄면 토픽 구독을 전부 푼다(PushService)
+  bool get pushEnabled => _pushEnabled;
+
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -29,6 +33,7 @@ class GameSettings extends ChangeNotifier {
     _vibrationEnabled = prefs.getBool('vibration_enabled') ?? true;
     _darkMode = prefs.getBool('dark_mode') ?? false;
     _reminderEnabled = prefs.getBool('reminder_enabled') ?? true;
+    _pushEnabled = prefs.getBool('push_enabled') ?? true;
   }
 
   /// 스토어 스크린샷 모드 — 소리·진동을 끄고 라이트 테마로(메모리만, 저장하지 않는다)
@@ -54,6 +59,12 @@ class GameSettings extends ChangeNotifier {
     _reminderEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('reminder_enabled', enabled);
+  }
+
+  Future<void> setPush(bool enabled) async {
+    _pushEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('push_enabled', enabled);
   }
 
   Future<void> setDarkMode(bool enabled) async {

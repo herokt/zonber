@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,6 +12,7 @@ import 'package:zonber/daily_rewards.dart';
 import 'package:zonber/design_system.dart';
 import 'package:zonber/player_profile.dart';
 import 'package:zonber/promotions.dart';
+import 'package:zonber/push.dart';
 import 'package:zonber/gear.dart';
 import 'package:zonber/season.dart';
 import 'package:zonber/services/auth_service.dart';
@@ -464,6 +467,44 @@ void main() {
       final a = await DailyRewards.attendance();
       expect(a.day, 1);
       expect(a.claimedToday, isFalse);
+    });
+  });
+
+  group('푸시', () {
+    test('템플릿은 4개 언어 모두 채우고 백오피스 입력 한도 안(제목 40 · 본문 120)', () {
+      final ids = <String>{};
+      for (final t in PushTemplates.all) {
+        expect(ids.add(t.id), isTrue, reason: '중복 id ${t.id}');
+        for (final l in PushTopics.langs) {
+          expect(t.title[l]?.trim().isNotEmpty ?? false, isTrue, reason: '${t.id} 제목 $l');
+          expect(t.body[l]?.trim().isNotEmpty ?? false, isTrue, reason: '${t.id} 본문 $l');
+          expect(t.title[l]!.length, lessThanOrEqualTo(40), reason: '${t.id} 제목 $l');
+          expect(t.body[l]!.length, lessThanOrEqualTo(120), reason: '${t.id} 본문 $l');
+        }
+      }
+    });
+
+    test('기기 토픽 — 언어 하나 + 회원/게스트 하나 (+ 관리자면 tester)', () {
+      expect(PushTopics.forDevice(lang: 'ko', member: true, tester: false), {'lang_ko', 'member'});
+      expect(PushTopics.forDevice(lang: 'fr', member: false, tester: false), {'lang_en', 'guest'});
+      expect(PushTopics.forDevice(lang: 'ja', member: true, tester: true), {'lang_ja', 'member', 'tester'});
+    });
+
+    test('보낼 조건 — functions/index.js condition() 과 같은 모양', () {
+      expect(PushTopics.condition('ko', PushAudience.all), "'lang_ko' in topics");
+      expect(PushTopics.condition('en', PushAudience.members), "'lang_en' in topics && 'member' in topics");
+      expect(PushTopics.condition('zh', PushAudience.testers), "'lang_zh' in topics && 'tester' in topics");
+      final js = File('functions/index.js').readAsStringSync();
+      expect(js.contains("const base = `'lang_\${lang}' in topics`;"), isTrue);
+      expect(js.contains("members: 'member', guests: 'guest', testers: 'tester'"), isTrue);
+    });
+
+    test('비운 언어는 영어 문구로 간다', () {
+      const c = PushCampaign(id: 'x', title: {'ko': '가', 'en': 'A'}, body: {'ko': '나', 'en': 'B', 'ja': 'に'});
+      expect(c.titleFor('ja'), 'A');
+      expect(c.bodyFor('ja'), 'に');
+      expect(c.titleFor('ko'), '가');
+      expect(c.targetLangs, PushTopics.langs);
     });
   });
 

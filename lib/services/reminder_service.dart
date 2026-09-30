@@ -23,6 +23,10 @@ import 'auth_service.dart';
 class ReminderService {
   static const int _id = 7001;
   static const String _channelId = 'weekly_reminder';
+
+  /// 이벤트·소식 푸시(PushService) 채널 — 서버 함수(functions/index.js)의 android.notification.channelId 와 같다
+  static const String newsChannelId = 'news';
+  static const int _newsId = 7002;
   static const String _kAsked = 'reminder_asked'; // 기기 설정 — 권한을 물었나(게스트 진입·로그아웃에도 지우지 않는다)
 
   static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
@@ -47,6 +51,11 @@ class ReminderService {
         onDidReceiveNotificationResponse: (_) => AnalyticsService().logReminderOpen(),
       );
       _ready = true;
+      // 푸시 채널 — 앱이 꺼져 있을 때 FCM 이 이 채널로 띄운다(AndroidManifest default_notification_channel_id)
+      final lm = LanguageManager();
+      await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(
+            AndroidNotificationChannel(newsChannelId, lm.translate('push_setting'), description: lm.translate('push_setting_desc'), importance: Importance.high),
+          );
       final launch = await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp ?? false) AnalyticsService().logReminderOpen();
     } catch (e) {
@@ -54,7 +63,36 @@ class ReminderService {
     }
   }
 
-  /// 알림을 보낼 수 있나(OS 권한)
+  /// 알림을 보낼 수 있나(OS 권한) — 주간 알림·푸시가 같은 권한을 쓴다
+  static Future<bool> allowed() => _ready ? _allowed() : Future.value(false);
+
+  /// OS 권한 요청 창 — 허락했으면 true
+  static Future<bool> requestPermission() async {
+    if (!_ready) return false;
+    final granted = await _request();
+    AnalyticsService().logReminderPermission(granted: granted);
+    return granted;
+  }
+
+  /// 앱을 켜 둔 채 푸시가 오면(Android) 직접 띄운다 — iOS 는 FCM 이 띄운다
+  static Future<void> showNews({required String title, required String body}) async {
+    if (!_ready) return;
+    try {
+      final lm = LanguageManager();
+      await _plugin.show(
+        id: _newsId,
+        title: title,
+        body: body,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(newsChannelId, lm.translate('push_setting'),
+              channelDescription: lm.translate('push_setting_desc'), importance: Importance.high, priority: Priority.high),
+        ),
+      );
+    } catch (e) {
+      debugPrint('push show failed: $e');
+    }
+  }
+
   static Future<bool> _allowed() async {
     if (Platform.isAndroid) {
       return await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.areNotificationsEnabled() ?? false;

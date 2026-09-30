@@ -26,6 +26,7 @@ import 'design_system.dart';
 import 'shop_page.dart';
 import 'services/auth_service.dart';
 import 'services/analytics_service.dart';
+import 'services/push_service.dart';
 import 'services/reminder_service.dart';
 import 'world_config.dart';
 import 'progress_store.dart';
@@ -170,6 +171,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     debugPrint(
       'Main: _handleLanguageChange triggered. Current: ${LanguageManager().currentLanguage}',
     );
+    PushService.sync(); // 푸시 언어 토픽을 새 언어로
     if (mounted) {
       setState(() {});
       debugPrint('Main: setState called for language change');
@@ -217,10 +219,12 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     await LanguageManager().init();
     await AnalyticsService().initialize();
     await ReminderService.init();
+    await PushService.init();
 
     // 3. Check Auth & Profile
     await _checkAuth();
     ReminderService.reschedule(); // 주간 알림 — 켤 때마다 "7일 뒤"로 다시 건다
+    PushService.sync(); // 이벤트·소식 푸시 — 언어·회원 여부에 맞게 토픽 구독
 
     // 4. Check Ads
     await _checkAdStatus();
@@ -277,6 +281,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     ReminderService.reschedule(); // 주간 알림 — 돌아올 때도 "7일 뒤"로 다시 건다
+    PushService.sync();
     if (AuthService.isGuest) return;
     UserProfileManager.syncProfile().then((_) async {
       await _loadProgress();
@@ -334,6 +339,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   /// 게스트는 로그인 없이 게임 맛보기만 한다 — 기기에 남은 이전 데이터(예전 게스트 기록 포함)는 지운다.
   Future<void> _enterAsGuest() async {
     await _clearLocalData();
+    PushService.sync(); // 로그아웃 → 게스트 토픽으로
     AnalyticsService().logGuestStart();
     AnalyticsService().logSessionReady(
       isGuest: true,
@@ -647,6 +653,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       case 'Login':
         return LoginPage(
           onLoginSuccess: () {
+            PushService.sync(); // 게스트 → 회원 토픽으로
             _checkProfile();
           },
           onGuestContinue: () {

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../promotions.dart';
+import '../push.dart';
 import 'bo_catalog.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -115,6 +116,13 @@ abstract class BoSource {
   /// 이 코드를 쓴 사람(users/{uid}/codes/{code}) — 최근 순
   Future<List<BoCodeUse>> promoCodeUses(String code, int limit);
 
+  // ── 푸시(push_campaigns) ──
+  /// 최근 보낸 것부터
+  Future<List<PushCampaign>> pushCampaigns(int limit);
+
+  /// 보내기 — 문서를 pending 으로 만들면 서버 함수가 보낸다. 만든 문서 id
+  Future<String> sendPush(PushCampaign c);
+
   // ── 관리 도구 ──
   /// flag 없는 유저 → 대한민국. 바꾼 수
   Future<int> fillDefaultCountry();
@@ -197,7 +205,7 @@ class BoData {
 // ─────────────────────────────────────────────────────────────
 // 화면 이동 — 왼쪽 메뉴 섹션 + (있으면) 그 위에 유저 상세
 // ─────────────────────────────────────────────────────────────
-enum BoSection { dashboard, users, ranking, runs, promos, codes, economy }
+enum BoSection { dashboard, users, ranking, runs, promos, codes, push, economy }
 
 class BoNav {
   static final ValueNotifier<BoSection> section = ValueNotifier(BoSection.dashboard);

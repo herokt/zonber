@@ -132,6 +132,24 @@ service cloud.firestore {
             && request.resource.data.claims == resource.data.get('claims', 0) + 1);
     }
 
+    // 이벤트·소식 푸시 발송 기록(lib/push.dart · 백오피스 푸시 화면). 관리자가 pending 으로 만들면
+    // 서버 함수(functions/index.js)가 보내고 status·results 를 적는다(관리자 SDK 라 규칙을 거치지 않는다).
+    // 만들 때: 보낸 사람 = 로그인한 관리자, 시각 = 서버 시각, 문구 ko·en 필수. 다 보낸 기록은 고치지 않는다
+    match /push_campaigns/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdBy == request.auth.token.email
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.audience in ['all', 'members', 'guests', 'testers']
+        && request.resource.data.title.ko is string && request.resource.data.title.ko.size() > 0
+        && request.resource.data.title.en is string && request.resource.data.title.en.size() > 0
+        && request.resource.data.body.ko is string && request.resource.data.body.ko.size() > 0
+        && request.resource.data.body.en is string && request.resource.data.body.en.size() > 0;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // 이벤트 코드 — 문서 id 가 코드. 회원은 코드를 알 때만 그 한 건을 읽는다(list 는 관리자만 → 코드가 새지 않는다).
     // 사용 = 사용 수 +1 만, 켜짐·기간 안·한도 안일 때, 같은 요청에서 내 사용 기록(users/{uid}/codes/{code})이
     // 새로 생길 때만. 보상 지급은 앱이 한다(코인 값 검증은 validUser 범위까지 — 서버 함수 없음)

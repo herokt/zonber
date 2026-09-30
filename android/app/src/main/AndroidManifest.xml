@@ -6,6 +6,9 @@
         android:label="Zonber"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
+        <!-- 이벤트·소식 푸시(FCM) — 앱이 꺼져 있을 때 이 채널·아이콘으로 띄운다(lib/services/push_service.dart · functions/index.js) -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="news" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification" />
         <!-- 주간 알림 — 예약한 알림을 띄우고, 재부팅·업데이트 뒤 다시 예약한다 -->
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
         <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
