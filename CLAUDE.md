@@ -97,6 +97,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `pages/player_profile_view.dart` | 프로필 표시 부품 — `ProfileIdentityCard`/`StageRecordRow`/`ProfileMetaLine`/`ProfileBadgeStrip` + `showPlayerCard(uid)`(랭킹에서 이름을 누르면 뜨는 남의 프로필 창) |
 | `audio_manager.dart` | BGM/SFX 싱글톤 (flame_audio) |
 | `ad_manager.dart` / `ad_helper.dart` | AdMob 연동 (배너, 전면, 리워드); 광고 ID는 `kReleaseMode`로 자동 전환 |
+| `services/new_user_service.dart` | `NewUser` — 설치 시각(OS `installTime`)으로 **첫 24시간 전면 광고 없음** + `engaged_user`(기기당 한 번: 첫날 3판 · 24~48시간 복귀) — 유료 유입 테스트 [store/paid_ua_test.md](store/paid_ua_test.md) |
 | `iap_service.dart` | 인앱 결제 서비스 (in_app_purchase 패키지) — 광고 제거 IAP 예정, 아직 초기화하지 않음 |
 | `shop_page.dart` | 상점/IAP UI (캐릭터 스킨 등) |
 | `game_settings.dart` | SharedPreferences 기반 설정 저장 |
@@ -295,6 +296,7 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 | `vibration_enabled` | 햅틱 피드백 토글 |
 | `reminder_enabled` | 주간 알림 토글 (기본 켬) |
 | `reminder_asked` | 주간 알림 권한을 이미 물었나 (기기 설정 — 로그아웃에도 지우지 않음) |
+| `install_day_runs` · `engaged_logged` | 설치 첫 24시간 안에 끝낸 판 수 · `engaged_user` 를 남겼나 (기기 설정 — 로그아웃에도 지우지 않음, `NewUser`) |
 | `push_enabled` | 이벤트·소식 푸시 토글 (기본 켬) |
 | `push_topics` | 지금 구독 중인 푸시 토픽 (차이만 고치려고 적어 둔다) |
 | `friend_push_enabled` | 친구 알림 토글 (기본 켬 — 기기 문서 friend 값) |
@@ -334,6 +336,7 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 
 `AnalyticsService()`(모바일 전용, 그 외 no-op). 퍼널: `session_ready`(유저 속성 `is_guest`/`login_provider`) → `game_start` → `game_over`(+표준 `post_score`) → `revive` | `score_submit` | `guest_ranking_blocked`.
 성장 지표(2026-09-29): 표준 `sign_up`(새 계정)/`login`(재로그인) · `share`(content_type = result·promo) · `promo_claim` · `promo_code_redeem`(실패 포함, 캠페인만) · `earn_virtual_currency`(source)/`spend_virtual_currency`(`CoinStore.add/spend` 가 직접 남긴다) · `unlock_achievement`(뱃지) · `review_prompt`.
+유료 유입(2026-10-12): `engaged_user`(reason = runs_3 · day2_return, 기기당 한 번 — `NewUser`) — Firebase 에서 주요 이벤트로 표시해 Google Ads 인앱 전환으로 가져간다.
 공유 링크는 `https://stayzone-88364.web.app/get/{lang}/?src=&c=` — `node scripts/make_share_page.mjs` 가 `hosting_root/get/` 에 만들고(OS별 스토어 이동 · Play `referrer` UTM · og 미리보기 · `c`(친구 코드)가 있으면 바로 넘기지 않고 코드 카드를 보여 주고 설치 버튼을 누를 때 복사, Play 에는 `utm_content=코드`. iOS 캠페인은 스크립트의 `APPLE_PT` 를 채워야 잡힌다) `deploy_admin.bat` 이 같이 올린다. 화면은 `_navigateTo()`에서 `logScreen(page)`로 자동 기록. 새 이벤트는 반드시 `analytics_service.dart`에 메서드로 추가하고 호출부에서 문자열을 만들지 않는다.
 
 ## 오디오 에셋
@@ -351,7 +354,7 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 
 `ad_manager.dart` 노출 정책:
 - **배너** — 전역 (`AppScaffold` 하단), `ads_removed` 구매 시 숨김
-- **전면** — 게임 오버 5회마다
+- **전면** — 게임 오버 5회마다. **설치 첫 24시간은 없음**(`NewUser.isFirstDay` — 새 유저 다음 날 재방문을 지킨다)
 - **리워드** — 결과 화면 부활, 세션당 1회, 게스트 포함 (사전 고지 다이얼로그 필수 — AdMob 정책)
 - **광고 등급 상한 G**(`RequestConfiguration.maxAdContentRating`) — 성인·폭력·공포 광고를 막는다(2026-10-12)
 - AdMob 콘솔 › 차단 관리(계정 전체 — 같은 계정의 다른 앱에도 적용, 2026-10-12): 광고 콘텐츠 등급 **G** · 민감한 카테고리 차단 = 데이트 · 선정성 · 성·임신 및 출산 관련 건강 · 성에 대한 언급 · 성형수술 및 체형 변형 · 소셜 카지노 게임(도박·주류는 원래 차단). MA→G 전환 시 AdMob 추정 노출 −35% · 수익 −34%

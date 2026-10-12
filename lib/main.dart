@@ -29,6 +29,7 @@ import 'services/analytics_service.dart';
 import 'friends.dart';
 import 'pages/friends_page.dart';
 import 'pages/inbox_page.dart';
+import 'services/new_user_service.dart';
 import 'services/push_service.dart';
 import 'services/reminder_service.dart';
 import 'app_release.dart';
@@ -227,11 +228,13 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     await AudioManager().initialize();
     await LanguageManager().init();
     await AnalyticsService().initialize();
+    await NewUser.load(); // 설치 시각 — 첫날 전면 광고 없음 · engaged_user
     await ReminderService.init();
     await PushService.init();
 
     // 3. Check Auth & Profile
     await _checkAuth();
+    NewUser.onOpen();
     ReminderService.clearShown().then((_) => ReminderService.reschedule()); // 트레이의 지난 알림을 치우고, 주간 알림은 "7일 뒤"로 다시 건다
     PushService.sync(); // 이벤트·소식 푸시 — 언어·회원 여부에 맞게 토픽 구독
     // 알림(친구·이벤트 소식)을 눌러 열렸으면(또는 켜 둔 채 눌렀으면) 알림 페이지로
@@ -297,6 +300,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
+    NewUser.onOpen();
     ReminderService.clearShown().then((_) => ReminderService.reschedule()); // 돌아올 때도 같게
     PushService.sync();
     if (AuthService.isGuest) return;
@@ -939,6 +943,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       _previousBest = 0;
       result['coinsEarned'] = 0;
       result['coinsBonus'] = 0;
+      NewUser.onRunFinished();
       AnalyticsService().logGameOver(
         mapId: result['mapId'] ?? _currentMapId,
         characterId: 'neon_green',
@@ -1049,6 +1054,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           'revive': _reviveCount,
           'character': p['characterId'] ?? '',
         }));
+    NewUser.onRunFinished();
     UserProfileManager.getProfile().then(
       (p) => AnalyticsService().logGameOver(
         mapId: result['mapId'] ?? _currentMapId,

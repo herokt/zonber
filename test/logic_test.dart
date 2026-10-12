@@ -21,6 +21,7 @@ import 'package:zonber/loadout.dart';
 import 'package:zonber/pets.dart';
 import 'package:zonber/season.dart';
 import 'package:zonber/services/auth_service.dart';
+import 'package:zonber/services/new_user_service.dart';
 import 'package:zonber/services/share_service.dart';
 import 'package:zonber/translations.dart';
 import 'package:zonber/world_config.dart';
@@ -758,6 +759,24 @@ void main() {
       expect(Balance.tierOf(1), 0);
       expect(Balance.tierOf(Balance.maxLevel), 6);
       expect(Balance.dodgeTwin.length, 7);
+    });
+  });
+
+  group('새로 깐 사람', () {
+    test('첫날 = 설치 24시간 안 — 전면 광고 없음 · runs_3', () {
+      expect(NewUser.isFirstDayAge(Duration.zero), isTrue);
+      expect(NewUser.isFirstDayAge(const Duration(hours: 23, minutes: 59)), isTrue);
+      expect(NewUser.isFirstDayAge(const Duration(hours: 24)), isFalse);
+      expect(NewUser.isFirstDayAge(const Duration(minutes: -5)), isFalse); // 기기 시계가 틀린 경우
+    });
+    test('2일 차 복귀 = 설치 24~48시간', () {
+      expect(NewUser.isDay2Age(const Duration(hours: 23)), isFalse);
+      expect(NewUser.isDay2Age(const Duration(hours: 24)), isTrue);
+      expect(NewUser.isDay2Age(const Duration(hours: 47, minutes: 59)), isTrue);
+      expect(NewUser.isDay2Age(const Duration(hours: 48)), isFalse);
+    });
+    test('설치 시각을 모르면(모바일 밖) 첫날이 아니다', () {
+      expect(NewUser.isFirstDay, isFalse);
     });
   });
 

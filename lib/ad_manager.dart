@@ -4,6 +4,7 @@ import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_helper.dart';
+import 'services/new_user_service.dart';
 
 import 'user_profile.dart';
 
@@ -226,6 +227,7 @@ class AdManager {
   /// Returns true if ad was shown, false otherwise.
   bool showInterstitialIfReady() {
     if (!_isMobile || _adsDisabled) return false;
+    if (NewUser.isFirstDay) return false; // 설치 첫 24시간은 전면 광고 없음 — 다음 날 재방문을 지킨다
 
     _gameOverCounter++;
     debugPrint("Game Over Count: $_gameOverCounter / $_interstitialFrequency");

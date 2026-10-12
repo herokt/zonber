@@ -495,7 +495,7 @@ getMyRank(mapId, userId, period)
 | 형식 | 노출 시점 | 정책 |
 |---|---|---|
 | 배너 | 전역 (`AppScaffold` 하단) | `ads_removed` 구매 시 숨김 |
-| 전면 | 게임 오버 **5회마다** | `_gameOverCounter >= 5`이고 프리로드 완료 시 |
+| 전면 | 게임 오버 **5회마다** | `_gameOverCounter >= 5`이고 프리로드 완료 시. 설치 첫 24시간은 띄우지 않음(`NewUser.isFirstDay`) |
 | 리워드 | 결과 화면 "부활" | **세션당 1회**, 게스트 포함 전체. 사전 고지 다이얼로그 필수(AdMob 정책) |
 
 `AdHelper.isReleaseMode = kReleaseMode`로 **자동 판별**한다. 릴리즈 빌드는 실제 광고 ID, 디버그는 Google 테스트 ID. 수동 토글 불필요.

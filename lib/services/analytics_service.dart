@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 /// - 이벤트 이름·파라미터는 이 파일에만 둔다 (호출부에서 문자열을 만들지 않는다).
 /// - 퍼널 순서: session_ready → game_start → game_over → (revive | score_submit)
 /// - 성장: share · promo_claim · promo_code_redeem · sign_up/login · earn/spend_virtual_currency · unlock_achievement · review_prompt
+/// - 유료 유입: engaged_user(새로 깐 사람이 남을 신호 — services/new_user_service.dart)
 class AnalyticsService {
   static final AnalyticsService _instance = AnalyticsService._internal();
   factory AnalyticsService() => _instance;
@@ -198,6 +199,11 @@ class AnalyticsService {
         'campaign': campaign ?? 'unknown',
         'coins': coins,
       });
+
+  /// 새로 깐 사람이 남을 신호(기기당 한 번) — [reason] runs_3(설치 24시간 안에 3판) · day2_return(설치 24~48시간 사이에 다시 켬).
+  /// Firebase 에서 주요 이벤트로 표시해 Google Ads 앱 캠페인 인앱 전환으로 가져간다(store/paid_ua_test.md)
+  Future<void> logEngagedUser({required String reason, required int hoursSinceInstall, required int runs}) =>
+      _log('engaged_user', {'reason': reason, 'hours': hoursSinceInstall, 'runs': runs});
 
   /// 앱 리뷰 창을 요청한 시점(OS 가 실제로 띄웠는지는 알 수 없다)
   Future<void> logReviewPrompt({required int runs}) => _log('review_prompt', {'runs': runs});
