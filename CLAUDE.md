@@ -55,7 +55,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 - `lib/game/` (`part of '../main.dart'`) — `game_screen.dart`(HUD) · `zonber_game.dart`(ZonberGame·맵) · `player.dart` · `projectiles.dart`(Bullet·스포너·피구 팀) · `keeper.dart` · `dodgeball.dart` · `pet.dart`(펫 `PetHelper`)
 - 밸런스 수치 `lib/balance.dart` · 시즌 `lib/season.dart` · 일일 미션 `lib/daily_rewards.dart` · 판 기록 `lib/run_history.dart`(서버) · `lib/playtest_log.dart`(기기)
 - 테스트 `flutter test`(test/logic_test.dart) · 규칙 시험 `node scripts/test_rules.mjs`
-- 효과음 `assets/audio/*.wav` — `python scripts/make_sfx.py` 로 합성, 이름·연결은 `lib/audio_manager.dart`(Sfx) · 진동 `lib/haptics.dart`
+- 효과음 `assets/audio/*.wav` — `python scripts/make_sfx.py` 로 합성, 이름·연결은 `lib/audio_manager.dart`(Sfx) · 존별 배경음악 `bgm_{존 id}.mp3` — `python scripts/make_bgm.py` (공용 DSP `scripts/audio_dsp.py`) · 진동 `lib/haptics.dart`
 
 ### 진입점 & 네비게이션
 `main.dart`:
@@ -170,8 +170,9 @@ node scripts/check_translations.mjs
 # firestore.rules 를 배포 없이 시험 (gcloud auth login, 읽기 전용)
 node scripts/test_rules.mjs
 
-# 효과음 합성 / 존 배경 생성
+# 효과음 · 존별 배경음악 합성(pip install numpy scipy imageio-ffmpeg) / 존 배경 생성
 python scripts/make_sfx.py
+python scripts/make_bgm.py            # 셋 다 · python scripts/make_bgm.py keeper = 하나만 (약 1분씩 걸린다)
 python scripts/make_stage_bg.py
 
 # 시안 아트 — Gemini 시트(assets/images/gemini/src_*.png) → assets/images/sprites/ (배경·워터마크 지우기)
@@ -210,6 +211,7 @@ node scripts/compose_ios_shots.mjs     # App Store iPhone 6.9"·iPad 13" 10장 �
 2. `translations.dart` — `world_{id}`, `world_{id}_tagline`, `proj_*` 키 EN + KO
 3. 스포너 전략은 `ring`(플레이어/골대 중심 원주)과 `sideline`(맵 4변 바깥) 두 가지. 새 전략은 `BulletSpawner._spawnBullet()`에 분기
 5. 배경·히어로 이미지는 `assets/images/worlds/{id}_bg.png`, `{id}_hero.png` 슬롯에 넣으면 자동 반영(없으면 코드 드로잉)
+6. 배경음악 `assets/audio/bgm_{id}.mp3` — `scripts/make_bgm.py` 의 `SONGS` 에 곡을 더한다(없으면 그 존은 무음)
 4. 홈 캐러셀·랭킹 탭·프로필 그리드는 `WorldData.worlds`를 그대로 순회하므로 UI 수정 불필요
 
 ### 장애물 레이아웃
@@ -346,9 +348,11 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 
 ## 오디오 에셋
 
-`assets/audio/` 위치. **현재 파일은 전부 합성 플레이스홀더**(Node로 생성, 라이선스 무관)이며 정식 에셋으로 교체 대상:
-- `bgm.mp3` — 배경 음악 (루프, 30초 128BPM)
-- `hit.wav` — 피격(에너지 소모), `gameover.wav` — 게임 오버 (전체 목록은 `Sfx`)
+`assets/audio/` 위치. **전부 코드로 합성**(녹음·외부 음원 없음, 라이선스 무관 — 2026-10-13 다시 만듦). 정식 음원이 생기면 같은 이름으로 바꾼다:
+- `bgm_cyber.mp3` · `bgm_dodgeball.mp3` · `bgm_keeper.mp3` — 존별 배경음악(32마디 약 1분 루프, `scripts/make_bgm.py`). 게임에 들어갈 때 `AudioManager.startBgm(존 id)`
+  - 처음 4마디 멜로디(훅)를 곡 내내 되풀이하고 악기는 끝까지 같다 — 갤럭시 128BPM D단조(버티는 신스) · 피구 116BPM C장조(놀리는 "솔-미-라-솔-미" 실로폰) · 골키퍼 124BPM F장조(3+3+2 당김 스틸드럼 · 삼바 타악기)
+  - mp3 는 루프 이음매에 아주 짧은 틈이 생길 수 있다(인코더 여백) — 곡 자체는 끝과 처음이 이어지게 만들었다
+- 효과음 15개(`Sfx`) — `scripts/make_sfx.py`. `hit.wav` 피격, `gameover.wav` 게임 오버 …
 - 설정 › 사운드 토글(`ProfilePage`)이 `GameSettings.setSound` + BGM 정지를 처리한다
 
 ## AdMob 설정

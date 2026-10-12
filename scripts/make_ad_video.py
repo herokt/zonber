@@ -5,7 +5,7 @@
 #
 # 흐름(full 약 22초): 갤럭시 7초(첫 2.4초는 "손가락 하나로" + 손가락 표시) → 피구 6초 → 프리킥 6초 → 끝 화면 3.5초.
 # short(15초): 4.5 · 3.5 · 3.5 · 끝 3.5초 — Google 은 길이가 다른 영상을 섞어 두기를 권한다.
-# 장면마다 10초 캡처 중 맞은 순간이 가장 적은 구간을 고른다. 소리 = bgm + 그 프레임에 실제로 난 효과음(assets/audio).
+# 장면마다 10초 캡처 중 맞은 순간이 가장 적은 구간을 고른다. 소리 = 갤럭시 배경음악(bgm_cyber) + 그 프레임에 실제로 난 효과음(assets/audio).
 # 그림은 실제 플레이·히어로 아트·앱 아이콘만 쓴다. 가짜 [설치] 버튼은 넣지 않는다(설치 버튼은 Google 이 붙인다).
 # ffmpeg: FFMPEG 환경변수 → PATH → imageio-ffmpeg(pip install imageio-ffmpeg). 글꼴: Noto Sans KR(Windows 글꼴) · Sora(받아서 build/ 에 둔다)
 import argparse
@@ -335,7 +335,7 @@ def decode_mp3(ff, path):
 def mix_audio(ff, events, total_sec, out_path):
     n = int(total_sec * SR)
     mix = np.zeros((n, 2), np.float32)
-    bgm = decode_mp3(ff, os.path.join(ROOT, 'assets/audio/bgm.mp3'))
+    bgm = decode_mp3(ff, os.path.join(ROOT, 'assets/audio/bgm_cyber.mp3'))
     while len(bgm) < n:
         bgm = np.concatenate([bgm, bgm])
     bgm = bgm[:n] * 0.5

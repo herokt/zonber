@@ -54,9 +54,9 @@
 
 | P | 파일 | 용도 | 상태 |
 |---|---|---|---|
-| P1 | `bgm.mp3` | 메뉴·게임 루프(존별로 나누려면 `bgm_{id}.mp3` 배선 필요) | 합성 더미 |
-| P1 | `hit.wav` | 피격 / 골키퍼 실점 | 합성 더미 |
-| P1 | `gameover.wav` | 게임 오버 | 합성 더미 |
+| P1 | `bgm_{cyber,dodgeball,keeper}.mp3` | 존별 게임 배경음악(약 1분 루프) | 코드 합성 v2 (`scripts/make_bgm.py`) — 정식 음원으로 바꿀 수 있음 |
+| P1 | `hit.wav` | 피격 / 골키퍼 실점 | 코드 합성 v2 (`scripts/make_sfx.py`) |
+| P1 | `gameover.wav` | 게임 오버 | 코드 합성 v2 |
 
 ## 5. 스토어 (출시 자료, 앱에 넣지 않음)
 

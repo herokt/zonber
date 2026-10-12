@@ -4,6 +4,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flame_audio/flame_audio.dart';
 import 'game_settings.dart';
 import 'ad_video.dart';
+import 'world_config.dart';
+
+/// 존별 배경음악 — assets/audio/bgm_{존 id}.mp3 (scripts/make_bgm.py 로 합성 · 약 1분 루프). 새 존은 곡도 하나 더한다
+String bgmFor(String worldId) => 'bgm_$worldId.mp3';
 
 /// 효과음 이름 — assets/audio/*.wav. 새 효과음은 scripts/make_sfx.py 로 합성한다.
 class Sfx {
@@ -37,6 +41,7 @@ class AudioManager {
   AudioManager._internal();
 
   bool _isBgmPlaying = false;
+  String? _bgmName; // 지금 틀고 있는 곡
   /// 효과음마다 미리 만든 저지연 플레이어 몇 개 — 차례로 돌려 쓴다.
   /// 게임 중에는 플레이어를 새로 만들지 않는다. (예전 AudioPool·FlameAudio.play 는 겹칠 때마다
   /// 플레이어를 새로 만들고 버리지 않아서, 맞거나 막는 순간 멈칫하고 오래 하면 쌓였다)
@@ -58,7 +63,7 @@ class AudioManager {
       },
     );
     try {
-      await FlameAudio.audioCache.loadAll(['bgm.mp3', ...Sfx.all]);
+      await FlameAudio.audioCache.loadAll([for (final w in WorldData.worlds) bgmFor(w.id), ...Sfx.all]);
     } catch (e) {
       debugPrint("Audio load failed: $e (This is expected if files are missing)");
     }
@@ -84,12 +89,16 @@ class AudioManager {
     }
   }
 
-  void startBgm() {
+  /// 존 배경음악을 튼다 — 이미 같은 곡이 나오고 있으면 그대로, 다른 곡이면 바꾼다
+  void startBgm(String worldId) {
     if (!GameSettings().soundEnabled) return;
-    if (_isBgmPlaying) return;
+    final name = bgmFor(worldId);
+    if (_isBgmPlaying && _bgmName == name) return;
     try {
-      FlameAudio.bgm.play('bgm.mp3', volume: 0.5);
+      if (_isBgmPlaying) FlameAudio.bgm.stop();
+      FlameAudio.bgm.play(name, volume: 0.5);
       _isBgmPlaying = true;
+      _bgmName = name;
     } catch (e) {
       debugPrint("BGM play failed: $e");
     }

@@ -352,7 +352,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     resumeEngine();
 
     // Start BGM
-    AudioManager().startBgm();
+    AudioManager().startBgm(worldConfig.id);
   }
 
   /// 스테이지 배경 이미지 — `assets/images/worlds/{id}_bg.png`(더미 또는 실아트).
