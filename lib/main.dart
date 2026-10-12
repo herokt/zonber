@@ -31,12 +31,15 @@ import 'pages/friends_page.dart';
 import 'pages/inbox_page.dart';
 import 'services/push_service.dart';
 import 'services/reminder_service.dart';
+import 'app_release.dart';
 import 'world_config.dart';
 import 'progress_store.dart';
 import 'coin_store.dart';
 import 'avatar.dart';
 import 'cosmetics.dart';
 import 'gear.dart';
+import 'loadout.dart';
+import 'pets.dart';
 import 'playtest_log.dart';
 import 'balance.dart';
 import 'haptics.dart';
@@ -68,6 +71,8 @@ part 'game/player.dart';
 part 'game/projectiles.dart';
 part 'game/keeper.dart';
 part 'game/dodgeball.dart';
+part 'game/pet.dart';
+part 'game/sprites.dart';
 part 'store_shot_run.dart';
 
 void main() async {
@@ -82,6 +87,7 @@ void main() async {
 
   // 테마는 첫 프레임 전에 읽는다 — 다크 사용자에게 라이트 스플래시가 번쩍이지 않게
   await GameSettings().load();
+  await AppVersion.load(); // 앱 버전(v이름 (빌드)) — 프로필 표시·유저 문서·업데이트 안내(services/update_service.dart)
   if (kStoreShot) {
     // 스토어 스크린샷 — 소리·진동 끔 · 라이트 테마 · 시스템 바 숨김(상태바는 합성할 때 그린다)
     GameSettings().storeShotDefaults();
@@ -691,7 +697,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
                   ),
                 ),
                 SizedBox(height: 32),
-                SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textDim)),
+                AppSpinner(size: 22, stroke: 2, color: AppColors.textDim),
               ],
             ),
           ),
@@ -795,9 +801,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
             showDialog(
               context: context,
               barrierDismissible: false,
-              builder: (_) => Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              ),
+              builder: (_) => const Center(child: AppSpinner(size: 34, stroke: 3)),
             );
 
             try {
@@ -884,6 +888,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   }
 
   void _pauseGame(BuildContext context, ZonberGame game) {
+    if (game.isGameOver) return; // 기절 연출 중 — 곧 결과 화면으로 간다
     game.pauseEngine();
     game.quietDanger();
     final langManager = LanguageManager.of(context, listen: false);
@@ -971,10 +976,10 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     );
     _runTimeCounted = time;
     _runStatCounted = statNow;
-    // 코인 — 5초당 1개 + 추가 기록 보너스. 장비의 코인 보너스(gear.dart)를 합계에 곱한다.
+    // 코인 — 5초당 1개 + 추가 기록 보너스. 장비·꾸미기의 코인 보너스(loadout.dart)를 합계에 곱한다.
     // 부활로 이어진 판은 이미 준 만큼 빼고 더 준다
     final bonus = CoinStore.bonusFor(_currentWorld.statKey, (result['graze'] as num?)?.toInt() ?? 0);
-    final coinMult = 1 + Gear.bonusOf(_currentWorldId, CoinStore.equipped).coin;
+    final coinMult = 1 + Loadout.bonusOf(_currentWorldId, CoinStore.equipped).coin; // 장비 + 꾸미기(loadout.dart)
     final earned = (((CoinStore.coinsForRun(time) + bonus) * coinMult).round() - _runCoins).clamp(0, 1 << 30);
     _runCoins += earned;
     await CoinStore.add(earned, source: 'run');

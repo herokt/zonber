@@ -44,6 +44,8 @@ class FriendsPage extends StatefulWidget {
 class _FriendsPageState extends State<FriendsPage> {
   late String _worldId = widget.initialWorldId;
   bool _loading = true;
+  /// 목록이 이미 있을 때 다시 읽는 중 — 머리 오른쪽에 작은 스피너
+  bool _refreshing = false;
   bool _busy = false;
   String? _myCode;
   String _myUid = '';
@@ -71,6 +73,7 @@ class _FriendsPageState extends State<FriendsPage> {
       setState(() => _loading = false);
       return;
     }
+    if (!_loading) setState(() => _refreshing = true);
     final results = await Future.wait([Friends.refresh(), Friends.incoming(), FriendService.myCode()]);
     final ids = results[0] as Set<String>;
     final incoming = results[1] as List<FriendRequest>;
@@ -83,6 +86,7 @@ class _FriendsPageState extends State<FriendsPage> {
       _myCode = results[2] as String?;
       _profiles = profiles;
       _loading = false;
+      _refreshing = false;
     });
   }
 
@@ -94,7 +98,7 @@ class _FriendsPageState extends State<FriendsPage> {
   Future<void> _run(Future<FriendResult> Function() f) async {
     if (_busy) return;
     setState(() => _busy = true);
-    final r = await f();
+    final r = await runBusy(context, f); // 서버 응답까지 스피너
     if (!mounted) return;
     setState(() => _busy = false);
     _toast(friendResultKey(r));
@@ -151,10 +155,11 @@ class _FriendsPageState extends State<FriendsPage> {
       title: lm.translate('friends_title'),
       showBackButton: true,
       onBack: widget.onBack,
+      actions: [if (_refreshing) const AppSpinner(size: 18)],
       body: _isGuest
           ? _guest(lm)
           : _loading
-              ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+              ? const AppLoading()
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(

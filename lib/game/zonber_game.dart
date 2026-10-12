@@ -255,6 +255,17 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
   double survivalTime = 0.0;
   bool isGameOver = false;
+
+  // ── 게임 오버 연출(2026-10-12) ──
+  // 예전엔 마지막 한 방에 엔진을 바로 멈춰서, 결과 화면이 뜰 때까지 납작해진 캐릭터가 그대로 굳어 보였다.
+  // 지금: 캐릭터가 기절(X 눈 · 통 튀었다 주저앉기 · 머리 위 별)하고 공은 느려지며, 화면에 GAME OVER 가 뜬다.
+  // [koDuration] 뒤에 결과를 넘긴다(그동안 결과 화면 준비는 HUD 의 스피너로 보인다).
+  static const double koDuration = 1.4;
+  /// 연출 동안 공 속도 배율
+  static const double koSlowMo = 0.3;
+  final ValueNotifier<bool> gameOverNotifier = ValueNotifier(false);
+  double _koLeft = 0;
+  bool _resultSent = false;
   /// 성능 측정(test/perf_bench_test.dart) 전용 — 맞거나 골을 먹어도 판이 끝나지 않는다
   @visibleForTesting
   bool debugNoGameOver = false;
@@ -269,6 +280,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     camera.viewfinder.anchor = Anchor.center;
 
     world.add(GridBackground()..priority = 5);
+    GameSprites.load(this); // 시안 아트 — 기다리지 않는다(못 읽은 동안은 코드 드로잉)
     mapArea = MapArea();
     world.add(mapArea);
 
@@ -279,6 +291,8 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
 
   void startGame({double initialTime = 0.0}) {
     isGameOver = false;
+    _resultSent = false;
+    gameOverNotifier.value = false;
     survivalTime = initialTime;
     survivalTimeNotifier.value = initialTime;
     lastRecordId = null;
@@ -314,6 +328,9 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       ..anchor = Anchor.center
       ..priority = 10; // Ensure player is above trail (trail will be 0 or -1)
     mapArea.add(player);
+    // 펫 — 데리고 있으면 같이 나온다(lib/game/pet.dart)
+    final pet = Pets.worn(CoinStore.equipped);
+    if (pet != null) mapArea.add(PetHelper(pet));
 
     camera.stop();
     _fitView();
@@ -343,14 +360,21 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     if (isGameOver) return;
     isGameOver = true;
 
-    pauseEngine();
-
     // Stop BGM and Play Game Over
     AudioManager().stopBgm();
     quietDanger();
     AudioManager().playSfx(Sfx.gameOver);
 
-    // Notify App
+    // 기절 연출 — 엔진은 멈추지 않는다(공은 느려지고 새 공은 나오지 않는다). koDuration 뒤에 결과를 넘긴다
+    if (player.isMounted) player.knockOut();
+    gameOverNotifier.value = true;
+    _koLeft = koDuration;
+  }
+
+  /// 결과를 앱에 넘긴다 — 한 판에 한 번
+  void _sendResult() {
+    if (_resultSent) return;
+    _resultSent = true;
     onGameOver({
       'survivalTime': recordTime(survivalTime), // 소수점 셋째 자리까지
       'mapId': worldConfig.rankingMapId,
@@ -377,6 +401,9 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       survivalTimeNotifier.value = survivalTime;
       if (_targets.isNotEmpty) _updateTarget();
       if (player.isMounted) _updateFeedback(dt);
+    } else if (!_resultSent) {
+      _koLeft -= dt;
+      if (_koLeft <= 0) _sendResult();
     }
   }
 

@@ -142,6 +142,7 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
         BoSection.promos => '이벤트',
         BoSection.codes => '이벤트 코드',
         BoSection.push => '푸시',
+        BoSection.release => '앱 버전',
         BoSection.economy => '경제·아이템',
       };
 
@@ -359,6 +360,9 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
             note: _privateEmail.isEmpty && email.isNotEmpty ? '옛 문서(users.email)' : null),
         BoKv('로그인', child: Align(alignment: Alignment.centerLeft, child: BoProviderBadge((d['loginProvider'] as String? ?? '').trim()))),
         BoKv('플랫폼', v: d['platform'] as String? ?? '-'),
+        BoKv('앱 버전',
+            v: (d['appBuild'] as num?) == null ? '-' : 'v${d['appVersion'] ?? '?'} (${(d['appBuild'] as num).toInt()})',
+            note: (d['appBuild'] as num?) == null ? '2.1.0 전 — 기록 없음' : null),
         BoKv('캐릭터', child: Row(children: [CharDot(d['characterId'] as String?), const SizedBox(width: 6), Text(charName(d['characterId'] as String?), style: Bo.cell)])),
         BoKv('가입일', v: fmtDateTime(tsOf(d['createdAt']))),
         BoKv('최근 활동', v: '${fmtDateTime(tsOf(d['lastUpdated']))}  (${timeAgo(tsOf(d['lastUpdated']))})'),

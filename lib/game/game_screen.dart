@@ -132,7 +132,13 @@ class _GameScreen extends StatelessWidget {
               Expanded(
                 child: Stack(
                   children: [
-                    Positioned.fill(child: GameWidget(game: game)),
+                    // 처음 그림·소리를 불러오는 동안도 스피너
+                    Positioned.fill(
+                      child: GameWidget(
+                        game: game,
+                        loadingBuilder: (_) => ColoredBox(color: AppColors.background, child: const AppLoading()),
+                      ),
+                    ),
                     // 위기 — 에너지 1칸이면 가장자리가 붉게 두근거린다
                     Positioned.fill(
                       child: IgnorePointer(
@@ -204,6 +210,16 @@ class _GameScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // 게임 오버 — 기절 연출 동안 GAME OVER, 그 뒤 결과 화면을 준비하는 동안 스피너
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: game.gameOverNotifier,
+                          builder: (context, over, _) =>
+                              over ? _GameOverOverlay(title: lm.translate('game_over'), accent: accent) : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
                     // 추가 기록 칩 — 경기장 위쪽 가장자리(아래쪽은 골키퍼 골문·피구 내 뒤 외야가 있다)
                     Positioned(
                       left: 0,
@@ -246,6 +262,74 @@ class _GameScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 게임 오버 덮개 — 화면이 어두워지며 GAME OVER 가 통 튀어나오고, 기절 연출(ZonberGame.koDuration)이 끝나면
+/// 결과 화면을 준비하는 동안 아래에 스피너가 돈다(멈춘 화면으로 기다리지 않게)
+class _GameOverOverlay extends StatefulWidget {
+  final String title;
+  final Color accent;
+  const _GameOverOverlay({required this.title, required this.accent});
+
+  @override
+  State<_GameOverOverlay> createState() => _GameOverOverlayState();
+}
+
+class _GameOverOverlayState extends State<_GameOverOverlay> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: Duration(milliseconds: (ZonberGame.koDuration * 1000).round()))..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        builder: (context, _) {
+          final t = _c.value; // 0 → 1 (기절 연출 길이)
+          final dim = Curves.easeOut.transform((t / 0.4).clamp(0.0, 1.0));
+          final pop = Curves.easeOutBack.transform(((t - 0.12) / 0.3).clamp(0.0, 1.0));
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                radius: 1.0,
+                colors: [Colors.black.withValues(alpha: 0.18 * dim), Colors.black.withValues(alpha: 0.5 * dim)],
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Opacity(
+                    opacity: pop.clamp(0.0, 1.0),
+                    child: Transform.scale(
+                      scale: 0.6 + 0.4 * pop,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: widget.accent.withValues(alpha: 0.7), width: 2),
+                        ),
+                        child: Text(widget.title, style: AppTextStyles.display(36, color: Colors.white)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  // 연출이 끝나면 — 결과 화면이 뜰 때까지
+                  SizedBox(
+                    height: 26,
+                    child: t >= 1 ? AppSpinner(size: 26, color: Colors.white.withValues(alpha: 0.9)) : null,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
 }
 
 /// 에너지 핍 — 캐릭터 최대치만큼, 채워진 칸은 존 색. 충전 중인 칸은 반투명.

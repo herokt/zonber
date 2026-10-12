@@ -42,6 +42,12 @@ service cloud.firestore {
         && (!('nickname' in d) || (d.nickname is string && d.nickname.size() <= 40));
     }
 
+    // 앱 설정 — config/app_release = 스토어에 나가 있는 버전(lib/app_release.dart · 업데이트 안내). 누구나 읽고(게스트도), 쓰기는 백오피스(관리자)만
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // 스테이지(맵) 정보 — 누구나 읽고, 회원 앱은 플레이 수 +1 만
     match /maps/{mapId} {
       allow read: if true;

@@ -360,9 +360,11 @@ limit    = maxBullets + level×10           # 동시 탄환 상한
 게임 시작       → 에너지 = maxEnergy (최대치로 시작)
 자동 회복       → 매 프레임 energy += dt / energyCooldown  (maxEnergy 상한)
 피격 (energy≥1) → energy -= 1, 무적 iframeDuration초 + 깜빡임, 탄환 제거, 강한 진동
-피격 (energy<1) → 게임 오버 (진동 3연타)
+피격 (energy<1) → 게임 오버 (진동 3연타) → KO 연출 1.4초 → 결과 화면
 무적 중 피격    → 탄환만 제거, 소모 없음
 ```
+
+**게임 오버는 멈추지 않는다**(2026-10-12). 엔진을 바로 멈추면 찌그러진 순간에 얼어붙어 보여서, `ZonberGame.gameOver()` 는 KO 상태로 들어간다 — 캐릭터는 X 눈(`ZonberFace.ko`)으로 통통 튀며 머리 위에 별이 돌고, 남은 탄은 0.3배 느린 화면으로 흘러가고, HUD 위에 GAME OVER 글자 → 스피너(`_GameOverOverlay`, `gameOverNotifier`)가 뜬다. `koDuration`(1.4초) 뒤에 `onGameOver` 를 한 번만 부른다. 스포너·펫·일시정지는 KO 동안 멈춘다.
 
 **깜빡임은 무적이 끝날 때까지 계속된다.** 캐릭터마다 무적 시간이 1.0~2.5초로 다르므로 고정 횟수로 끊으면 "아직 무적인지"를 알 수 없다. 종료 직전 0.4초는 깜빡임 간격을 0.12s → 0.05s로 줄여 곧 풀린다는 신호를 준다.
 
@@ -650,7 +652,7 @@ AppColors.textDim       = #B0BEC5
 | `bo_charts.dart` | 막대·선·도넛 차트 |
 
 > **카탈로그는 게임 파일에서 파생한다**(2026-09-25). 캐릭터는 `character_data.dart`, 장비는 `gear.dart`,
-> 꾸미기는 `cosmetics.dart`, 뱃지는 `badges.dart`, 한글 이름은 `translations.dart`(ko) 에서 읽는다.
+> 꾸미기는 `cosmetics.dart`, 펫은 `pets.dart`, 뱃지는 `badges.dart`, 한글 이름은 `translations.dart`(ko) 에서 읽는다.
 > 목록을 백오피스에 베껴 두면 게임에 아이템이 늘 때 조용히 뒤처진다 — 실제로 그렇게 어긋난 적이 있다.
 > 아바타도 게임과 같은 `avatar.dart`(`Avatar`·`AvatarView`)로 그리고, 국기는 저장 값이 이모지든 `KR` 이든 이미지로 그린다(`BoFlag`).
 

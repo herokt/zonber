@@ -6,8 +6,9 @@
 //   골키퍼  : 머리(모자·털모자) · 손(장갑) · 발(축구화)
 //
 // 부위마다 무료 장비 · 코인 장비 · 뱃지 보상 장비가 있다. 처음에는 아무것도 안 입은 상태다(2026-09-22).
-// 코인·뱃지 장비는 작은 능력치 보너스(GearBonus)가 있다(2026-09-22) — 속도 2~6% · 회복 대기 −1~2.5초 · 무적 +0.1~0.2초 ·
-// 골키퍼 막는 범위 +2~4px. 무료 장비는 보너스 없음. 캐릭터 기본 능력치는 모두 같다.
+// 코인·뱃지 장비는 작은 능력치 보너스(GearBonus)가 있다 — 속도 2~7% · 회복 대기 −1~2.5초 · 무적 +0.1~0.3초 ·
+// 골키퍼 막는 범위 +1~4px. 비쌀수록 높고 두 가지 이상을 섞는다. 무료 장비는 보너스 없음. 캐릭터 기본 능력치는 모두 같다.
+// 꾸미기(cosmetics.dart)도 같은 GearBonus 를 쓰고, 착용 한 벌의 합계는 loadout.dart 가 존에 맞춰 구한다(2026-10-12).
 // 그림은 gear_painter.dart 가 id 로 그린다(이미지 없음). 상점 카드는 GearIconPainter.
 // ─────────────────────────────────────────────────────────────
 
@@ -35,15 +36,36 @@ class GearBonus {
         coin: coin + o.coin,
       );
 
+  /// 존에 맞춰 바꾼 보너스 — 그 존에서 쓰이지 않는 능력치를 쓰이는 것으로 옮긴다(2026-10-12).
+  /// 꾸미기(스킨·잔상·오라)는 존과 상관없이 입으므로 어느 존에서나 효과가 있어야 한다.
+  ///   골키퍼: 에너지 회복·무적이 없다 → 무적 0.1초 = 막는 범위 [keeperReachPerIframe]px, 회복 1초 = [keeperReachPerRecovery]px. 에너지는 쓰이지 않는다
+  ///   피하기 존(갤럭시·피구): 막는 범위는 쓰이지 않는다
+  GearBonus adapt({required bool keeper}) => keeper
+      ? GearBonus(speed: speed, reach: reach + iframe * keeperReachPerIframe + recovery * keeperReachPerRecovery, coin: coin)
+      : GearBonus(energy: energy, speed: speed, recovery: recovery, iframe: iframe, coin: coin);
+
+  /// 골키퍼로 옮길 때 무적 1초 · 회복 1초가 막는 범위 몇 px 인지
+  static const double keeperReachPerIframe = 6.0;
+  static const double keeperReachPerRecovery = 0.6;
+
   /// 상점 표시용 (번역 키, 숫자) 목록
   List<(String, String)> get labels => [
         if (speed > 0) ('bonus_speed', '${(speed * 100).round()}'),
-        if (recovery > 0) ('bonus_recovery', recovery.toStringAsFixed(recovery % 1 == 0 ? 0 : 1)),
-        if (iframe > 0) ('bonus_iframe', iframe.toStringAsFixed(1)),
-        if (reach > 0) ('bonus_reach', '${reach.round()}'),
+        if (recovery > 0) ('bonus_recovery', _num(recovery)),
+        if (iframe > 0) ('bonus_iframe', _num(iframe)),
+        if (reach > 0) ('bonus_reach', _num(reach)),
         if (energy > 0) ('bonus_energy', '$energy'),
         if (coin > 0) ('bonus_coin', '${(coin * 100).round()}'),
       ];
+
+  /// 0.05 → "0.05", 0.1 → "0.1", 2.0 → "2"
+  static String _num(double v) {
+    var s = v.toStringAsFixed(2);
+    while (s.contains('.') && (s.endsWith('0') || s.endsWith('.'))) {
+      s = s.substring(0, s.length - 1);
+    }
+    return s;
+  }
 }
 
 class GearItem {
@@ -67,56 +89,66 @@ class Gear {
     GearItem('goggles_night', 'cyber', GearSlot.head, price: 400, bonus: GearBonus(recovery: 1, coin: 0.05)),
     GearItem('helmet_bubble', 'cyber', GearSlot.head, price: 450, bonus: GearBonus(recovery: 2)),
     GearItem('helmet_visor', 'cyber', GearSlot.head, price: 600, bonus: GearBonus(recovery: 2, iframe: 0.1)),
+    GearItem('goggles_aurora', 'cyber', GearSlot.head, price: 800, bonus: GearBonus(recovery: 2.5, iframe: 0.1, coin: 0.05)),
     GearItem('mitts_space', 'cyber', GearSlot.hands),
     GearItem('mitts_astro', 'cyber', GearSlot.hands, price: 250, bonus: GearBonus(iframe: 0.1)),
     GearItem('gauntlet_neon', 'cyber', GearSlot.hands, price: 350, bonus: GearBonus(iframe: 0.2)),
     GearItem('gauntlet_ion', 'cyber', GearSlot.hands, price: 550, bonus: GearBonus(iframe: 0.25, speed: 0.02)),
+    GearItem('gauntlet_plasma', 'cyber', GearSlot.hands, price: 750, bonus: GearBonus(iframe: 0.3, speed: 0.03)),
     GearItem('wings_white', 'cyber', GearSlot.back),
     GearItem('wings_star', 'cyber', GearSlot.back, price: 400, bonus: GearBonus(speed: 0.02)),
     GearItem('wings_bat', 'cyber', GearSlot.back, price: 450, bonus: GearBonus(speed: 0.03)),
     GearItem('wings_mech', 'cyber', GearSlot.back, price: 550, bonus: GearBonus(speed: 0.04)),
     GearItem('wings_comet', 'cyber', GearSlot.back, price: 650, bonus: GearBonus(speed: 0.03, coin: 0.1)),
+    GearItem('wings_crystal', 'cyber', GearSlot.back, price: 850, bonus: GearBonus(speed: 0.05, coin: 0.1)),
     GearItem('wings_gold', 'cyber', GearSlot.back, needsBadge: 'b_s1_180', bonus: GearBonus(speed: 0.05, energy: 1)),
     GearItem('rocket_red', 'cyber', GearSlot.feet),
     GearItem('rocket_plasma', 'cyber', GearSlot.feet, price: 350, bonus: GearBonus(speed: 0.03)),
     GearItem('rocket_chrome', 'cyber', GearSlot.feet, price: 500, bonus: GearBonus(speed: 0.05)),
     GearItem('rocket_void', 'cyber', GearSlot.feet, price: 700, bonus: GearBonus(speed: 0.04, recovery: 1.5)),
+    GearItem('rocket_aurora', 'cyber', GearSlot.feet, price: 900, bonus: GearBonus(speed: 0.06, recovery: 1.5)),
     // ── 피구 ── 머리 · 손 · 발
     GearItem('band_red', 'dodgeball', GearSlot.head),
     GearItem('band_blue', 'dodgeball', GearSlot.head, price: 250, bonus: GearBonus(recovery: 1)),
     GearItem('band_stripe', 'dodgeball', GearSlot.head, price: 300, bonus: GearBonus(recovery: 1.5)),
     GearItem('band_mint', 'dodgeball', GearSlot.head, price: 400, bonus: GearBonus(recovery: 1, iframe: 0.1)),
+    GearItem('band_galaxy', 'dodgeball', GearSlot.head, price: 650, bonus: GearBonus(recovery: 2, iframe: 0.1)),
     GearItem('band_flame', 'dodgeball', GearSlot.head, needsBadge: 'b_s2_150', bonus: GearBonus(recovery: 2.5, coin: 0.1)),
     GearItem('wrist_white', 'dodgeball', GearSlot.hands),
     GearItem('wrist_red', 'dodgeball', GearSlot.hands, price: 200, bonus: GearBonus(iframe: 0.1)),
     GearItem('wrist_black', 'dodgeball', GearSlot.hands, price: 300, bonus: GearBonus(iframe: 0.15, speed: 0.01)),
     GearItem('wrist_rainbow', 'dodgeball', GearSlot.hands, price: 350, bonus: GearBonus(iframe: 0.2)),
     GearItem('wrist_gold', 'dodgeball', GearSlot.hands, price: 600, bonus: GearBonus(iframe: 0.2, coin: 0.15)),
+    GearItem('wrist_neon', 'dodgeball', GearSlot.hands, price: 750, bonus: GearBonus(iframe: 0.25, speed: 0.02, coin: 0.05)),
     GearItem('sneakers_white', 'dodgeball', GearSlot.feet),
     GearItem('sneakers_sky', 'dodgeball', GearSlot.feet, price: 300, bonus: GearBonus(speed: 0.02, recovery: 1)),
     GearItem('sneakers_neon', 'dodgeball', GearSlot.feet, price: 400, bonus: GearBonus(speed: 0.03)),
     GearItem('sneakers_hightop', 'dodgeball', GearSlot.feet, price: 450, bonus: GearBonus(speed: 0.04)),
     GearItem('sneakers_gold', 'dodgeball', GearSlot.feet, price: 600, bonus: GearBonus(speed: 0.06)),
     GearItem('sneakers_violet', 'dodgeball', GearSlot.feet, price: 700, bonus: GearBonus(speed: 0.05, energy: 1)),
+    GearItem('sneakers_aurora', 'dodgeball', GearSlot.feet, price: 900, bonus: GearBonus(speed: 0.07, energy: 1)),
     // ── 골키퍼 ── 머리 · 손 · 발 (회복·무적은 골키퍼에서 쓰이지 않아 속도·막는 범위·코인으로 준다)
     GearItem('cap_blue', 'keeper', GearSlot.head),
     GearItem('cap_red', 'keeper', GearSlot.head, price: 250, bonus: GearBonus(speed: 0.02)),
-    GearItem('cap_black', 'keeper', GearSlot.head, price: 300, bonus: GearBonus(speed: 0.02)),
+    GearItem('cap_black', 'keeper', GearSlot.head, price: 300, bonus: GearBonus(speed: 0.02, coin: 0.03)),
     GearItem('cap_mint', 'keeper', GearSlot.head, price: 350, bonus: GearBonus(speed: 0.02, reach: 1)),
     GearItem('beanie_stripe', 'keeper', GearSlot.head, price: 400, bonus: GearBonus(speed: 0.03)),
     GearItem('beanie_pom', 'keeper', GearSlot.head, price: 550, bonus: GearBonus(speed: 0.03, coin: 0.1)),
+    GearItem('cap_gold', 'keeper', GearSlot.head, price: 750, bonus: GearBonus(speed: 0.04, reach: 1, coin: 0.05)),
     GearItem('gloves_basic', 'keeper', GearSlot.hands),
     GearItem('gloves_pro', 'keeper', GearSlot.hands, price: 400, bonus: GearBonus(reach: 2)),
     GearItem('gloves_ice', 'keeper', GearSlot.hands, price: 450, bonus: GearBonus(reach: 2, speed: 0.02)),
     GearItem('gloves_fire', 'keeper', GearSlot.hands, price: 500, bonus: GearBonus(reach: 3)),
     GearItem('gloves_violet', 'keeper', GearSlot.hands, price: 650, bonus: GearBonus(reach: 3, coin: 0.1)),
     GearItem('gloves_gold', 'keeper', GearSlot.hands, needsBadge: 'b_s3_150', bonus: GearBonus(reach: 4)),
+    GearItem('gloves_neon', 'keeper', GearSlot.hands, price: 850, bonus: GearBonus(reach: 4, coin: 0.1)),
     GearItem('boots_black', 'keeper', GearSlot.feet),
     GearItem('boots_orange', 'keeper', GearSlot.feet, price: 350, bonus: GearBonus(speed: 0.03)),
     GearItem('boots_mint', 'keeper', GearSlot.feet, price: 400, bonus: GearBonus(speed: 0.04)),
     GearItem('boots_white', 'keeper', GearSlot.feet, price: 450, bonus: GearBonus(speed: 0.05)),
     GearItem('boots_violet', 'keeper', GearSlot.feet, price: 600, bonus: GearBonus(speed: 0.04, reach: 1)),
     GearItem('boots_carbon', 'keeper', GearSlot.feet, price: 700, bonus: GearBonus(speed: 0.06, reach: 1)),
+    GearItem('boots_gold', 'keeper', GearSlot.feet, price: 900, bonus: GearBonus(speed: 0.07, reach: 1.5)),
   ];
 
   static GearItem? byId(String id) {

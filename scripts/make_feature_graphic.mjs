@@ -31,7 +31,7 @@ const TEXT = {
   zh: { tag: '在狭小区域中坚持到底', zones: ['银河', '躲避球', '任意球'], font: "'Noto Sans SC'" },
 };
 const ACCENT = ['#22C7E6', '#FF5A4E', '#2F6FE4'];
-const CARDS = ['1_galaxy', '2_dodgeball', '3_keeper'].map((s) => path.join(SRC, 'ko', `${s}.png`));
+const CARDS = ['01_galaxy', '02_dodgeball', '03_keeper'].map((s) => path.join(SRC, 'ko', `${s}.png`));
 for (const c of CARDS) if (!fs.existsSync(c)) throw new Error(`원본이 없다: ${c} — scripts/store_shots.sh 먼저`);
 
 // 원본 1440×3120 에서 경기장(HUD 아래)만 — 비율로 자른다(기기 폭 기준 경기장은 위에서 약 22.5%~94%)

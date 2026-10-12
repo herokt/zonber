@@ -61,12 +61,12 @@ class Balance {
   }
 
   // ── 갤럭시(링에서 나를 조준) ──
-  /// 초당 탄 수 5 → 20 (2026-10-12 초반이 다른 두 존보다 어려워 시작 7 → 5. L5 9.3 · L10 14.6)
-  static double cyberRate(int level) => byLevel(level, 5.0, 20.0);
+  /// 초당 탄 수 4.5 → 18 (2026-10-12 초반이 다른 두 존보다 어려워 시작 7 → 5, 같은 날 큰 운석이 생겨 전체 × 0.9. L5 8.4 · L10 13.2)
+  static double cyberRate(int level) => byLevel(level, 4.5, 18.0);
   /// 탄속 150 → 193 ([speedByLevel] — L5 167 · L10 180. 2026-10-12 시작 160 → 150)
   static double cyberSpeed(int level) => speedByLevel(level, 150.0, 270.0);
-  /// 화면에 동시에 있는 탄 상한 60 → 140
-  static int cyberCap(int level) => byLevel(level, 60.0, 140.0).round();
+  /// 화면에 동시에 있는 탄 상한 54 → 126 (2026-10-12 × 0.9 — 초당 탄 수와 같이)
+  static int cyberCap(int level) => byLevel(level, 54.0, 126.0).round();
 
   // ── 피구 ──
   /// 외야 패스 횟수 범위(무작위)

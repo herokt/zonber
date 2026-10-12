@@ -385,23 +385,40 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
           const Spacer(),
           TextButton(
             onPressed: _friendBusy ? null : _confirmRemove,
-            child: Text(lm.translate('friend_remove'), style: AppTextStyles.text(12.5, color: AppColors.textDim, weight: FontWeight.w700)),
+            child: _friendBusy
+                ? AppSpinner(size: 16, stroke: 2, color: AppColors.textDim)
+                : Text(lm.translate('friend_remove'), style: AppTextStyles.text(12.5, color: AppColors.textDim, weight: FontWeight.w700)),
           ),
         ]),
       FriendState.requested => NeonButton(text: lm.translate('friend_requested_btn'), icon: Icons.schedule_rounded, isPrimary: false, onPressed: null),
-      FriendState.incoming => NeonButton(
-          text: lm.translate('friend_accept_btn'),
-          icon: Icons.person_add_alt_1_rounded,
-          onPressed: _friendBusy ? null : () => _friendAction(() => Friends.answer(widget.uid, accept: true)),
-        ),
-      _ => NeonButton(
-          text: lm.translate('friend_request_btn'),
-          icon: Icons.person_add_alt_1_rounded,
-          isPrimary: false,
-          onPressed: _friendBusy ? null : () => _friendAction(() => Friends.request(widget.uid)),
-        ),
+      FriendState.incoming => _friendBusy
+          ? _busyButton(primary: true)
+          : NeonButton(
+              text: lm.translate('friend_accept_btn'),
+              icon: Icons.person_add_alt_1_rounded,
+              onPressed: () => _friendAction(() => Friends.answer(widget.uid, accept: true)),
+            ),
+      _ => _friendBusy
+          ? _busyButton()
+          : NeonButton(
+              text: lm.translate('friend_request_btn'),
+              icon: Icons.person_add_alt_1_rounded,
+              isPrimary: false,
+              onPressed: () => _friendAction(() => Friends.request(widget.uid)),
+            ),
     };
   }
+
+  /// 친구 버튼이 서버를 기다리는 동안 — 같은 자리·크기(NeonButton)에 스피너
+  Widget _busyButton({bool primary = false}) => Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: primary ? AppColors.primary : AppColors.surface2,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.center,
+        child: AppSpinner(color: primary ? AppColors.on(AppColors.primary) : AppColors.text),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -423,10 +440,7 @@ class _PlayerCardSheetState extends State<PlayerCardSheet> {
             ),
             const SizedBox(height: 16),
             if (_loading)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                child: Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 3)),
-              )
+              const AppLoading(padding: EdgeInsets.symmetric(vertical: 40))
             else if (p == null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 28),

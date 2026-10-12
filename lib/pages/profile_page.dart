@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../achievement_manager.dart';
 import '../badges.dart';
@@ -19,6 +18,8 @@ import '../coin_store.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../services/reminder_service.dart';
+import '../app_release.dart';
+import '../services/update_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
 
@@ -66,6 +67,8 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _adPrivacyRequired = false;
   String _appVersion = '';
   User? _user;
+  /// 첫 _load 가 끝났나 — 그 전엔 스피너(회원에게 게스트 카드가 잠깐 보이지 않게)
+  bool _loaded = false;
 
   @override
   void initState() {
@@ -96,10 +99,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final firstEdit = await UserProfileManager.isFirstEditAvailable();
     final avatar = await Avatar.mine(profile['characterId'] ?? Avatar.defaultCharacterId);
     final adPrivacyRequired = await AdManager().isPrivacyOptionsRequired();
-    String version = '';
-    try {
-      version = 'v${(await PackageInfo.fromPlatform()).version}';
-    } catch (_) {}
+    final version = (await AppVersion.load()).label;
     if (!mounted) return;
     setState(() {
       _profile = profile;
@@ -125,6 +125,7 @@ class _ProfilePageState extends State<ProfilePage> {
       _adPrivacyRequired = adPrivacyRequired;
       _appVersion = version;
       _user = FirebaseAuth.instance.currentUser;
+      _loaded = true;
     });
   }
 
@@ -161,22 +162,26 @@ class _ProfilePageState extends State<ProfilePage> {
         NeonButton(text: lm.translate('confirm'), isCompact: true, onPressed: () => Navigator.pop(context, controller.text.trim())),
       ],
     );
-    if (result == null || result.isEmpty || result == _profile['nickname']) return;
+    if (result == null || result.isEmpty || result == _profile['nickname'] || !mounted) return;
 
-    bool canEdit = false;
-    if (_firstEdit) {
-      canEdit = true;
-      await UserProfileManager.useFirstEdit();
-    } else {
-      canEdit = await UserProfileManager.useNicknameTicket();
-    }
+    // 변경권 쓰기 + 저장 — 끝날 때까지 스피너
+    final canEdit = await runBusy(context, () async {
+      bool ok = false;
+      if (_firstEdit) {
+        ok = true;
+        await UserProfileManager.useFirstEdit();
+      } else {
+        ok = await UserProfileManager.useNicknameTicket();
+      }
+      if (ok) {
+        await UserProfileManager.saveProfile(result, _profile['flag']!, _profile['countryName']!);
+        await _load();
+      }
+      return ok;
+    });
     if (!mounted) return;
     if (canEdit) {
-      await UserProfileManager.saveProfile(result, _profile['flag']!, _profile['countryName']!);
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('nickname_changed'))));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('nickname_changed'))));
     } else {
       showNeonDialog(
         context: context,
@@ -210,11 +215,15 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('shop_not_enough'))));
       return;
     }
-    if (!await CoinStore.spend(kTicketPrice, item: 'name_ticket')) return;
-    await UserProfileManager.setNicknameTickets(await UserProfileManager.getNicknameTickets() + 1);
     if (!mounted) return;
-    await _load();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('shop_bought'))));
+    // 코인 쓰기 + 변경권 +1 — 끝날 때까지 스피너
+    final bought = await runBusy(context, () async {
+      if (!await CoinStore.spend(kTicketPrice, item: 'name_ticket')) return false;
+      await UserProfileManager.setNicknameTickets(await UserProfileManager.getNicknameTickets() + 1);
+      await _load();
+      return true;
+    });
+    if (bought && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('shop_bought'))));
   }
 
   // ── 로그아웃 / 계정 삭제 ─────────────────────────────────────────
@@ -253,13 +262,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     if (confirmed != true || !mounted) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Center(child: CircularProgressIndicator(color: AppColors.primary)),
-    );
-    final success = await AuthService().deleteAccount();
-    if (mounted) Navigator.pop(context);
+    final success = await runBusy(context, () => AuthService().deleteAccount());
     if (success) {
       await UserProfileManager.clearProfile();
       await ProgressStore.clearLocal();
@@ -292,7 +295,9 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             NeonAppBar(title: lm.translate('nav_profile'), showBackButton: true, onBack: widget.onBack),
             Expanded(
-              child: ListView(
+              child: !_loaded
+                  ? const AppLoading()
+                  : ListView(
           padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
           children: [
             // ── 헤더 ──
@@ -458,10 +463,25 @@ class _ProfilePageState extends State<ProfilePage> {
                     onTap: widget.onStatistics,
                     trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 20),
                   ),
-                  _row(
-                    lm.translate('app_version'),
-                    trailing: Text(_appVersion, style: AppTextStyles.text(13, color: AppColors.textDim)),
-                    last: true,
+                  // 앱 버전 — v이름 (빌드). 백오피스에 적힌 스토어 버전보다 낮으면 "업데이트"(누르면 스토어)
+                  ValueListenableBuilder(
+                    valueListenable: UpdateService.state,
+                    builder: (context, up, _) => _row(
+                      lm.translate('app_version'),
+                      onTap: up == null ? null : UpdateService.openStore,
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(_appVersion, style: AppTextStyles.text(13, color: AppColors.textDim)),
+                        if (up != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(10)),
+                            child: Text(lm.translate('update_badge'), style: AppTextStyles.text(11, weight: FontWeight.w800, color: AppColors.primary)),
+                          ),
+                        ],
+                      ]),
+                      last: true,
+                    ),
                   ),
                 ],
               ),

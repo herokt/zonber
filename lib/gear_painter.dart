@@ -116,6 +116,7 @@ void _featherWing(Canvas cv, double r, String id, double t) {
     'wings_gold' => (const Color(0xFFFFF3C4), const Color(0xFFE8A91E), const Color(0xFFB7791F)),
     'wings_star' => (const Color(0xFFEAF5FF), const Color(0xFF7FB2F5), const Color(0xFF4F7FD0)),
     'wings_comet' => (const Color(0xFFFFE9C7), const Color(0xFFFF8A3D), const Color(0xFFC2410C)),
+    'wings_crystal' => (const Color(0xFFF0FDFF), const Color(0xFF8BE9FF), const Color(0xFFB794F6)),
     _ => (Colors.white, const Color(0xFFC9D6EA), const Color(0xFF9FB0CC)),
   };
   const angles = [0.38, 0.02, -0.36, -0.72];
@@ -226,6 +227,7 @@ void _rocket(Canvas cv, double r, String id, Offset fc, double sx, double t, boo
     'rocket_plasma' => (const Color(0xFF6D5BD0), const Color(0xFF22D3EE), const [Color(0xFFE0FFFF), Color(0xFF38BDF8), Color(0x00A855F7)]),
     'rocket_chrome' => (const Color(0xFFD5DCE6), const Color(0xFFFF8A3D), const [Color(0xFFFFF7D6), Color(0xFFFFA53D), Color(0x00FF3D3D)]),
     'rocket_void' => (const Color(0xFF241B3D), const Color(0xFFB388FF), const [Color(0xFFF3E8FF), Color(0xFF9B6BFF), Color(0x004C1D95)]),
+    'rocket_aurora' => (const Color(0xFF0F3D3E), const Color(0xFF5EF2C2), const [Color(0xFFE8FFF7), Color(0xFF5EF2C2), Color(0x00C084FC)]),
     _ => (const Color(0xFFE5484D), const Color(0xFFFFD23F), const [Color(0xFFFFF3A0), Color(0xFFFF8A3D), Color(0x00E5334D)]),
   };
   final w = r * 0.6, h = r * 0.42;
@@ -275,6 +277,7 @@ void _sneaker(Canvas cv, double r, String id, Offset fc, double sx, double t) {
     'sneakers_gold' => (const Color(0xFFFFD66B), const Color(0xFFB8860B), const Color(0xFFFFF4CC), false),
     'sneakers_sky' => (const Color(0xFF7FC4F0), Colors.white, const Color(0xFFEFF6FF), false),
     'sneakers_violet' => (const Color(0xFF6D5BD0), const Color(0xFFFFD23F), const Color(0xFF241B3D), true),
+    'sneakers_aurora' => (const Color(0xFF34D3B0), const Color(0xFFC084FC), const Color(0xFF0F3D3E), true),
     _ => (Colors.white, const Color(0xFFE5484D), const Color(0xFFE2E8F0), false),
   };
   final w = r * 0.64, h = r * 0.4;
@@ -319,6 +322,7 @@ void _boot(Canvas cv, double r, String id, Offset fc, double sx) {
     'boots_white' => (const Color(0xFFF8FAFC), const Color(0xFF2F6FE4)),
     'boots_violet' => (const Color(0xFF6D5BD0), const Color(0xFFFFD23F)),
     'boots_carbon' => (const Color(0xFF111827), const Color(0xFFB6F23A)),
+    'boots_gold' => (const Color(0xFFFFD66B), const Color(0xFF7A4B00)),
     _ => (const Color(0xFF1F2937), Colors.white),
   };
   final w = r * 0.64, h = r * 0.36;
@@ -386,6 +390,7 @@ void _wristband(Canvas cv, double r, String id, Offset hc, double sx) {
       'wrist_red' => (const Color(0xFFE5484D), Colors.white),
       'wrist_black' => (const Color(0xFF1F2937), const Color(0xFFB6F23A)),
       'wrist_gold' => (const Color(0xFFFFD66B), const Color(0xFFB8860B)),
+      'wrist_neon' => (const Color(0xFF111827), const Color(0xFF5EF2F2)),
       _ => (Colors.white, const Color(0xFFE5484D)),
     };
     cv.drawRRect(rr, _grad(rect, _sh(main, 0.05), _sh(main, -0.12)));
@@ -399,6 +404,7 @@ void _mitt(Canvas cv, double r, String id, Offset hc, double sx) {
   final neon = id.startsWith('gauntlet_');
   final (Color main, Color cuffC, Color glow) = switch (id) {
     'gauntlet_ion' => (const Color(0xFF2E1F6B), const Color(0xFF6D5BD0), const Color(0xFFB388FF)),
+    'gauntlet_plasma' => (const Color(0xFF3B0A2E), const Color(0xFFE5487A), const Color(0xFFFF9EE6)),
     'gauntlet_neon' => (const Color(0xFF1E293B), const Color(0xFF334155), const Color(0xFF5EEAD4)),
     'mitts_astro' => (const Color(0xFFDDE7F5), const Color(0xFF2F8CF2), const Color(0xFF5EEAD4)),
     _ => (Colors.white, const Color(0xFFFF8A3D), const Color(0xFF5EEAD4)),
@@ -439,6 +445,7 @@ void _keeperGlove(Canvas cv, double r, String id, Offset hc, double sx) {
     'gloves_ice' => (const Color(0xFFBFE6FF), const Color(0xFF2F8CF2), const Color(0xFF1E3A8A)),
     'gloves_violet' => (const Color(0xFF6D5BD0), const Color(0xFFFFD23F), const Color(0xFF2E1F6B)),
     'gloves_gold' => (const Color(0xFFFFD66B), const Color(0xFFFFF6CC), const Color(0xFFB8860B)),
+    'gloves_neon' => (const Color(0xFF111827), const Color(0xFF5EF2F2), const Color(0xFFE5487A)),
     _ => (Colors.white, const Color(0xFF22C55E), const Color(0xFF16A34A)),
   };
   final c = hc + Offset(sx * r * 0.05, -r * 0.04);
@@ -521,6 +528,7 @@ void _band(Canvas cv, double r, String id, double t) {
     'band_stripe' => (const Color(0xFF1E3A8A), const Color(0xFFE5484D)),
     'band_mint' => (const Color(0xFF2ECFA6), const Color(0xFF0F5A4A)),
     'band_flame' => (const Color(0xFFFF7A1A), const Color(0xFFFFD23F)),
+    'band_galaxy' => (const Color(0xFF2E1F6B), const Color(0xFF8BE9FF)),
     _ => (const Color(0xFFE5484D), Colors.white),
   };
   final y0 = -r * 0.72, bw = r * 0.24;
@@ -569,6 +577,7 @@ void _cap(Canvas cv, double r, String id) {
     'cap_red' => (const Color(0xFFE5484D), Colors.white),
     'cap_black' => (const Color(0xFF1F2937), const Color(0xFFFFD66B)),
     'cap_mint' => (const Color(0xFF2ECFA6), const Color(0xFF0F5A4A)),
+    'cap_gold' => (const Color(0xFFFFD66B), const Color(0xFF7A4B00)),
     _ => (const Color(0xFF2F6FE4), Colors.white),
   };
   final by = -r * 0.5;
@@ -658,6 +667,7 @@ void _goggles(Canvas cv, double r, String id) {
   // 밤 고글은 어두운 띠에 호박색 렌즈
   final (Color strap, Color lensHi, Color lensLo) = switch (id) {
     'goggles_night' => (const Color(0xFF111827), const Color(0xFFFFE08A), const Color(0xFFB45309)),
+    'goggles_aurora' => (const Color(0xFF2E1F6B), const Color(0xFFB9FBE0), const Color(0xFFC084FC)),
     _ => (const Color(0xFF334155), const Color(0xFFA5F3FC), const Color(0xFF0E7490)),
   };
   final y0 = -r * 0.7, bw = r * 0.16;

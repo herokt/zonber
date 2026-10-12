@@ -15,7 +15,8 @@ import 'gear_painter.dart';
 // ─────────────────────────────────────────────────────────────
 
 /// 표정 3종 — 기본 · 아야(맞음/실점) · 신남(아슬아슬 회피/세이브)
-enum ZonberFace { normal, hurt, happy }
+/// ko = 기절(게임 오버) — 캐릭터와 상관없이 X 눈 · 동그란 입
+enum ZonberFace { normal, hurt, happy, ko }
 
 class ZonberLook {
   final Color color;
@@ -288,6 +289,61 @@ void _paintSkin(Canvas c, double r, Path mochi, String? skin, Color base, double
       }
       c.restore();
       _volume(c, r, mochi);
+    case 'skin_aurora':
+      // 오로라 — 밤하늘 위로 초록·보라 빛 커튼이 천천히 일렁인다
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r), const [Color(0xFF0B1E3A), Color(0xFF13355A), Color(0xFF0E2A3F)], const [0, 0.6, 1]));
+      c.save();
+      c.clipPath(mochi);
+      for (int i = 0; i < 3; i++) {
+        final col = const [Color(0xFF5EF2C2), Color(0xFF8BE9FF), Color(0xFFC084FC)][i];
+        final path = Path()..moveTo(-r * 1.2, r * 0.2);
+        for (double x = -r * 1.2; x <= r * 1.2; x += r * 0.1) {
+          path.lineTo(x, -r * (0.15 + i * 0.22) + sin(x / r * 2.4 + t * (0.9 + i * 0.3) + i * 1.7) * r * 0.16);
+        }
+        path
+          ..lineTo(r * 1.2, r * 0.2)
+          ..close();
+        c.drawPath(path, Paint()
+          ..shader = ui.Gradient.linear(Offset(0, -r * 0.8), Offset(0, r * 0.2), [col.withValues(alpha: 0.75), col.withValues(alpha: 0)])
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.08));
+      }
+      for (int i = 0; i < 5; i++) {
+        final tw = 0.5 + 0.5 * sin(t * 3 + i * 2.1);
+        c.drawCircle(Offset(r * const [-0.7, -0.2, 0.35, 0.75, 0.1][i], r * const [-0.7, -0.85, -0.75, -0.45, 0.65][i]), r * 0.035,
+            Paint()..color = Colors.white.withValues(alpha: 0.4 + 0.5 * tw));
+      }
+      c.restore();
+      _volume(c, r, mochi);
+    case 'skin_crystal':
+      // 크리스털 — 투명한 결정 면들이 빛을 받아 무지갯빛으로 반짝인다
+      c.drawPath(mochi, Paint()
+        ..shader = ui.Gradient.linear(b.topLeft, b.bottomRight, const [Color(0xFFF5FBFF), Color(0xFFCDE7FF), Color(0xFFE3D4FF), Color(0xFFBFE9F5)], const [0, 0.35, 0.7, 1]));
+      c.save();
+      c.clipPath(mochi);
+      final facet = Paint()
+        ..color = Colors.white.withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(0.8, r * 0.04);
+      for (final (ax, ay, bx, by) in const [(-1.0, -0.2, 0.1, -1.0), (0.1, -1.0, 1.0, 0.1), (-1.0, -0.2, 0.2, 1.0), (0.1, -1.0, 0.2, 1.0), (1.0, 0.1, 0.2, 1.0)]) {
+        c.drawLine(Offset(r * ax, r * ay), Offset(r * bx, r * by), facet);
+      }
+      final x = -r * 1.6 + ((t * 0.3) % 1.0) * r * 3.2;
+      c.drawPath(
+          Path()
+            ..moveTo(x, -r)
+            ..lineTo(x + r * 0.28, -r)
+            ..lineTo(x - r * 0.2, r)
+            ..lineTo(x - r * 0.48, r)
+            ..close(),
+          Paint()..color = HSVColor.fromAHSV(0.35, (t * 60) % 360, 0.4, 1).toColor());
+      for (int i = 0; i < 3; i++) {
+        final tw = (0.5 + 0.5 * sin(t * 4 + i * 2.3));
+        final p = Offset(r * const [-0.45, 0.5, 0.15][i], r * const [-0.55, -0.3, 0.55][i]);
+        c.drawCircle(p, r * 0.05 * tw, Paint()..color = Colors.white.withValues(alpha: 0.9 * tw));
+      }
+      c.restore();
+      _volume(c, r, mochi);
     case 'skin_ocean':
       // 바다 — 물결이 천천히 지나간다
       c.drawPath(mochi, Paint()..shader = ui.Gradient.linear(Offset(0, -r), Offset(0, r), const [Color(0xFF7FE3F0), Color(0xFF1E7FB8)]));
@@ -414,7 +470,21 @@ void _paintFace(Canvas canvas, double r, ZonberLook k, Color inkColor) {
       _hurtFace(f, k.charId);
     case ZonberFace.happy:
       _happyFace(f, k.charId);
+    case ZonberFace.ko:
+      _koFace(f);
   }
+}
+
+/// 기절 — X 눈 · 작게 벌린 동그란 입
+void _koFace(_FacePen f) {
+  final r = f.r;
+  for (final sx in [-1.0, 1.0]) {
+    final e = Offset(sx * r * 0.3, -r * 0.12);
+    final d = r * 0.11;
+    f.c.drawLine(e + Offset(-d, -d), e + Offset(d, d), f.stroke(0.085));
+    f.c.drawLine(e + Offset(d, -d), e + Offset(-d, d), f.stroke(0.085));
+  }
+  f.c.drawOval(Rect.fromCenter(center: Offset(0, r * 0.2), width: r * 0.16, height: r * 0.18), f.stroke(0.07));
 }
 
 /// 얼굴 부품 — 눈·눈썹·입을 같은 규칙으로 그린다(r = 몸 반지름)

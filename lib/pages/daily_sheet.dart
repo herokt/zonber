@@ -178,6 +178,10 @@ class _DailySheetState extends State<_DailySheet> {
   List<MissionState> _ms = const [];
   bool _bonusClaimed = false;
   ({int day, bool claimedToday, int streak}) _att = (day: 1, claimedToday: false, streak: 0);
+  /// 첫 _load 가 끝났나 — 그 전엔 스피너(기본값으로 받기 버튼이 눌리지 않게)
+  bool _loaded = false;
+  /// 보상을 받는 중 — 두 번 눌러도 한 번만
+  bool _busy = false;
 
   @override
   void initState() {
@@ -194,7 +198,22 @@ class _DailySheetState extends State<_DailySheet> {
       _ms = ms;
       _bonusClaimed = b;
       _att = a;
+      _loaded = true;
     });
+  }
+
+  /// 보상 받기 — 끝날 때까지 스피너, 다시 읽은 뒤에야 다음 탭을 받는다
+  Future<void> _claim(LanguageManager lm, Future<int> Function() claim) async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      final coins = await runBusy(context, claim);
+      if (!mounted) return;
+      _got(lm, coins);
+      await _load();
+    } finally {
+      _busy = false;
+    }
   }
 
   void _got(LanguageManager lm, int coins) {
@@ -227,6 +246,9 @@ class _DailySheetState extends State<_DailySheet> {
               child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(2))),
             ),
             const SizedBox(height: 14),
+            if (!_loaded)
+              const AppLoading(padding: EdgeInsets.symmetric(vertical: 60))
+            else ...[
             // ── 출석 ──
             Row(
               children: [
@@ -251,10 +273,7 @@ class _DailySheetState extends State<_DailySheet> {
                   ? lm.translate('att_done_today')
                   : lm.translate('att_claim').replaceAll('{n}', '${DailyRewards.attendanceRewards[_att.day - 1]}'),
               enabled: !_att.claimedToday,
-              onTap: () async {
-                _got(lm, await DailyRewards.claimAttendance());
-                _load();
-              },
+              onTap: () => _claim(lm, DailyRewards.claimAttendance),
             ),
             const SizedBox(height: 22),
             // ── 미션 ──
@@ -284,13 +303,11 @@ class _DailySheetState extends State<_DailySheet> {
                   Expanded(child: Text(lm.translate('daily_all_bonus'), style: AppTextStyles.text(13, weight: FontWeight.w800))),
                   _rewardPill(lm, DailyRewards.allClearBonus,
                       state: _bonusClaimed ? 2 : (allClaimed ? 1 : 0),
-                      onTap: () async {
-                        _got(lm, await DailyRewards.claimBonus());
-                        _load();
-                      }),
+                      onTap: () => _claim(lm, DailyRewards.claimBonus)),
                 ],
               ),
             ),
+            ],
           ],
         ),
       ),
@@ -366,10 +383,7 @@ class _DailySheetState extends State<_DailySheet> {
             ),
           ),
           const SizedBox(width: 10),
-          _rewardPill(lm, m.reward, state: s.claimed ? 2 : (s.done ? 1 : 0), onTap: () async {
-            _got(lm, await DailyRewards.claimMission(m.id));
-            _load();
-          }),
+          _rewardPill(lm, m.reward, state: s.claimed ? 2 : (s.done ? 1 : 0), onTap: () => _claim(lm, () => DailyRewards.claimMission(m.id))),
         ],
       ),
     );

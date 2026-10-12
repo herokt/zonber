@@ -52,6 +52,12 @@ class ProjectileDef {
   final bool seams;
   /// 축구공 무늬(오각형)를 그린다(큰 공 전용) — paintSoccerPatches
   final bool soccer;
+  /// 시안 아트 그림 이름(assets/images/sprites/{sprite}.png · lib/game/sprites.dart). 없거나 못 읽으면 코드 드로잉
+  final String? sprite;
+  /// 그림의 흰 부분에 [color] 를 입힌다(흰 축구공 한 장으로 색 공을 만든다)
+  final bool tintSprite;
+  /// ring 스포너가 고르는 비율(클수록 자주 나온다)
+  final int weight;
 
   const ProjectileDef({
     required this.id,
@@ -70,6 +76,9 @@ class ProjectileDef {
     this.coreColor = Colors.white,
     this.seams = false,
     this.soccer = false,
+    this.sprite,
+    this.tintSprite = false,
+    this.weight = 1,
   });
 }
 
@@ -148,11 +157,28 @@ class WorldData {
       taglineKey: 'world_cyber_tagline',
       layoutId: 'zone_1_classic',
       rankingMapId: 'cyber',
+      // 운석 4종(2026-10-12) — 작을수록 많고 빠르며, 큰 것은 드물고 느리다. 평균 판정 크기는 예전 탄(3.5)과 비슷하게.
+      // 판정(radius)은 그림보다 작다 — 그림에는 빛 번짐 여백이 있고, 울퉁불퉁한 돌의 바깥 모서리에 스쳐도 맞지 않게
       projectiles: [
         ProjectileDef(
-          id: 'bullet', nameKey: 'proj_cyber_bullet',
-          speedMult: 1.0, radius: 3.5, visualSize: 9,
-          color: Color(0xFFD32F2F),
+          id: 'pebble', nameKey: 'proj_cyber_bullet',
+          speedMult: 1.1, radius: 2.8, visualSize: 13,
+          color: Color(0xFFD32F2F), sprite: 'meteor_1', weight: 4,
+        ),
+        ProjectileDef(
+          id: 'rock', nameKey: 'proj_cyber_bullet',
+          speedMult: 1.0, radius: 3.2, visualSize: 16,
+          color: Color(0xFFD32F2F), sprite: 'meteor_2', weight: 4,
+        ),
+        ProjectileDef(
+          id: 'crag', nameKey: 'proj_cyber_bullet',
+          speedMult: 0.9, radius: 4.5, visualSize: 20,
+          color: Color(0xFFD32F2F), sprite: 'meteor_3', weight: 2,
+        ),
+        ProjectileDef(
+          id: 'boulder', nameKey: 'proj_cyber_bullet',
+          speedMult: 0.75, radius: 6.5, visualSize: 29,
+          color: Color(0xFFD32F2F), sprite: 'meteor_4', weight: 1,
         ),
       ],
       spawner: SpawnStrategy.ring,
@@ -174,13 +200,13 @@ class WorldData {
           id: 'ball', nameKey: 'proj_dodgeball_ball',
           speedMult: 1.0, radius: 8, visualSize: 22,
           // 노란 피구공 + 빨간 띠 (놀이터 피구공, 피구왕 통키 참고)
-          color: Color(0xFFFFC928), seams: true,
+          color: Color(0xFFFFC928), seams: true, sprite: 'ball_dodge',
         ),
         ProjectileDef(
           id: 'fast', nameKey: 'proj_dodgeball_fast',
           speedMult: 1.35, radius: 7, visualSize: 18,
           // 빠른 공 — 주황 + 띠 (노란 기본 공과 한눈에 구분). 외야 패스 뒤 속공도 이 공
-          color: Color(0xFFFF7A1A), seams: true,
+          color: Color(0xFFFF7A1A), seams: true, sprite: 'ball_dodge_fast',
         ),
       ],
       // 턴 간격·속도·패턴은 레벨로 정한다(lib/balance.dart · _DodgeballThrower)
@@ -207,40 +233,40 @@ class WorldData {
         ProjectileDef(
           id: 'shot', nameKey: 'proj_keeper_shot',
           speedMult: 1.0, radius: 7, visualSize: 19,
-          color: Color(0xFFF4F6F8), soccer: true,
+          color: Color(0xFFF4F6F8), soccer: true, sprite: 'ball_soccer',
         ),
         // 강슛 — 노란 축구공, 빠르다
         ProjectileDef(
           id: 'power', nameKey: 'proj_keeper_power',
           speedMult: 1.35, radius: 7, visualSize: 19,
-          color: Color(0xFFFFD23F), soccer: true,
+          color: Color(0xFFFFD23F), soccer: true, sprite: 'ball_soccer_power',
         ),
         // 바나나킥 — 하늘색 축구공, 휘어 들어온다(슈터가 휘는 만큼 반대로 겨눠 찬다)
         ProjectileDef(
           id: 'curve', nameKey: 'proj_keeper_curve',
           speedMult: 1.0, radius: 7, visualSize: 19,
           motion: ProjectileMotion.curve, lateralAccel: 110,
-          color: Color(0xFFBDE3FF), soccer: true,
+          color: Color(0xFFBDE3FF), soccer: true, sprite: 'ball_soccer', tintSprite: true,
         ),
         // 꼬불꼬불 슛 — 분홍 축구공, 좌우로 흔들리며 온다(2026-10-12 흔들림 폭 34 → 24px)
         ProjectileDef(
           id: 'wave', nameKey: 'proj_keeper_wave',
           speedMult: 0.9, radius: 7, visualSize: 19,
           motion: ProjectileMotion.wave, waveAmp: 24, waveHz: 1.6,
-          color: Color(0xFFFFB8D9), soccer: true,
+          color: Color(0xFFFFB8D9), soccer: true, sprite: 'ball_soccer', tintSprite: true,
         ),
         // 총알슛 — 주황 축구공 + 꼬리, 아주 빠르다
         ProjectileDef(
           id: 'bullet', nameKey: 'proj_keeper_bullet',
           speedMult: 1.6, radius: 7, visualSize: 18,
-          color: Color(0xFFFF8A3D), soccer: true, trail: true,
+          color: Color(0xFFFF8A3D), soccer: true, trail: true, sprite: 'ball_soccer', tintSprite: true,
         ),
         // 무회전 — 보라 축구공, 돌지 않고 어디로 휠지 모르게 흔들린다
         ProjectileDef(
           id: 'knuckle', nameKey: 'proj_keeper_knuckle',
           speedMult: 1.0, radius: 7, visualSize: 19,
           motion: ProjectileMotion.knuckle, waveAmp: 150,
-          color: Color(0xFFD9CCFF), soccer: true,
+          color: Color(0xFFD9CCFF), soccer: true, sprite: 'ball_soccer', tintSprite: true,
         ),
       ],
       // 페널티킥형 — 골문·슈터·턴·속도는 KeeperGoal / _KeeperShooter 가 정한다(goalRadius·spawnRadius 미사용)

@@ -17,6 +17,7 @@ import 'daily_rewards.dart';
 import 'badges.dart';
 import 'promotions.dart';
 import 'services/auth_service.dart';
+import 'app_release.dart';
 
 class UserProfileManager {
   static const String _keyNickname = 'user_nickname';
@@ -207,6 +208,7 @@ class UserProfileManager {
             await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
               'platform': _getCurrentPlatform(),
               'loginProvider': _getLoginProvider(user),
+              ...?AppVersion.current?.fields, // appVersion · appBuild — 백오피스에서 옛 버전 사용자 구분
               'lastUpdated': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
           } catch (e) {
@@ -393,6 +395,7 @@ class UserProfileManager {
           'countryTickets': prefs.getInt(_keyCountryTicket) ?? 0,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
+          ...?AppVersion.current?.fields,
           'lastUpdated': FieldValue.serverTimestamp(),
         };
         if (!existingDoc.exists || (existingDoc.data() as Map?)?.containsKey('createdAt') != true) {
@@ -605,6 +608,7 @@ class UserProfileManager {
           'characterPlayCounts': characterCounts,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
+          ...?AppVersion.current?.fields,
           'lastUpdated': FieldValue.serverTimestamp(),
         };
         final docSnap = await docRef.get();
@@ -644,8 +648,11 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
   final TextEditingController _nicknameController = TextEditingController();
   String _selectedFlag = '';
   String _selectedCountryName = '';
+  /// 저장 중 — 두 번 눌러도 한 번만
+  bool _saving = false;
 
   Future<void> _saveAndContinue() async {
+    if (_saving) return;
     if (_nicknameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -659,17 +666,24 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
       return;
     }
 
+    _saving = true;
+    try {
+      // 저장이 끝날 때까지 스피너
+      await runBusy(context, () async {
+        // Grant Initial Tickets (1 of each)
+        await UserProfileManager.setNicknameTickets(1);
+        await UserProfileManager.setCountryTickets(1);
 
-    // Grant Initial Tickets (1 of each)
-    await UserProfileManager.setNicknameTickets(1);
-    await UserProfileManager.setCountryTickets(1);
-
-    await UserProfileManager.saveProfile(
-      _nicknameController.text.trim(),
-      _selectedFlag,
-      _selectedCountryName,
-    );
-    await UserProfileManager.markInitialSetupDone();
+        await UserProfileManager.saveProfile(
+          _nicknameController.text.trim(),
+          _selectedFlag,
+          _selectedCountryName,
+        );
+        await UserProfileManager.markInitialSetupDone();
+      });
+    } finally {
+      _saving = false;
+    }
     widget.onComplete();
   }
 

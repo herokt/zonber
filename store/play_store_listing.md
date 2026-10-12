@@ -1,4 +1,4 @@
-# ZONBER — Google Play 스토어 등록 정보 (2.0.5)
+# ZONBER — Google Play 스토어 등록 정보 (2.1.0)
 
 Play Console › 성장 › 스토어 등록정보 › 기본 스토어 등록정보(언어별 번역 추가)에 붙여 넣는다. 괄호 안은 글자 수 제한.
 App Store 문구(`app_store_listing.md`)를 Play 칸에 맞춰 옮긴 것 — Play 에는 부제·프로모션 텍스트·키워드 칸이 없고
@@ -43,7 +43,7 @@ ZONBER: 탄막 피하기 생존게임
 손가락 하나로 끌면 존버가 그대로 따라 움직입니다. 조작은 그게 전부인데, 버틴 시간은 1초, 1초가 소중해집니다.
 
 ■ 3개의 존, 3가지 생존법
-• 갤럭시 — 깊은 우주, 사방에서 탄막이 쏟아집니다. 오리지널 ZONBER.
+• 갤럭시 — 깊은 우주, 크고 작은 운석이 사방에서 쏟아집니다. 오리지널 ZONBER.
 • 피구 — 상대 코트에서 한 턴에 한 번, 나를 향해 던집니다. 공이 갈라지고, 나란히 오고, 점점 빨라집니다.
 • 프리킥 — 페널티 박스를 지키며 슛을 막으세요. 감아차기, 총알슛, 무회전까지 날아옵니다.
 
@@ -53,8 +53,9 @@ ZONBER: 탄막 피하기 생존게임
 • 랭킹에서 다른 플레이어를 누르면 프로필과 기록을 볼 수 있습니다
 
 ■ 나만의 존버 꾸미기
-• 캐릭터 8종, 몸통 스킨 12종, 이동 잔상 10종, 오라 10종
-• 존마다 다른 장비 53종 — 미리 입어 보고 고르세요
+• 펫 6종 — 캐릭터 둘레를 돌며 날아오는 탄과 공을 바깥으로 쳐내 줍니다
+• 캐릭터 8종, 몸통 스킨 14종, 이동 잔상 12종, 오라 12종
+• 존마다 다른 장비 63종 — 비쌀수록 능력치(속도·무적·회복·막는 범위·코인)가 높아집니다
 • 버틴 시간만큼 코인이 쌓입니다
 
 ■ 뱃지·미션
@@ -74,14 +75,13 @@ ZONBER: 탄막 피하기 생존게임
 오늘 기록, 어제보다 1초만 더 버텨 보세요.
 
 ### 출시 노트 (500)
-ZONBER 2.0.5
-• 이벤트·소식 알림 — 새 이벤트와 선물 소식을 알려 드려요(설정에서 끌 수 있어요)
-• 기록 자랑이 그림으로 — 결과 카드를 이미지로 공유해요
-• 친구 코드가 링크에 담겨요 — 받은 친구는 설치 버튼만 누르면 코드가 복사돼요
-• 주간 알림 — 일주일 동안 쉬었을 때만 한 번 알려 드려요(설정에서 끌 수 있어요)
-• 중·후반 난이도 완화 — 레벨이 올라도 공·탄 속도가 덜 가파르게 빨라져요
-• 게스트 결과 화면에 로그인 선물 안내
-• 작은 개선과 버그 수정
+ZONBER 2.1.0
+• 펫 6종 등장 — 캐릭터 둘레를 돌며 탄과 공을 바깥으로 쳐내 줘요
+• 갤럭시가 운석 지대로 — 크기가 다른 운석 4종
+• 피구·골키퍼 상대 팀과 공, 스테이지 배너를 새로 그렸어요
+• 장비·꾸미기 대부분에 능력치, 새 아이템 추가
+• 게임 오버 연출·로딩 화면이 부드러워졌어요
+• 새 버전이 나오면 앱에서 알려 드려요
 
 ---
 
@@ -98,7 +98,7 @@ Stay inside a tight zone, dodge everything thrown at you, and survive as long as
 Drag with one finger and your Zonber follows exactly. That's the whole control scheme — and every extra second counts.
 
 ■ 3 ZONES, 3 WAYS TO SURVIVE
-• Galaxy — Deep space, bullets from every side. The original ZONBER.
+• Galaxy — Deep space, meteors big and small from every side. The original ZONBER.
 • Dodgeball — One throw a turn, right at you. Balls split, line up and get faster.
 • FreeKick — Guard the penalty box and stop the shots: curlers, rockets and knuckleballs.
 
@@ -108,8 +108,9 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • Tap any player in the rankings to see their profile and records
 
 ■ DRESS UP YOUR ZONBER
-• 8 characters, 12 body skins, 10 trails and 10 auras
-• 53 pieces of gear made for each zone — try them on before you pick
+• 6 pets that orbit your Zonber and knock incoming bullets and balls away
+• 8 characters, 14 body skins, 12 trails and 12 auras
+• 63 pieces of gear for each zone — pricier gear gives bigger stats (speed, invincibility, recovery, reach, coins)
 • Earn coins for every second you survive
 
 ■ BADGES & MISSIONS
@@ -129,14 +130,13 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 Beat yesterday by just one more second.
 
 ### Release notes (500)
-ZONBER 2.0.5
-• Event & news alerts — hear about new events and gifts (turn off in Settings)
-• Brag with a picture — share your results card as an image
-• Friend codes ride along in your link — friends just tap install and the code is copied
-• Weekly reminder — only once, if you've been away for a week (turn it off in Settings)
-• Smoother mid/late game — balls and bullets speed up more gently at higher levels
-• Guests see the login gift on the results screen
-• Small improvements and bug fixes
+ZONBER 2.1.0
+• 6 pets that orbit you and knock bullets and balls away
+• Galaxy is now a meteor field — 4 meteor sizes
+• New art for rival teams, balls and stage banners
+• Most gear and cosmetics now have stats, plus new items
+• Smoother game-over and loading screens
+• The app tells you when a new version is out
 
 ---
 
@@ -153,7 +153,7 @@ ZONBER: 弾幕よけサバイバル
 指1本でドラッグすれば、ZONBERがそのままついてくる。操作はそれだけ。だからこそ、1秒1秒が大切になる。
 
 ■ 3つのゾーン、3つの生き残り方
-• ギャラクシー — 深い宇宙、四方から弾幕が降りそそぐ。オリジナルのZONBER。
+• ギャラクシー — 深い宇宙、大小の隕石が四方から降りそそぐ。オリジナルのZONBER。
 • ドッジボール — 相手コートから1ターンに1球、まっすぐあなたへ。分裂し、並んで飛び、どんどん速くなる。
 • フリーキック — ペナルティエリアを守ってシュートを止めろ。カーブ、ロケット、そして無回転。
 
@@ -163,8 +163,9 @@ ZONBER: 弾幕よけサバイバル
 • ランキングでプレイヤーをタップすると、プロフィールと記録が見られる
 
 ■ 自分だけのZONBERに
-• キャラクター8種、ボディスキン12種、トレイル10種、オーラ10種
-• ゾーンごとの装備53種 — 試着してから選べる
+• ペット6種 — キャラのまわりを回って、飛んでくる弾やボールを外へはじく
+• キャラクター8種、ボディスキン14種、トレイル12種、オーラ12種
+• ゾーンごとの装備63種 — 高いほど能力値（速さ・無敵・回復・守備範囲・コイン）がアップ
 • 生き残った時間に応じてコインが貯まる
 
 ■ バッジとミッション
@@ -184,14 +185,13 @@ ZONBER: 弾幕よけサバイバル
 昨日より、あと1秒だけ長く。
 
 ### リリースノート (500)
-ZONBER 2.0.5
-• イベント・お知らせ通知 — 新しいイベントやギフトをお知らせ（設定でオフにできます）
-• 記録自慢が画像に — 結果カードを画像でシェア
-• フレンドコードがリンクに — 友だちはインストールボタンを押すだけでコードがコピーされる
-• 週間リマインダー — 1週間遊んでいないときだけ1回お知らせ（設定でオフにできます）
-• 中盤・終盤の難易度を緩和 — レベルが上がってもボールと弾の速さがゆるやかに上がる
-• ゲストの結果画面にログインギフトの案内
-• 細かな改善と不具合の修正
+ZONBER 2.1.0
+• ペット6種登場 — まわりを回って弾やボールを外へはじく
+• ギャラクシーが隕石ゾーンに — 大きさの違う隕石4種
+• 相手チーム・ボール・ステージバナーを描き直し
+• 装備・着せ替えの多くに能力値、新アイテム追加
+• ゲームオーバー演出とロード画面がなめらかに
+• 新バージョンが出たらアプリでお知らせ
 
 ---
 
@@ -208,7 +208,7 @@ ZONBER：躲弹幕生存挑战
 一根手指拖动，ZONBER 就会紧紧跟随。操作只有这么简单——正因如此，每多坚持一秒都弥足珍贵。
 
 ■ 三个区域，三种生存方式
-• 银河 — 深空之中，弹幕四面袭来。原版 ZONBER。
+• 银河 — 深空之中，大大小小的陨石四面袭来。原版 ZONBER。
 • 躲避球 — 对手每回合一球，直冲你来。球会分裂、并排飞来，而且越来越快。
 • 任意球 — 守住禁区，挡住射门：弧线球、火箭球，还有电梯球。
 
@@ -218,8 +218,9 @@ ZONBER：躲弹幕生存挑战
 • 在排行榜中点击玩家，即可查看其资料与记录
 
 ■ 打造你的 ZONBER
-• 8个角色、12款身体皮肤、10种拖尾、10种光环
-• 每个区域专属装备53件——先试穿再选择
+• 6种宠物——围着角色转圈，把飞来的子弹和球弹开
+• 8个角色、14款身体皮肤、12种拖尾、12种光环
+• 每个区域专属装备63件——越贵属性越高（速度、无敌、回复、守备范围、金币）
 • 坚持越久，金币越多
 
 ■ 徽章与任务
@@ -239,11 +240,10 @@ ZONBER：躲弹幕生存挑战
 今天，比昨天多坚持一秒。
 
 ### 版本说明 (500)
-ZONBER 2.0.5
-• 活动与消息通知——新活动和礼物第一时间告诉你（可在设置中关闭）
-• 炫耀成绩更直观——结算卡片以图片分享
-• 好友码随链接一起发送——好友点安装即可自动复制好友码
-• 每周提醒——一周没玩时才提醒一次（可在设置中关闭）
-• 中后期难度更平缓——等级越高，球和子弹的提速更温和
-• 游客结算画面显示登录礼物提示
-• 细节优化与问题修复
+ZONBER 2.1.0
+• 6种宠物登场——围着你转圈，把子弹和球弹开
+• 银河变成陨石带——4种大小的陨石
+• 重新绘制对手队伍、球和关卡横幅
+• 大部分装备和装扮都有属性，新增道具
+• 游戏结束动画和加载画面更流畅
+• 有新版本时会在应用内提醒你

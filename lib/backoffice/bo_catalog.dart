@@ -5,6 +5,7 @@ import '../badges.dart';
 import '../character_data.dart';
 import '../cosmetics.dart';
 import '../gear.dart';
+import '../pets.dart';
 import '../translations.dart';
 import '../world_config.dart';
 
@@ -113,7 +114,7 @@ List<BoCosmetic> get kCosmetics => [
         BoCosmetic(c.id, c.kind.name, koName(c.nameKey).isEmpty ? c.id : koName(c.nameKey), c.price),
     ];
 
-const Map<String, String> kCosmeticKindNames = {'skin': '몸통 스킨', 'trail': '트레일', 'aura': '오라'};
+const Map<String, String> kCosmeticKindNames = {'skin': '몸통 스킨', 'trail': '트레일', 'aura': '오라', 'pet': '펫'};
 
 const Map<GearSlot, String> kSlotNames = {
   GearSlot.head: '머리',
@@ -135,6 +136,7 @@ String itemName(String id) {
   if (Gear.byId(id) != null) return gearName(id);
   final c = cosmeticById(id);
   if (c != null) return c.name;
+  if (Pets.byId(id) != null) return '펫 ${koName(id).isEmpty ? id : koName(id)}';
   return id;
 }
 
@@ -145,6 +147,7 @@ String itemGroup(String id) {
   if (g != null) return 'gear:${g.zone}';
   final c = cosmeticById(id);
   if (c != null) return c.kind;
+  if (Pets.byId(id) != null) return 'pet';
   return 'etc';
 }
 
@@ -159,6 +162,7 @@ List<String> allGrantableItems() => [
       for (final c in kCharIds) 'char_$c',
       for (final g in Gear.all) g.id,
       for (final c in Cosmetics.all) c.id,
+      for (final p in Pets.all) p.id,
     ];
 
 // ── 뱃지 ──

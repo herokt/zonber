@@ -71,7 +71,9 @@ class _ResultPageState extends State<ResultPage> {
   void _doubleCoins(LanguageManager lm) {
     if (_coinsDoubled || _coinsEarned <= 0) return;
     final shown = AdManager().showRewardedAd(() async {
-      await CoinStore.add(_coinsEarned, source: 'ad_double');
+      // 코인 주는 동안 스피너 — 화면을 벗어났어도 코인은 준다
+      Future<void> grant() => CoinStore.add(_coinsEarned, source: 'ad_double');
+      await (mounted ? runBusy(context, grant) : grant());
       if (mounted) setState(() => _coinsDoubled = true);
     });
     if (!shown && mounted) {
@@ -399,7 +401,7 @@ class _ResultPageState extends State<ResultPage> {
     if (_rankLoading) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [label, const Spacer(), SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: accent)), const Spacer()],
+        children: [label, const Spacer(), AppSpinner(size: 22, stroke: 2, color: accent), const Spacer()],
       );
     }
     return Column(
@@ -498,7 +500,7 @@ class _ResultPageState extends State<ResultPage> {
   /// 공유하면 이벤트의 공유 보상(하루 한 번)도 여기서 받는다
   Future<void> _share(Rect? origin) async {
     if (_sharing) return;
-    _sharing = true;
+    setState(() => _sharing = true);
     final lm = LanguageManager.of(context, listen: false);
     final messenger = ScaffoldMessenger.of(context);
     void toast(String msg) => messenger.showSnackBar(SnackBar(content: Text(msg)));
@@ -536,7 +538,11 @@ class _ResultPageState extends State<ResultPage> {
         toast(lm.translate('promo_code_got').replaceAll('{reward}', rewardText(lm, got.coins, got.items)));
       }
     } finally {
-      _sharing = false;
+      if (mounted) {
+        setState(() => _sharing = false);
+      } else {
+        _sharing = false;
+      }
     }
   }
 
@@ -654,7 +660,15 @@ class _ResultPageState extends State<ResultPage> {
                 fontSize: 18,
               ),
               const SizedBox(height: 10),
-              // 자랑하기 — 신기록이면 강조색으로
+              // 자랑하기 — 신기록이면 강조색으로. 공유하는 동안은 같은 자리에 스피너
+              if (_sharing)
+                Container(
+                  height: 44, // NeonButton(isCompact) 과 같은 크기
+                  decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(12)),
+                  alignment: Alignment.center,
+                  child: AppSpinner(size: 20, color: isBest && !_isGuest ? accent : AppColors.text),
+                )
+              else
               Builder(
                 builder: (b) => NeonButton(
                   text: lm.translate('result_share'),
@@ -731,7 +745,7 @@ class _ResultPageState extends State<ResultPage> {
       child: _rankLoading
           ? SizedBox(
               height: 64,
-              child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: accent))),
+              child: Center(child: AppSpinner(size: 20, stroke: 2, color: accent)),
             )
           : _guestRank(lm, accent),
     );

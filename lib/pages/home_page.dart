@@ -9,6 +9,7 @@ import '../language_manager.dart';
 import '../progress_store.dart';
 import '../ranking_system.dart';
 import '../services/auth_service.dart';
+import '../services/update_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
 import '../daily_rewards.dart';
@@ -55,7 +56,7 @@ class HomePage extends StatefulWidget {
 /// 그 존의 1위 기록 — 세계와 내 국가
 typedef _TopTimes = ({double? world, double? nation});
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late final PageController _pager;
   Map<String, String> _profile = {};
   /// 내 아바타 — 고른 캐릭터 + 지금 착용 중인 스킨·장비(avatar.dart)
@@ -64,6 +65,8 @@ class _HomePageState extends State<HomePage> {
 
   /// 존별 1위 기록 캐시(이 화면이 떠 있는 동안) — 내 기록과 견줘 보라고 카드에 같이 적는다
   final Map<String, _TopTimes> _tops = {};
+  /// 1위 기록을 읽는 중인 존 — 그동안 카드에 작은 스피너('—' 는 기록이 없을 때만)
+  final Set<String> _topsLoading = {};
 
   @override
   void initState() {
@@ -72,7 +75,10 @@ class _HomePageState extends State<HomePage> {
     // 안 읽은 알림 수(종 아이콘 점) — 첫 프레임 뒤 언어를 읽어서
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) Inbox.refreshUnread(lang: LanguageManager.of(context, listen: false).currentLanguage);
+      // 새 버전 안내 — 백오피스 › 앱 버전 보다 낮으면(services/update_service.dart). 첫 홈 · 앱 복귀 때만
+      if (mounted) UpdateService.maybePrompt(context);
     });
+    WidgetsBinding.instance.addObserver(this);
     _index = WorldData.worlds.indexWhere((w) => w.id == widget.selectedWorldId);
     if (_index < 0) _index = 0;
     _pager = PageController(initialPage: _index, viewportFraction: 0.9);
@@ -84,6 +90,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadTops(String worldId) async {
     if (_tops.containsKey(worldId)) return;
     _tops[worldId] = (world: null, nation: null); // 중복 요청 방지
+    _topsLoading.add(worldId);
     final world = WorldData.getWorld(worldId);
     final ranking = RankingSystem();
     final flag = _profile['flag'] ?? '';
@@ -97,6 +104,7 @@ class _HomePageState extends State<HomePage> {
         world: top.isEmpty ? null : top.first,
         nation: nat.isEmpty ? null : ((nat.first['survivalTime'] as num?) ?? 0).toDouble(),
       );
+      _topsLoading.remove(worldId);
     });
   }
 
@@ -115,8 +123,14 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pager.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) UpdateService.maybePrompt(context, resumed: true);
   }
 
   bool get _isGuest => AuthService.isGuest;
@@ -321,6 +335,7 @@ class _HomePageState extends State<HomePage> {
                 best: widget.bestTimes[w.id],
                 rank: widget.rankCache[w.id],
                 top: _tops[w.id],
+                topLoading: _topsLoading.contains(w.id),
                 myFlag: _profile['flag'] ?? '',
               ),
             ),
@@ -431,9 +446,11 @@ class _WorldCard extends StatelessWidget {
   final RankCacheEntry? rank;
   /// 그 존의 1위 기록(세계·내 국가) — 내 기록과 견줘 본다
   final _TopTimes? top;
+  /// 1위 기록을 읽는 중 — 값 자리에 스피너
+  final bool topLoading;
   final String myFlag;
   const _WorldCard(
-      {required this.world, required this.unlocked, this.best, this.rank, this.top, this.myFlag = ''});
+      {required this.world, required this.unlocked, this.best, this.rank, this.top, this.topLoading = false, this.myFlag = ''});
 
   /// 신기록 한 줄 — 라벨 + 시간. 시간은 늘 소수점 셋째 자리까지라 **칸 너비를 고정**해
   /// 두 줄의 숫자가 맞게 떨어진다(기록이 없어 '—' 여도 자리를 지킨다)
@@ -445,11 +462,13 @@ class _WorldCard extends StatelessWidget {
           const SizedBox(width: 6),
           SizedBox(
             width: 62,
-            child: Text(
-              time == null ? '—' : '${formatSurvival(time)}s',
-              textAlign: TextAlign.right,
-              style: AppTextStyles.display(12, color: AppColors.textDim),
-            ),
+            child: topLoading
+                ? Align(alignment: Alignment.centerRight, child: AppSpinner(size: 14, stroke: 2, color: AppColors.textDim))
+                : Text(
+                    time == null ? '—' : '${formatSurvival(time)}s',
+                    textAlign: TextAlign.right,
+                    style: AppTextStyles.display(12, color: AppColors.textDim),
+                  ),
           ),
         ],
       );

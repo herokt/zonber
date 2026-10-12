@@ -29,17 +29,18 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     final credential = await _authService.signInWithGoogle();
-    setState(() => _isLoading = false);
 
     if (credential != null) {
       // Sync existing profile from Firestore (returning user).
       // Do NOT auto-create a profile here — let _checkProfile() route to
       // InitialSetupPage if no profile exists, so the user can pick a country.
+      // 스피너는 그대로 — 동기화가 끝나고 화면이 바뀔 때까지
       await UserProfileManager.syncProfile();
       AnalyticsService().logLogin('google', isNewUser: credential.additionalUserInfo?.isNewUser ?? false);
 
       widget.onLoginSuccess();
     } else {
+      if (mounted) setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Google Sign In failed or cancelled')),
@@ -51,7 +52,6 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleAppleSignIn() async {
     setState(() => _isLoading = true);
     final result = await _authService.signInWithApple();
-    setState(() => _isLoading = false);
 
     if (result != null) {
       final credential = result['credential'] as UserCredential?;
@@ -60,12 +60,16 @@ class _LoginPageState extends State<LoginPage> {
         // Sync existing profile from Firestore (returning user).
         // Do NOT auto-create a profile here — let _checkProfile() route to
         // InitialSetupPage if no profile exists, so the user can pick a country.
+        // 스피너는 그대로 — 동기화가 끝나고 화면이 바뀔 때까지
         await UserProfileManager.syncProfile();
         AnalyticsService().logLogin('apple', isNewUser: credential.additionalUserInfo?.isNewUser ?? false);
 
         widget.onLoginSuccess();
+      } else {
+        if (mounted) setState(() => _isLoading = false);
       }
     } else {
+      if (mounted) setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Apple Sign In failed or cancelled')),
@@ -107,7 +111,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 60),
               if (_isLoading)
-                CircularProgressIndicator(color: AppColors.primary)
+                const AppSpinner(size: 36, stroke: 3.4)
               else ...[
                 _buildLoginButton(
                   LanguageManager.of(context).translate('signin_google'),

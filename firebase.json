@@ -25,7 +25,7 @@
             },
             {
                 "source": "/",
-                "destination": "/secret_admin/",
+                "destination": "/support/",
                 "type": 302
             }
         ],

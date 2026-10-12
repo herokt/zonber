@@ -209,7 +209,7 @@ class _PromoPageState extends State<PromoPage> {
     }
     if (_busy) return;
     setState(() => _busy = true);
-    final ok = await PromoService.claim(p);
+    final ok = await runBusy(context, () => PromoService.claim(p)); // 받는 동안 스피너
     if (!mounted) return;
     setState(() => _busy = false);
     if (!ok) {
@@ -260,7 +260,7 @@ class _PromoPageState extends State<PromoPage> {
     final lm = LanguageManager.of(context, listen: false);
     if (_code.text.trim().isEmpty || _busy) return;
     setState(() => _busy = true);
-    final (result, pc) = await PromoService.redeem(_code.text);
+    final (result, pc) = await runBusy(context, () => PromoService.redeem(_code.text)); // 확인하는 동안 스피너
     if (!mounted) return;
     setState(() => _busy = false);
     if (result == RedeemResult.ok && pc != null) {
@@ -305,7 +305,7 @@ class _PromoPageState extends State<PromoPage> {
         children: [
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const AppLoading()
                 : _live.isEmpty
                     ? Center(child: Text(lm.translate('promo_none'), style: AppTextStyles.text(13, color: AppColors.textDim)))
                     : ListView.separated(

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:zonber/app_release.dart';
 import 'package:zonber/avatar.dart';
 import 'package:zonber/badges.dart';
 import 'package:zonber/balance.dart';
@@ -16,6 +17,8 @@ import 'package:zonber/inbox.dart';
 import 'package:zonber/promotions.dart';
 import 'package:zonber/push.dart';
 import 'package:zonber/gear.dart';
+import 'package:zonber/loadout.dart';
+import 'package:zonber/pets.dart';
 import 'package:zonber/season.dart';
 import 'package:zonber/services/auth_service.dart';
 import 'package:zonber/services/share_service.dart';
@@ -76,6 +79,29 @@ void main() {
     test('난이도 1~3 순서', () {
       expect([for (final w in WorldData.worlds) w.difficulty], [1, 2, 3]);
     });
+    test('시안 아트 — 탄·공 그림 파일이 있고, 판정은 그림보다 작다', () {
+      for (final w in WorldData.worlds) {
+        for (final p in w.projectiles) {
+          expect(p.weight, greaterThan(0), reason: '${w.id}/${p.id}');
+          expect(p.radius * 2, lessThanOrEqualTo(p.visualSize), reason: '${w.id}/${p.id}');
+          if (p.sprite != null) {
+            expect(File('assets/images/sprites/${p.sprite}.png').existsSync(), isTrue, reason: p.sprite);
+          }
+        }
+      }
+      for (final n in ['rival_ready', 'rival_throw', 'rival_smirk', 'rival_cap', 'shooter_ready', 'shooter_kick', 'shooter_captain', 'shooter_point',
+        for (final p in Pets.all) p.id]) {
+        expect(File('assets/images/sprites/$n.png').existsSync(), isTrue, reason: n);
+      }
+    });
+    test('갤럭시 운석 — 평균 판정·속도는 예전 탄(반지름 3.5 · 배수 1.0)과 비슷하다', () {
+      final defs = WorldData.getWorld('cyber').projectiles;
+      final total = defs.fold<int>(0, (s, d) => s + d.weight);
+      final r = defs.fold<double>(0, (s, d) => s + d.radius * d.weight) / total;
+      final v = defs.fold<double>(0, (s, d) => s + d.speedMult * d.weight) / total;
+      expect(r, closeTo(3.5, 0.2));
+      expect(v, closeTo(1.0, 0.03));
+    });
   });
 
   group('장비', () {
@@ -97,9 +123,9 @@ void main() {
         if (g.price == 0 && g.needsBadge == null) expect(g.bonus.isZero, isTrue, reason: g.id);
       }
     });
-    test('능력치는 작다(속도 6% · 회복 3초 · 무적 0.3초 · 범위 5 이하)', () {
+    test('능력치는 작다(속도 7% · 회복 3초 · 무적 0.3초 · 범위 5 이하)', () {
       for (final g in Gear.all) {
-        expect(g.bonus.speed, lessThanOrEqualTo(0.06), reason: g.id);
+        expect(g.bonus.speed, lessThanOrEqualTo(0.07), reason: g.id);
         expect(g.bonus.recovery, lessThanOrEqualTo(3), reason: g.id);
         expect(g.bonus.iframe, lessThanOrEqualTo(0.3), reason: g.id);
         expect(g.bonus.reach, lessThanOrEqualTo(5), reason: g.id);
@@ -113,6 +139,108 @@ void main() {
     test('능력치 라벨', () {
       expect(const GearBonus(speed: 0.05).labels, [('bonus_speed', '5')]);
       expect(const GearBonus(reach: 3).labels, [('bonus_reach', '3')]);
+      expect(const GearBonus(iframe: 0.05, recovery: 2.5).labels, [('bonus_recovery', '2.5'), ('bonus_iframe', '0.05')]);
+    });
+    test('존에 맞춘 능력치 — 골키퍼는 무적·회복이 막는 범위로, 피하기 존은 범위가 빠진다', () {
+      const b = GearBonus(energy: 1, speed: 0.02, recovery: 1, iframe: 0.1, reach: 2, coin: 0.05);
+      final k = b.adapt(keeper: true);
+      expect(k.energy, 0);
+      expect(k.iframe, 0);
+      expect(k.recovery, 0);
+      expect(k.reach, closeTo(2 + 0.1 * GearBonus.keeperReachPerIframe + 1 * GearBonus.keeperReachPerRecovery, 1e-9));
+      expect(k.speed, 0.02);
+      expect(k.coin, 0.05);
+      final d = b.adapt(keeper: false);
+      expect(d.reach, 0);
+      expect((d.energy, d.recovery, d.iframe), (1, 1.0, 0.1));
+    });
+  });
+
+  group('앱 버전 · 업데이트 안내', () {
+    test('스토어 빌드보다 낮으면 안내, 필수 빌드보다 낮으면 필수', () {
+      const r = PlatformRelease(version: '2.1.0', build: 210, minBuild: 205);
+      expect(r.needFor(210), UpdateNeed.none);
+      expect(r.needFor(211), UpdateNeed.none); // 더 새 빌드(심사 중인 앱 등)
+      expect(r.needFor(209), UpdateNeed.optional);
+      expect(r.needFor(204), UpdateNeed.required);
+      expect(r.needFor(0), UpdateNeed.none); // 버전을 못 읽었으면 묻지 않는다
+      expect(const PlatformRelease(version: '2.1.0', build: 210).needFor(100), UpdateNeed.optional); // 필수 없음
+    });
+    test('문서 읽기 — 빈 칸·잘못된 값은 안내하지 않는다', () {
+      final a = AppRelease.fromMap({
+        'android': {'version': '2.1.0', 'build': 210, 'minBuild': 0},
+        'ios': {'version': '', 'build': 0},
+      });
+      expect(a.of('android')?.build, 210);
+      expect(a.of('ios'), isNull);
+      expect(a.of('web'), isNull);
+      expect(AppRelease.fromMap(null).android, isNull);
+      expect(const PlatformRelease(version: 'x', build: 3, minBuild: 1).toMap(), {'version': 'x', 'build': 3, 'minBuild': 1});
+    });
+    test('화면 표시 — v이름 (빌드)', () {
+      expect(const AppVersion('2.1.0', 210).label, 'v2.1.0 (210)');
+      expect(const AppVersion('2.1.0', 210).fields, {'appVersion': '2.1.0', 'appBuild': 210});
+      expect(const AppVersion('', 0).fields, isEmpty);
+    });
+    test('pubspec 버전이 이름+빌드 꼴', () {
+      final v = RegExp(r'^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$', multiLine: true).firstMatch(File('pubspec.yaml').readAsStringSync());
+      expect(v, isNotNull);
+      expect(int.parse(v!.group(2)!), greaterThan(208)); // 2.0.6+208 다음부터
+    });
+  });
+
+  group('착용 한 벌(Loadout)', () {
+    String Function(String, String) eq(Map<String, String> m) => (k, f) => m[k] ?? f;
+    test('장비 + 꾸미기를 합친다', () {
+      final e = eq({'gear_cyber_back': 'wings_star', 'skin': 'skin_cloud', 'trail': 'trail_sparkle', 'aura': 'aura_ring'});
+      final b = Loadout.bonusOf('cyber', e);
+      expect(b.speed, closeTo(0.02 + 0.01, 1e-9));
+      expect(b.iframe, closeTo(0.05, 1e-9));
+      expect(b.recovery, closeTo(0.5, 1e-9));
+    });
+    test('펫을 데리고 있으면 도는 오라는 없는 셈', () {
+      final withPet = eq({'aura': 'aura_star', Pets.slotKey: 'pet_star'});
+      expect(Loadout.auraOf(withPet), Cosmetics.defaultAura);
+      expect(Loadout.bonusOf('cyber', withPet).recovery, 0);
+      // 돌지 않는 오라는 펫과 같이 쓴다
+      final ring = eq({'aura': 'aura_ring', Pets.slotKey: 'pet_star'});
+      expect(Loadout.auraOf(ring), 'aura_ring');
+      // 펫이 없으면 도는 오라 그대로
+      expect(Loadout.auraOf(eq({'aura': 'aura_star'})), 'aura_star');
+    });
+    test('아무것도 안 입으면 0', () {
+      for (final w in WorldData.worlds) {
+        expect(Loadout.bonusOf(w.id, eq({})).isZero, isTrue, reason: w.id);
+      }
+    });
+  });
+
+  group('펫', () {
+    test('id 는 겹치지 않고 이름 번역이 있다', () {
+      final ids = Pets.all.map((p) => p.id).toList();
+      expect(ids.toSet().length, ids.length);
+      for (final p in Pets.all) {
+        for (final lang in ['en', 'ko', 'zh', 'ja']) {
+          expect(appTranslations[lang]![p.nameKey], isNotNull, reason: '$lang ${p.id}');
+        }
+      }
+    });
+    test('비쌀수록 세다 — 쉬는 시간 짧고 범위 넓다', () {
+      final list = [...Pets.all]..sort((a, b) => a.price.compareTo(b.price));
+      for (var i = 1; i < list.length; i++) {
+        expect(list[i].power.cooldown, lessThan(list[i - 1].power.cooldown), reason: list[i].id);
+        expect(list[i].power.reach, greaterThanOrEqualTo(list[i - 1].power.reach), reason: list[i].id);
+      }
+    });
+    test('쳐내는 범위가 캐릭터 몸(히트박스 반 11px)과 겹치지 않는다', () {
+      for (final p in Pets.all) {
+        expect(Pets.orbitRadius - p.power.reach, greaterThan(11), reason: p.id);
+      }
+    });
+    test('안 데리고 있거나 모르는 id 는 없음', () {
+      expect(Pets.worn((k, f) => f), isNull);
+      expect(Pets.worn((k, f) => 'no_such_pet'), isNull);
+      expect(Pets.worn((k, f) => k == Pets.slotKey ? 'pet_cat' : f)?.id, 'pet_cat');
     });
   });
 
@@ -152,6 +280,22 @@ void main() {
       expect(ids.toSet().length, ids.length);
       for (final k in CosmeticKind.values) {
         expect(Cosmetics.byId(Cosmetics.defaultOf(k))?.kind, k);
+      }
+    });
+    test('기본(무료)만 능력치가 없고 나머지는 다 있다', () {
+      for (final c in Cosmetics.all) {
+        expect(c.bonus.isZero, c.price == 0, reason: c.id);
+      }
+    });
+    test('종류마다 가장 비싼 것이 가장 싼 유료보다 세다', () {
+      double main(Cosmetic c) => switch (c.kind) {
+            CosmeticKind.skin => c.bonus.iframe,
+            CosmeticKind.trail => c.bonus.speed,
+            CosmeticKind.aura => c.bonus.recovery,
+          };
+      for (final k in CosmeticKind.values) {
+        final paid = Cosmetics.ofKind(k).where((c) => c.price > 0).toList()..sort((a, b) => a.price.compareTo(b.price));
+        expect(main(paid.last), greaterThan(main(paid.first)), reason: k.name);
       }
     });
   });

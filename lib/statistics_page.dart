@@ -90,7 +90,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
       showBackButton: true,
       onBack: widget.onBack,
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppLoading()
           : _totalGames == 0
               ? _empty(lm)
               : ListView(

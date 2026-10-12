@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../app_release.dart';
 import '../badges.dart';
 import '../gear.dart';
 import '../promotions.dart';
@@ -118,6 +119,13 @@ class MockSource implements BoSource {
         'countryName': country.$2,
         'loginProvider': provider,
         'platform': _pickW([('android', 55), ('ios', 35), ('web', 10)]),
+        // 앱 버전(2026-10-12 부터 기록) — 옛 문서엔 없다
+        ...switch (_r.nextInt(10)) {
+          < 4 => {'appVersion': '2.1.0', 'appBuild': 210},
+          < 7 => {'appVersion': '2.0.7', 'appBuild': 209},
+          < 8 => {'appVersion': '2.0.6', 'appBuild': 208},
+          _ => <String, dynamic>{},
+        },
         'characterId': ch,
         'createdAt': created,
         'lastUpdated': last,
@@ -419,6 +427,21 @@ class MockSource implements BoSource {
       results: const {'ko': 'ok projects/demo/messages/0'},
     ),
   ];
+
+  AppRelease _release = AppRelease(
+    android: const PlatformRelease(version: '2.1.0', build: 210),
+    ios: const PlatformRelease(version: '2.0.7', build: 209),
+    updatedAt: DateTime(2026, 10, 12, 15, 0),
+    updatedBy: 'preview@zonber.admin',
+  );
+
+  @override
+  Future<AppRelease> appRelease() => _later(() => _release);
+
+  @override
+  Future<void> saveAppRelease(AppRelease r) => _later(() {
+        _release = AppRelease(android: r.android, ios: r.ios, updatedAt: DateTime.now(), updatedBy: adminEmail);
+      });
 
   @override
   Future<List<PushCampaign>> pushCampaigns(int limit) => _later(() => _pushes.take(limit).toList());

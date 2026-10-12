@@ -60,7 +60,7 @@ class CoinStore {
   static void storeShotReset() {
     balance.value = 0;
     _owned = {};
-    _equipped = {};
+    _equipped = {'pet': 'pet_cat'}; // 스크린샷에 펫이 같이 돈다(pets.dart)
     _loaded = true;
   }
 

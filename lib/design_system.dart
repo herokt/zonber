@@ -1257,3 +1257,60 @@ class BadgeIcon extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// 로딩 — 기다리는 곳은 전부 이 스피너를 쓴다(2026-10-12). 빈칸·'—'·멈춘 화면으로 기다리게 하지 않는다.
+//   [AppSpinner] 도는 고리 하나 · [AppLoading] 가운데 놓인 스피너(목록·카드 자리) · [runBusy] 끝날 때까지 화면을 덮는 스피너(저장·구매 등)
+// ─────────────────────────────────────────────────────────────
+
+/// 도는 로딩 고리
+class AppSpinner extends StatelessWidget {
+  final double size;
+  final Color? color;
+  final double stroke;
+  const AppSpinner({super.key, this.size = 22, this.color, this.stroke = 2.4});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: size,
+        height: size,
+        child: CircularProgressIndicator(
+          strokeWidth: stroke,
+          strokeCap: StrokeCap.round,
+          color: color ?? AppColors.primary,
+          backgroundColor: (color ?? AppColors.primary).withValues(alpha: 0.12),
+        ),
+      );
+}
+
+/// 가운데 스피너 — 목록·카드가 아직 비어 있는 동안
+class AppLoading extends StatelessWidget {
+  final double size;
+  final Color? color;
+  final EdgeInsetsGeometry padding;
+  const AppLoading({super.key, this.size = 28, this.color, this.padding = const EdgeInsets.all(24)});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: padding,
+        child: Center(child: AppSpinner(size: size, color: color, stroke: size > 24 ? 3 : 2.4)),
+      );
+}
+
+/// [task] 가 끝날 때까지 화면을 덮고 스피너를 돌린다(뒤로 가기·바깥 탭으로 닫히지 않는다). 결과를 그대로 돌려준다
+Future<T> runBusy<T>(BuildContext context, Future<T> Function() task) async {
+  final nav = Navigator.of(context, rootNavigator: true);
+  var shown = true;
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black.withValues(alpha: 0.35),
+    useRootNavigator: true,
+    builder: (_) => const PopScope(canPop: false, child: Center(child: AppSpinner(size: 34, stroke: 3.2))),
+  ).whenComplete(() => shown = false);
+  try {
+    return await task();
+  } finally {
+    if (shown && nav.canPop()) nav.pop();
+  }
+}

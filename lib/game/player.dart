@@ -33,6 +33,23 @@ class Player extends PositionComponent
     if (squash) _squash = 1;
   }
 
+  // --- 기절(게임 오버 연출, 2026-10-12) — ZonberGame.gameOver 가 부른다 ---
+  bool _ko = false;
+  double _koT = 0;
+  static final Paint _koStar = Paint()..color = const Color(0xFFFFD23F);
+
+  /// 기절 — X 눈으로 통 튀었다가 주저앉고, 머리 위로 별이 돈다. 더는 움직이지도 맞지도 않는다
+  void knockOut() {
+    if (_ko) return;
+    _ko = true;
+    _koT = 0;
+    _face = ZonberFace.ko;
+    _faceTimer = 1e9;
+    _squash = 1;
+    _isBlinking = false;
+    _blinkVisible = true;
+  }
+
   // 연기·잔상 파티클 — 매 프레임 Random·Paint 를 새로 만들지 않고 돌려 쓴다
   static final Random _rng = Random();
   static final Paint _smokePaint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
@@ -64,7 +81,7 @@ class Player extends PositionComponent
     final ring = _hbHalf + (game.worldConfig.statKey == 'close_dodge' ? _closeDodgeRing : _grazeRing);
     _grazing.removeWhere((b) => !b.isMounted); // 피격·소멸된 탄은 카운트하지 않는다
     for (final c in game.mapArea.children) {
-      if (c is! Bullet) continue;
+      if (c is! Bullet || c.deflected) continue; // 펫이 쳐낸 공은 세지 않는다
       final d = c.position.distanceTo(position);
       final r = ring + c.def.radius;
       if (d < r) {
@@ -85,9 +102,9 @@ class Player extends PositionComponent
     final profile = await UserProfileManager.getProfile();
     avatar = await Avatar.mine(profile['characterId'] ?? Avatar.defaultCharacterId);
     final stats = avatar.character.stats;
-    // 존 장비의 능력치 보너스(gear.dart) — 입은 그대로가 곧 보너스다
+    // 착용 능력치(loadout.dart — 존 장비 + 스킨·잔상·오라, 이 존에 맞춘 값) — 입은 그대로가 곧 보너스다
     final zone = game.worldConfig.id;
-    final bonus = Gear.bonusOf(zone, CoinStore.equipped);
+    final bonus = Loadout.bonusOf(zone, CoinStore.equipped);
 
     // 모든 캐릭터 동일한 시각 크기 및 히트박스
     const double visualSize = 42;
@@ -153,6 +170,12 @@ class Player extends PositionComponent
     }
     final hasAura = auraId != Cosmetics.defaultAura;
     super.render(canvas); // PositionComponent — 자기 그림은 없다(아래에서 코드로 그린다)
+    if (_ko) {
+      // 기절 — 맞은 순간 통 튀었다(0.4초) 내려앉는다
+      final hop = -sin((_koT / 0.4).clamp(0.0, 1.0) * pi) * 9;
+      canvas.save();
+      canvas.translate(0, hop);
+    }
     if (hasAura) upright(() => paintAura(canvas, auraId, Offset.zero, r, _auraT, trailColor, front: false));
     // 존버 — 몸 반지름 16(판정 히트박스는 22px 그대로), 손발·장비가 조금 삐져나온다
     final v = recentVelocity;
@@ -170,6 +193,29 @@ class Player extends PositionComponent
       ),
     );
     if (hasAura) upright(() => paintAura(canvas, auraId, Offset.zero, r, _auraT, trailColor, front: true));
+    if (_ko) {
+      // 머리 위를 도는 별 셋(어질어질)
+      upright(() {
+        for (int i = 0; i < 3; i++) {
+          final a = _koT * 5 + i * 2 * pi / 3;
+          final p = Offset(cos(a) * 13, -size.y * 0.42 + sin(a) * 4);
+          canvas.save();
+          canvas.translate(p.dx, p.dy);
+          canvas.rotate(_koT * 6);
+          final s = 3.4 + 0.6 * sin(_koT * 8 + i);
+          canvas.drawPath(
+              Path()
+                ..moveTo(0, -s)
+                ..quadraticBezierTo(0, 0, s, 0)
+                ..quadraticBezierTo(0, 0, 0, s)
+                ..quadraticBezierTo(0, 0, -s, 0)
+                ..quadraticBezierTo(0, 0, 0, -s),
+              _koStar);
+          canvas.restore();
+        }
+      });
+      canvas.restore();
+    }
   }
 
   /// 최근 이동 속도(px/s, 지수 평활) — 피구 극악 단계의 예측 조준에 쓴다
@@ -180,6 +226,13 @@ class Player extends PositionComponent
   void update(double dt) {
     super.update(dt);
     _auraT += dt;
+    if (_ko) {
+      // 기절 중 — 납작함은 0.3 까지만 돌아오고(주저앉은 모양) 숨 쉬듯 살짝 오르내린다. 좌우로 흔들리다 멈춘다
+      _koT += dt;
+      _squash = max(0.3 + 0.05 * sin(_koT * 5), _squash - dt * 4);
+      angle = sin(_koT * 16) * 0.3 * exp(-_koT * 3);
+      return;
+    }
     if (_prevPos != null && dt > 0) {
       recentVelocity = recentVelocity * 0.85 + (position - _prevPos!) / dt * 0.15;
     }
@@ -357,6 +410,7 @@ class Player extends PositionComponent
     PositionComponent other,
   ) {
     super.onCollisionStart(intersectionPoints, other);
+    if (game.isGameOver) return; // 기절 중 — 더 맞지 않는다
 
     if (other is Bullet) {
       if (keeperMode) {
@@ -372,6 +426,7 @@ class Player extends PositionComponent
         return;
       }
       if (game.storeShot) return; // 스토어 스크린샷 — 공이 지나간다
+      if (other.deflected) return; // 펫이 쳐낸 공 — 다치게 하지 않는다
       if (_isInvincible) {
         // 무적 중 — 총알만 제거
         other.removeFromParent();
@@ -395,12 +450,11 @@ class Player extends PositionComponent
         Haptics.heavy();
         return;
       }
-      // 에너지 부족 — 게임 오버 (마지막 한 방도 번쩍임·파편)
-      showFace(ZonberFace.hurt, 5, squash: true);
+      // 에너지 부족 — 게임 오버 (마지막 한 방도 번쩍임·파편). 캐릭터는 남아서 기절한다(knockOut)
       game.fxHit(other.position.clone(), other.def.color);
+      other.removeFromParent();
       game.gameOver();
       Haptics.gameOver();
-      removeFromParent();
     }
   }
 

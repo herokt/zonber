@@ -112,6 +112,27 @@ class DodgeTeamZone extends Component with HasGameReference<ZonberGame> {
   @override
   void render(Canvas canvas) {
     final t = game.dodgeTeam;
+    // 시안 아트(lib/game/sprites.dart) — 빨간 팀 마스코트. 내야는 번갈아 두 표정, 던질 때 팔을 든다, 외야는 모자
+    final ready = GameSprites.get('rival_ready');
+    if (ready != null) {
+      final smirk = GameSprites.get('rival_smirk') ?? ready;
+      final throwing = GameSprites.get('rival_throw') ?? ready;
+      final cap = GameSprites.get('rival_cap') ?? ready;
+      void rival(ui.Image img, Vector2 p, double side) {
+        final c = Offset(p.x, p.y);
+        canvas.drawOval(Rect.fromCenter(center: c + Offset(0, side * 0.36), width: side * 0.7, height: side * 0.22),
+            Paint()..color = Colors.black.withValues(alpha: 0.18));
+        paintSprite(canvas, img, c, side);
+      }
+      for (int i = 0; i < t.infield.length; i++) {
+        final f = t.flash[i];
+        rival(f > 0.2 ? throwing : (i.isEven ? ready : smirk), t.infield[i], 30 * (1 + 0.25 * f));
+      }
+      for (final p in t.outfield) {
+        rival(cap, p, 26);
+      }
+      return;
+    }
     void player(Vector2 p, double r, {bool throwing = false}) {
       final c = Offset(p.x, p.y);
       canvas.drawCircle(c + const Offset(1, 2), r, Paint()..color = Colors.black.withValues(alpha: 0.18));
@@ -312,6 +333,38 @@ class Bullet extends PositionComponent
     keeperCd = 0.25;
   }
 
+  /// 펫이 쳐낸 공(lib/game/pet.dart) — 다시 쳐내지 않는다
+  bool petTouched = false;
+
+  /// 펫이 쳐냄 — [outward] 캐릭터 → 공 방향. 공은 늘 **바깥쪽**(캐릭터에서 멀어지는 쪽)으로 튕겨 나간다(2026-10-12).
+  /// 들어오던 방향의 옆 성분을 조금 살려 벽에 맞은 공처럼 튕기고, 캐릭터 쪽(안쪽) 성분은 남기지 않는다.
+  /// 골키퍼: 골대(아래) 쪽으로도 보내지 않는다 — 키퍼보다 아래에서 맞으면 옆으로 쳐낸다. 결과는 골라인에서(연속 선방에는 세지 않는다).
+  /// 피하기 존: 흐려지며 사라지고, 더는 캐릭터를 다치게 하지 않는다(deflected).
+  void petSwat(Vector2 outward) {
+    petTouched = true;
+    final keeper = game.worldConfig.mode == WorldMode.keeper;
+    final speed = velocity.length;
+    final out = outward.length2 > 0 ? outward.normalized() : -velocity.normalized();
+    final tangent = velocity - out * velocity.dot(out);
+    final dir = out + (tangent.length2 > 0 ? tangent.normalized() * 0.35 : Vector2.zero());
+    if (keeper) {
+      // 아래(골대 쪽)로는 보내지 않는다. 그래도 키퍼 쪽을 향하면 옆으로(키퍼에서 멀어지는 쪽)
+      if (dir.y > 0) dir.y = 0;
+      if (dir.length2 < 1e-6 || dir.dot(out) <= 0) dir.setValues(out.x >= 0 ? 1 : -1, 0);
+    }
+    dir.normalize();
+    velocity = dir * (keeper ? max(speed * 0.75, 200) : max(speed, 240));
+    _baseDir = velocity.normalized();
+    _free = true; // 휘기·흔들림 없이 직선으로
+    if (keeper) {
+      keeperCd = 0.25;
+      return;
+    }
+    deflected = true;
+    _deflectAge = _age;
+    splitAfter = null; // 피구 분열 공은 갈라지지 않고 튕겨 나간다
+  }
+
   /// 튕긴 뒤 — 휘기·흔들림 없이 직선으로 난다
   bool _free = false;
 
@@ -352,6 +405,7 @@ class Bullet extends PositionComponent
     }
     // 꽉 찬 공 — 몸통 · 아래쪽 음영 · 위쪽 하이라이트. 네온 링이 아니라 "공"으로 읽히게.
     final r = size.x / 2;
+    final art = GameSprites.get(def.sprite);
     if (def.trail && !deflected && !scored && velocity.length2 > 0) {
       // 총알슛 꼬리 — 진행 반대쪽으로 흐려지는 잔상
       final back = velocity.normalized();
@@ -360,6 +414,13 @@ class Bullet extends PositionComponent
         ..shader = ui.Gradient.linear(c, tail, [def.color.withValues(alpha: 0.75 * a), def.color.withValues(alpha: 0)])
         ..strokeWidth = r * 1.5
         ..strokeCap = StrokeCap.round);
+    }
+    if (art != null) {
+      // 시안 아트(lib/game/sprites.dart) — 돌리며 그린다. 운석은 천천히 구르고, 무회전 슛은 돌지 않는다
+      final knuckle = def.motion == ProjectileMotion.knuckle && !deflected;
+      final spin = knuckle ? 0.3 : _age * (def.seams || def.soccer ? 3.5 : 1.6 + 6 / def.visualSize) * _curveSign;
+      paintSprite(canvas, art, c, size.x, angle: spin, tint: def.tintSprite ? def.color : null, alpha: a);
+      return;
     }
     final body = a < 1 ? def.color.withValues(alpha: a) : def.color;
     canvas.drawCircle(c, r, _ballFill..color = body);
@@ -391,7 +452,15 @@ class Bullet extends PositionComponent
 
   @override
   void update(double dt) {
+    // 게임 오버 연출 동안은 공이 느려진다(기절한 캐릭터를 보여 주는 동안 화면이 멈춘 듯 굳지 않게)
+    if (game.isGameOver) dt *= ZonberGame.koSlowMo;
     _age += dt;
+
+    // 피하기 존에서 펫이 쳐낸 공 — 흐려지면 치운다
+    if (deflected && game.worldConfig.mode != WorldMode.keeper && _fade <= 0) {
+      removeFromParent();
+      return;
+    }
 
     // --- 분열: 진행 방향 기준 좌우로 부채꼴(3개 ±16°, 5개 ±14°·±28°) ---
     if (splitAfter != null && _age >= splitAfter! && splitInto > 1) {
@@ -579,9 +648,21 @@ class BulletSpawner extends Component with HasGameReference<ZonberGame> {
   /// 현재 난이도 레벨(세 존 공통) — 레벨업 소리·결과 화면·판 기록이 같이 쓴다
   int get currentLevel => Balance.levelAt(game.survivalTime);
 
+  /// 탄 종류를 [ProjectileDef.weight] 비율대로 고른다(갤럭시 운석 크기 4종)
+  ProjectileDef _pick(List<ProjectileDef> defs) {
+    if (defs.length == 1) return defs.first;
+    final total = defs.fold<int>(0, (s, d) => s + d.weight);
+    var r = _random.nextInt(total);
+    for (final d in defs) {
+      r -= d.weight;
+      if (r < 0) return d;
+    }
+    return defs.last;
+  }
+
   @override
   void update(double dt) {
-    if (game.inIntro) return; // 시작 연출 중엔 공을 내지 않는다
+    if (game.inIntro || game.isGameOver) return; // 시작 연출 · 게임 오버 연출 중엔 공을 내지 않는다
     if (game.worldConfig.spawner == SpawnStrategy.thrower) {
       _thrower.update(dt, game);
       return;
@@ -621,7 +702,7 @@ class BulletSpawner extends Component with HasGameReference<ZonberGame> {
     final double currentSpeed = Balance.cyberSpeed(level);
 
     final world = game.worldConfig;
-    final def = world.projectiles[_random.nextInt(world.projectiles.length)];
+    final def = _pick(world.projectiles);
     final Vector2 spawnPos;
     // ring — 플레이어(또는 keeper 골대) 중심 원주
     final double range = world.spawnRadius;

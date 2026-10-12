@@ -50,6 +50,7 @@ void _applyPreviewRoute() {
     'runs' => BoSection.runs,
     'economy' => BoSection.economy,
     'push' => BoSection.push,
+    'release' => BoSection.release,
     _ => BoSection.dashboard,
   };
   BoNav.go(section);

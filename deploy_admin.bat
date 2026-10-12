@@ -40,6 +40,13 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+REM 고객 지원 페이지(/support/ — App Store 지원 URL, / 도 여기로 간다)
+call node scripts/make_support_page.mjs
+if errorlevel 1 (
+    echo Support page build failed!
+    pause
+    exit /b 1
+)
 call firebase deploy --only hosting
 if errorlevel 1 (
     echo Deploy failed!

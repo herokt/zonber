@@ -52,7 +52,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 
 ### 게임 코드 위치 (2026-09-22 main.dart 를 part 파일로 나눔)
 - `lib/main.dart` — 앱 초기화 · `ZonberApp` 페이지 라우팅 · 판 종료 처리(`_handleGameOver`)
-- `lib/game/` (`part of '../main.dart'`) — `game_screen.dart`(HUD) · `zonber_game.dart`(ZonberGame·맵) · `player.dart` · `projectiles.dart`(Bullet·스포너·피구 팀) · `keeper.dart` · `dodgeball.dart`
+- `lib/game/` (`part of '../main.dart'`) — `game_screen.dart`(HUD) · `zonber_game.dart`(ZonberGame·맵) · `player.dart` · `projectiles.dart`(Bullet·스포너·피구 팀) · `keeper.dart` · `dodgeball.dart` · `pet.dart`(펫 `PetHelper`)
 - 밸런스 수치 `lib/balance.dart` · 시즌 `lib/season.dart` · 일일 미션 `lib/daily_rewards.dart` · 판 기록 `lib/run_history.dart`(서버) · `lib/playtest_log.dart`(기기)
 - 테스트 `flutter test`(test/logic_test.dart) · 규칙 시험 `node scripts/test_rules.mjs`
 - 효과음 `assets/audio/*.wav` — `python scripts/make_sfx.py` 로 합성, 이름·연결은 `lib/audio_manager.dart`(Sfx) · 진동 `lib/haptics.dart`
@@ -68,10 +68,11 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 `main.dart`의 `ZonberGame` 클래스:
 - 고정 맵 크기: 480x768 (32px 타일 기준 15x24 그리드)
 - World height: 800 (맵 하단 UI 영역 포함)
-- 컴포넌트: `Player`(근접 회피 카운트, `keeperMode`면 공에 닿으면 세이브·`concedeGoal()`로 실점), `Bullet`(`ProjectileDef` 기반: 크기·색·straight/curve/bounce, 큰 공은 바닥 그림자, keeper면 골대 진입 시 실점), `BulletSpawner`(ring, keeper는 골대 기준 스폰·조준 / thrower → `_DodgeballThrower`: 피구 턴제 투구·단계별 패턴, `Bullet.splitAfter`로 분열 / shooter → `_KeeperShooter` + `KeeperGoal`: 페널티킥형 골문·슈터 1→5명·바나나킥). 진입 예고 표시 없음, `GoalZone`(keeper 골대), `MapArea`, `GridBackground`(스테이지 line 색 테두리 + `worlds/{id}_bg.png` 배경 슬롯)
+- 컴포넌트: `Player`(근접 회피 카운트, `keeperMode`면 공에 닿으면 세이브·`concedeGoal()`로 실점), `Bullet`(`ProjectileDef` 기반: 크기·색·straight/curve/bounce, 큰 공은 바닥 그림자, keeper면 골대 진입 시 실점), `BulletSpawner`(ring, keeper는 골대 기준 스폰·조준 / thrower → `_DodgeballThrower`: 피구 턴제 투구·단계별 패턴, `Bullet.splitAfter`로 분열 / shooter → `_KeeperShooter` + `KeeperGoal`: 페널티킥형 골문·슈터 1→5명·바나나킥). 진입 예고 표시 없음, `PetHelper`(펫 — 거리 판정으로 쳐내기, `Bullet.petSwat`), `GoalZone`(keeper 골대), `MapArea`, `GridBackground`(스테이지 line 색 테두리 + `worlds/{id}_bg.png` 배경 슬롯)
 - 목표선: `_loadTargets()`가 올해 TOP 100 시간을 읽어 `game.setTargets()` → HUD가 다음 TOP N 까지 진행바 표시 (10분 캐시)
 - 터치 조작: 직접 드래그 (1:1 손가락 이동, 조이스틱 없음)
 - 충돌 시스템: Flame의 `HasCollisionDetection` + 탄환 터널링 방지 수동 처리
+- 게임 오버: 엔진을 멈추지 않고 KO 연출 `koDuration` 1.4초(탄 0.3배 슬로) + `_GameOverOverlay` → 그 뒤 `onGameOver` 한 번
 
 ### 주요 파일
 | 파일 | 역할 |
@@ -88,7 +89,10 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `translations.dart` | 200개+ 이중 언어 문자열 (EN/KO); `{placeholder}` 보간 지원 |
 | `language_manager.dart` | 언어 전환; SharedPreferences에서 읽음 |
 | `design_system.dart` | 디자인 시스템 v2 — 다크 무채색 + 월드 강조색 1개, Sora(Display)/Manrope(Body). `Neon*` 이름 유지 + `AppChip`/`AppSegmented`/`CountryChip`/`NamePlate`/`RankRow`/`AppBottomNav`. gold는 1위·뱃지 강조 전용 |
-| `avatar.dart` | **아바타 단일 출처** — `Avatar`(캐릭터·스킨·잔상·오라·존별 장비 한 벌) + `AvatarView`(동그란 아바타) + `AvatarStage`(큰 전신, 잔상·오라까지). 아바타를 그리는 곳은 전부 여기를 쓴다(홈·랭킹·가방·프로필·게임 `Player`) |
+| `loadout.dart` | **착용 능력치 단일 출처** — `Loadout.bonusOf(zone, equipped)` = 존 장비(`gear.dart`) + 꾸미기(스킨 무적·잔상 속도·오라 회복, `cosmetics.dart`)를 합쳐 `GearBonus.adapt` 로 그 존에 맞춘다(골키퍼는 무적·회복 → 막는 범위). 게임 `Player`·코인 정산·가방 표시가 모두 여기를 쓴다. 기본(무료) 아이템만 능력치 없음 |
+| `pets.dart` · `game/pet.dart` | **펫** 6종(2026-10-12) — 게임을 돕는 서브 캐릭터. 세 존 모두 캐릭터 둘레(36px, 얇은 원으로 표시)를 같은 빠르기로 돌며, 캐릭터 쪽으로 오던 탄·공을 **바깥쪽으로** 튕겨 낸다(`Bullet.petSwat`, 골키퍼는 골대 쪽 금지). 그림은 시안 아트(`PetArt`). 한 번 쳐내면 쉬는 시간(비쌀수록 짧다). 히트박스 없이 거리로만 판정(캐릭터 판정과 분리). **주위를 도는 오라(`Cosmetic.orbits`)와 같이 못 쓴다** — 가방이 하나를 벗긴다. 착용 슬롯 `pet`. 기획 [docs/SHOP.md](docs/SHOP.md) §펫 |
+| `game/sprites.dart` | **시안 아트**(2026-10-12, Gemini) — `GameSprites`: 운석 4종 · 피구공·축구공 · 피구 상대 선수 그림(`assets/images/sprites/`)을 기다리지 않고 읽고, 없으면 코드 드로잉. `ProjectileDef.sprite`/`tintSprite`. `--dart-define=ART=code` = 코드 드로잉만. 자르기 `python scripts/cut_sprites.py`(원본 `assets/images/gemini/`). [docs/RESOURCES.md](docs/RESOURCES.md) §시안 아트 |
+| `avatar.dart` | **아바타 단일 출처** — `Avatar`(캐릭터·스킨·잔상·오라·펫·존별 장비 한 벌) + `AvatarView`(동그란 아바타) + `AvatarStage`(큰 전신, 잔상·오라까지). 아바타를 그리는 곳은 전부 여기를 쓴다(홈·랭킹·가방·프로필·게임 `Player`) |
 | `player_profile.dart` | **프로필 단일 출처** — `PlayerProfile`(닉네임·국가·아바타·가입일·최근 접속·뱃지·존별 기록·누적) + `PlayerProfileService.fetch(uid)`. 내 것과 남의 것이 같은 클래스 |
 | `pages/player_profile_view.dart` | 프로필 표시 부품 — `ProfileIdentityCard`/`StageRecordRow`/`ProfileMetaLine`/`ProfileBadgeStrip` + `showPlayerCard(uid)`(랭킹에서 이름을 누르면 뜨는 남의 프로필 창) |
 | `audio_manager.dart` | BGM/SFX 싱글톤 (flame_audio) |
@@ -104,6 +108,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `services/reminder_service.dart` | **주간 알림**(로컬 알림, 서버 없음) — 앱을 켜거나 돌아올 때마다 `reschedule()` 이 날짜를 박은 한 번짜리 알림을 7·14·21·28일 뒤로 다시 건다(반복 예약 periodicallyShow 는 켜자마자 뜨는 플러그인 버그가 있어 쓰지 않는다 — 한 달 넘게 안 오면 더 보내지 않는다). 켤 때 트레이의 지난 알림도 비운다(`clearShown`) → **일주일 동안 안 들어온 사람에게만** 간다. 권한은 첫 판 뒤 홈으로 나갈 때 한 번(`maybeAsk`, 리뷰 창과 겹치지 않게), 끄기는 프로필 › 설정 › 주간 알림. Android 는 desugaring·수신기·`ic_notification`(+ `res/raw/keep.xml`) 필요 |
 | `push.dart` | **푸시 단일 출처** — 토픽(`lang_{ko|en|ja|zh}` + `member`/`guest` + 관리자 기기 `tester`) · 대상(`PushAudience`) · 발송 문서(`PushCampaign` = `push_campaigns/{id}`) · 템플릿 문구 8종(`PushTemplates`, 4개 언어). `functions/index.js` 와 약속이 같아야 한다. 운영법 [docs/PUSH.md](docs/PUSH.md) |
 | `services/push_service.dart` | 이벤트·소식 푸시(FCM) 받기 — `sync()` 가 언어·로그인·설정에 맞게 토픽 구독(앱 시작·복귀·언어 변경·로그인/로그아웃). 앱을 켜 둔 채 온 푸시는 띄우지 않는다(종 아이콘 점만). 기기 토큰은 저장하지 않는다. 끄기는 프로필 › 설정 › 이벤트·소식 알림 |
+| `app_release.dart` · `services/update_service.dart` | **앱 버전 · 업데이트 안내**(2026-10-12) — `AppVersion`(pubspec `이름+빌드` → "v2.1.0 (210)", 유저 문서 `appVersion`·`appBuild`) · `AppRelease`(Firestore `config/app_release` = 백오피스 › 앱 버전 에 적은 스토어 버전). 이 앱 빌드가 그보다 낮으면 홈에서 안내 창(나중에 → 3일), 필수 빌드보다 낮으면 닫을 수 없다. 첫 홈 · 앱 복귀 때만(판 끝나고 돌아올 때는 안 띄움). [업데이트] = 스토어 페이지(`in_app_review openStoreListing`). 규칙·버전 규칙 [docs/RELEASE.md](docs/RELEASE.md) |
 | `admin_emails.dart` | 관리자 이메일 — 백오피스 로그인 · 푸시 tester 토픽. `firestore.rules isAdmin()` · `functions/index.js ADMIN_EMAILS` 와 같게 |
 | `friends.dart` | **친구 단일 출처**(docs/FRIENDS.md) — 읽기는 앱이 직접(`users/{me}/friends` · `friend_requests`), 쓰기는 서버 함수(`addByCode` · `request` · `answer` · `remove` → `functions/friends.js`). `FriendResult` 코드는 서버와 같다. 친구 코드는 바로 친구, 랭킹·프로필 카드에서는 요청→수락. 최대 100명 · 대기 요청 50 · 요청 7일 |
 | `pages/friends_page.dart` | 친구 화면(프로필 탭 › 친구) — 내 코드(복사·공유) · 코드로 추가 · 받은 요청 · 친구 랭킹(존별 최고 기록) |
@@ -125,6 +130,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 - `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
 - `promo_page.dart` · `promo_codes_page.dart` — 이벤트 · 이벤트 코드(만들기·검증·사용한 사람)
 - `push_page.dart` — 푸시 보내기(템플릿 · 4개 언어 문구 · 대상 · 미리보기 · 테스트 발송) + 보낸 기록
+- `app_release_page.dart` — **앱 버전**: 스토어에 나가 있는 버전(Android·iOS 따로, 필수 빌드 선택) 저장 → 그보다 낮은 앱에 업데이트 안내. 유저 앱 버전 분포 · 안내 받을 사람 수. 유저 상세에도 앱 버전
 - 유저 상세 개요 탭 아래 **친구** 카드(`users/{uid}/friends`)
 - 이름표(캐릭터·장비·뱃지 한글명)는 `bo_catalog.dart`
 
@@ -132,6 +138,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 모든 UI는 `design_system.dart`의 네온 테마 사용:
 - 색상: `AppColors.primary` (시안), `AppColors.secondary` (빨강), `AppColors.background` (짙은 검정)
 - 컴포넌트: `NeonScaffold`, `NeonAppBar`, `NeonCard`, `NeonButton`, `NeonDialog`
+- **로딩은 전부 도는 스피너**(2026-10-12): `AppSpinner`(작은 링) · `AppLoading`(빈 칸 가운데) · `runBusy(context, () async {...})`(누른 동작 — 끝날 때까지 화면을 덮는 스피너). 새 화면에 `CircularProgressIndicator` 를 직접 쓰지 않는다
 
 ### 인증
 **게스트 = 로그인하지 않은 상태 · 게임 맛보기만(2026-09-22):** 앱 첫 실행은 `_ZonberAppState._enterAsGuest()`가 **로그인 없이**(익명 로그인도 하지 않는다) 바로 메뉴에 들어간다. 로그아웃도 게스트로 복귀한다. 게스트는 **기기·서버 어디에도 아무것도 저장하지 않는다** — 기록·코인·미션·뱃지·통계·프로필·플레이 수 모두. 화면(코인·상점·뱃지·미션·내 최고·통계)은 그대로 보이되 값은 초기값(0·—)이고, 구매·보상 받기는 로그인 안내(`guest_login_to_save`). 저장 차단은 각 store(`CoinStore`·`ProgressStore`·`DailyRewards`·`AchievementManager`·`BadgeStatsStore`·`UserProfileManager`·`PlaytestLog`)가 `AuthService.isGuest`로 직접 막고, `_handleGameOver`도 게스트는 결과만 보여 준다. 게스트 진입 때 기기의 유저 데이터를 지우고(`_clearLocalData`), 예전 버전의 익명 세션은 시작 시 로그아웃시킨다. 로그인 세션은 Firebase 가 기기에 저장하므로 다음 실행에 자동 로그인된다. 규칙도 회원(`isMember`)만 쓰기 허용. 예전 게스트 데이터 정리 = `scripts/delete_guest_data.mjs`.
@@ -165,6 +172,11 @@ node scripts/test_rules.mjs
 # 효과음 합성 / 존 배경 생성
 python scripts/make_sfx.py
 python scripts/make_stage_bg.py
+
+# 시안 아트 — Gemini 시트(assets/images/gemini/src_*.png) → assets/images/sprites/ (배경·워터마크 지우기)
+python scripts/cut_sprites.py
+# 갤럭시 배경 — 원본에서 별만 옮겨 깔끔한 그라데이션으로(assets/images/worlds/cyber_bg.png)
+python scripts/clean_cyber_bg.py
 
 # 앱 아이콘 — 원본 assets/images/app_icon.png 에서 Android(모서리 투명)·iOS·Play 512 그림을 만든 뒤 플랫폼 아이콘 생성
 dart run scripts/make_app_icons.dart
@@ -215,7 +227,7 @@ node scripts/compose_ios_shots.mjs     # App Store iPhone 6.9"·iPad 13" 10장 �
 
 ### 릴리즈 전 체크리스트
 1. `node scripts/check_translations.mjs` · `flutter test` 통과 확인
-2. `pubspec.yaml` — 버전 번호 올리기 (`version: x.y.z+build`)
+2. `pubspec.yaml` — 버전 번호 올리기 (`version: x.y.z+build`, 규칙은 [docs/RELEASE.md](docs/RELEASE.md) 맨 위). 스토어 심사가 끝나면 **백오피스 › 앱 버전** 을 올려 옛 앱에 업데이트 안내
 3. `flutter analyze` — 신규 warning 없는지 확인
 4. `flutter build apk --release` / `flutter build appbundle --release`
 
@@ -258,6 +270,7 @@ custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규�
 push_campaigns/             # 백오피스 푸시 발송 기록 — 만들면 서버 함수가 보낸다(status · results)
 friend_requests/            # 친구 요청 {from, to, status, expiresAt} — 쓰기는 서버 함수만
 push_state/                 # 친구 기록 알림 하루 횟수(서버만)
+config/app_release          # 스토어에 나가 있는 버전 {android|ios: {version, build, minBuild}} — 백오피스가 쓰고 앱이 읽는다(공개 읽기)
 news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공개 읽기) — users/{uid}/inbox(친구 알림) · users/{uid}/inbox_state/news(읽은 소식)
 # users/{uid}/friends/{친구uid} · users/{uid}/devices/{기기 id}(친구 알림 토큰, 본인만)
 ```

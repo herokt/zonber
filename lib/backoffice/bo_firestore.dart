@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../app_release.dart';
 import '../promotions.dart';
 import '../push.dart';
 import 'bo_catalog.dart';
@@ -225,6 +226,23 @@ class FirestoreSource implements BoSource {
     list.sort((a, b) => (b.since ?? DateTime(2000)).compareTo(a.since ?? DateTime(2000)));
     return list;
   }
+
+  // ── 앱 버전 ──
+  DocumentReference<Map<String, dynamic>> get _release => _db.collection(AppRelease.collection).doc(AppRelease.docId);
+
+  @override
+  Future<AppRelease> appRelease() async {
+    final d = await _release.get();
+    return AppRelease.fromMap(d.data(), updatedAt: tsOf(d.data()?['updatedAt']));
+  }
+
+  @override
+  Future<void> saveAppRelease(AppRelease r) => _release.set({
+        if (r.android != null) 'android': r.android!.toMap(),
+        if (r.ios != null) 'ios': r.ios!.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': adminEmail,
+      });
 
   // ── 푸시 ──
   CollectionReference<Map<String, dynamic>> get _push => _db.collection('push_campaigns');

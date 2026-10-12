@@ -8,6 +8,7 @@ import '../badges.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
 import '../ranking_system.dart';
+import '../store_shot.dart';
 import '../services/auth_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
@@ -89,13 +90,22 @@ class _RankingPageState extends State<RankingPage> {
   bool get _isGuest => AuthService.isGuest;
 
   Future<void> _load() async {
+    try {
+      await _loadInner();
+    } catch (e, st) {
+      debugPrint('Ranking load failed: $e $st');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadInner() async {
     final seq = ++_loadSeq;
     setState(() => _loading = true);
     final world = WorldData.getWorld(_worldId);
     final mapId = world.rankingMapId;
     final profile = await UserProfileManager.getProfile();
     _myFlag = profile['flag'] ?? '';
-    _myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    _myUid = kStoreShot ? '' : (FirebaseAuth.instance.currentUser?.uid ?? ''); // 스크린샷 모드(웹)는 Firebase 를 켜지 않는다
     final period = _periods[_period];
 
     List<Map<String, dynamic>> records;
@@ -199,7 +209,7 @@ class _RankingPageState extends State<RankingPage> {
             const SizedBox(height: 14),
             Expanded(
               child: _loading
-                  ? Center(child: CircularProgressIndicator(color: accent))
+                  ? AppLoading(color: accent)
                   : _records.isEmpty
                       ? _empty(lm)
                       : ListView(
@@ -325,7 +335,13 @@ class _RankingPageState extends State<RankingPage> {
         ),
       );
     }
-    if (_loading) return const SizedBox(height: 12);
+    // 불러오는 동안 — 내 기록 줄 자리(높이 그대로)에 작은 스피너
+    if (_loading) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+        child: SizedBox(height: 56, child: Center(child: AppSpinner(size: 18, color: accent))),
+      );
+    }
     if (_mine == null) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),

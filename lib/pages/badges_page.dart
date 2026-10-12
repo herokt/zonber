@@ -22,6 +22,8 @@ class _BadgesPageState extends State<BadgesPage> {
   Set<String> _owned = {};
   BadgeCategory? _filter; // null = 전체
   BadgeDef? _selected;
+  /// 내 뱃지를 다 읽었나 — 그 전엔 스피너("0/N 전부 잠김"으로 보이지 않게)
+  bool _loaded = false;
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _BadgesPageState extends State<BadgesPage> {
       setState(() {
         _owned = owned;
         _selected = Badges.best(owned) ?? Badges.all.first;
+        _loaded = true;
       });
     });
   }
@@ -52,8 +55,11 @@ class _BadgesPageState extends State<BadgesPage> {
               title: lm.translate('nav_badges'),
               showBackButton: true,
               onBack: widget.onBack,
-              actions: [Text('${earned.length} / ${Badges.all.length}', style: AppTextStyles.display(16, color: AppColors.textDim))],
+              actions: [if (_loaded) Text('${earned.length} / ${Badges.all.length}', style: AppTextStyles.display(16, color: AppColors.textDim))],
             ),
+            if (!_loaded)
+              const Expanded(child: AppLoading())
+            else ...[
             // ── 진행률 · 등급별 ──
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 6, 24, 0),
@@ -120,6 +126,7 @@ class _BadgesPageState extends State<BadgesPage> {
                 itemBuilder: (context, i) => _tile(lm, list[i]),
               ),
             ),
+            ],
           ],
         ),
       ),

@@ -69,7 +69,7 @@ class _InboxPageState extends State<InboxPage> {
           ),
       ],
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppLoading()
           : RefreshIndicator(
               onRefresh: _load,
               child: _items.isEmpty

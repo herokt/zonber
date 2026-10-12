@@ -323,14 +323,25 @@ class GoalZone extends Component with HasGameReference<ZonberGame> {
     ..strokeWidth = 2.5;
 
   /// 슈터(상대 선수) — 빨간 유니폼 점. 차는 순간 커진다.
+  /// 시안 아트(lib/game/sprites.dart)가 있으면 빨간 팀 축구 마스코트 — 첫 슈터는 주장, 차는 순간 발을 뻗는다
   void _renderShooters(Canvas canvas) {
     final goal = game.goal;
+    final ready = GameSprites.get('shooter_ready');
+    final looks = ready == null
+        ? const <ui.Image>[]
+        : [GameSprites.get('shooter_captain') ?? ready, ready, GameSprites.get('shooter_point') ?? ready];
+    final kick = GameSprites.get('shooter_kick') ?? ready;
     for (int i = 0; i < goal.shooters.length; i++) {
       final s = goal.shooters[i];
       final a = goal.appear(i);
       final scale = a * (1 + 0.35 * goal.kickFlash[i]);
       if (scale <= 0) continue;
       final c = Offset(s.x, s.y);
+      if (looks.isNotEmpty) {
+        // 그림 안에 발밑 그림자가 있다
+        paintSprite(canvas, goal.kickFlash[i] > 0.2 ? kick! : looks[i % looks.length], c, 36 * scale);
+        continue;
+      }
       canvas.drawCircle(c + const Offset(1, 2), 13 * scale, _fill..color = Colors.black.withValues(alpha: 0.2));
       canvas.drawCircle(c, 13 * scale, _fill..color = const Color(0xFFE5484D));
       canvas.drawCircle(c, 13 * scale, _rim);

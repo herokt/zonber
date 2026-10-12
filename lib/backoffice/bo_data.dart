@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../app_release.dart';
 import '../promotions.dart';
 import '../push.dart';
 import 'bo_catalog.dart';
@@ -207,6 +208,11 @@ abstract class BoSource {
   /// 이 코드를 쓴 사람(users/{uid}/codes/{code}) — 최근 순
   Future<List<BoCodeUse>> promoCodeUses(String code, int limit);
 
+  // ── 앱 버전(config/app_release — lib/app_release.dart) ──
+  /// 스토어에 나가 있는 버전 — 이보다 낮은 앱에 업데이트 안내
+  Future<AppRelease> appRelease();
+  Future<void> saveAppRelease(AppRelease r);
+
   // ── 푸시(push_campaigns) ──
   /// 최근 보낸 것부터
   Future<List<PushCampaign>> pushCampaigns(int limit);
@@ -296,7 +302,7 @@ class BoData {
 // ─────────────────────────────────────────────────────────────
 // 화면 이동 — 왼쪽 메뉴 섹션 + (있으면) 그 위에 유저 상세
 // ─────────────────────────────────────────────────────────────
-enum BoSection { dashboard, users, ranking, runs, promos, codes, push, economy }
+enum BoSection { dashboard, users, ranking, runs, promos, codes, push, release, economy }
 
 class BoNav {
   static final ValueNotifier<BoSection> section = ValueNotifier(BoSection.dashboard);
