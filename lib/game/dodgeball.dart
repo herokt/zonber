@@ -77,9 +77,14 @@ class _DodgeballThrower {
     _nextBeat = Balance.dodgeBeat(level);
     final tier = Balance.tierOf(level);
     _throw(game, _pick(tier), tier, level);
-    // 5단계부터 가끔 다른 자리에서 한 번 더 (동시 투구)
+    // 5단계부터 가끔 다른 자리에서 한 번 더 (동시 투구) — 조금 늦게 던져 두 공이 한 덩어리로 오지 않게
     if (_rng.nextDouble() < Balance.dodgeTwin[tier]) {
-      _throw(game, _pick(tier - 2), tier, level);
+      final second = _pick(tier - 2);
+      game.mapArea.add(TimerComponent(
+        period: Balance.dodgeTwinDelay,
+        removeOnFinish: true,
+        onTick: () => _throw(game, second, tier, level),
+      ));
     }
   }
 
@@ -157,15 +162,36 @@ class _DodgeballThrower {
       case _Throw.row3:
       case _Throw.row4:
       case _Throw.row5:
-        // 가로 한 줄로 나란히(평행) — 벽처럼 오므로 옆으로 크게 빠져야 한다
+        // 가로 한 줄로 오되 대형을 매번 조금씩 바꾼다(2026-10-12 — 예전엔 나란한 벽이 한꺼번에 와 4·5개가 뭉쳐 보였다).
+        // 왼쪽부터 · 오른쪽부터 · 가운데 먼저(V) · 양 끝 먼저(Λ) 중 하나로 공마다 조금씩 늦게 던지고, 속도도 조금씩 다르게
         final n = kind == _Throw.row3 ? 3 : kind == _Throw.row4 ? 4 : 5;
         const gap = 28.0;
+        final shape = _rng.nextInt(4);
         for (int i = 0; i < n; i++) {
-          final off = perp * ((i - (n - 1) / 2) * gap);
+          final c = i - (n - 1) / 2;
+          final order = switch (shape) {
+            0 => i.toDouble(),
+            1 => (n - 1 - i).toDouble(),
+            2 => c.abs(),
+            _ => (n - 1) / 2 - c.abs(),
+          };
+          final off = perp * (c * gap);
           final from = origin + off;
-          // 캐릭터 위치 + 대형 폭의 절반만큼만 벌려 조준 → 도착할 때 벽이 좁아진다
-          final b = Bullet(from, target + off * 0.5, speed: speed * ball.speedMult, def: ball);
-          game.mapArea.add(b);
+          final v = speed * ball.speedMult * (1 + (_rng.nextDouble() * 2 - 1) * Balance.dodgeRowSpeedJitter);
+          // 캐릭터 위치 + 대형 폭의 절반만큼만 벌려 조준 → 도착할 때 대형이 좁아진다
+          final aim = target + off * 0.5;
+          final delay = order * Balance.dodgeRowStagger;
+          if (delay <= 0) {
+            game.mapArea.add(Bullet(from, aim, speed: v, def: ball));
+          } else {
+            game.mapArea.add(TimerComponent(
+              period: delay,
+              removeOnFinish: true,
+              onTick: () {
+                if (!game.isGameOver) game.mapArea.add(Bullet(from, aim, speed: v, def: ball));
+              },
+            ));
+          }
         }
         break;
     }

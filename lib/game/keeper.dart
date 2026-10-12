@@ -90,10 +90,10 @@ class _KeeperShooter {
   double _since = 0;
   double _nextBeat = 1.4;
 
-  /// 턴 간격 2.0s → 0.65s — 레벨마다 조금씩(Balance.keeperBeat)
+  /// 턴 간격 1.5s → 0.65s — 레벨마다 조금씩(Balance.keeperBeat)
   static double beatAt(double t) => Balance.keeperBeat(Balance.levelAt(t));
 
-  /// 슛 속도 200 → 440 × 1.22 — 레벨마다 조금씩(Balance.keeperSpeed). 총알슛은 여기에 1.6배
+  /// 슛 속도 240 → 311 × 1.22 — 레벨마다 조금씩(Balance.keeperSpeed). 총알슛은 여기에 1.6배
   static double speedAt(double t) => Balance.keeperSpeed(Balance.levelAt(t));
 
   /// 공이 골라인에 닿는 시각(예상)들 — 여러 공이 한꺼번에 도착하지 않게 이 간격 이상 벌린다(간발의 차는 허용)
@@ -151,7 +151,7 @@ class _KeeperShooter {
       final def = world.projectiles[min(kind.index, world.projectiles.length - 1)];
       // 골라인까지 걸리는 시간(휘는 공은 조금 더) — 이미 날아오는 공과 도착이 겹치면 늦게 찬다
       final fly = goal.shooters[si].distanceTo(center) / (speedAt(t) * def.speedMult) * (def.motion == ProjectileMotion.straight ? 1.0 : 1.08);
-      var arrive = t + k * 0.12 + fly;
+      var arrive = t + k * Balance.keeperKickStagger + fly;
       // 밀 때는 반드시 늦어지는 쪽으로만 민다. (예전엔 `(a + gap) - a` 가 부동소수점 반올림으로
       // gap 보다 아주 조금 작게 나오면 같은 자리로 계속 다시 밀어 무한 루프 → 두 명 동시 슛(50초~)에서 앱이 굳었다)
       for (bool moved = true; moved;) {
@@ -166,8 +166,8 @@ class _KeeperShooter {
       }
       // 1.2초 넘게 밀리는 슛은 건너뛴다. 극악(턴 0.55초·동시 슛)은 평균 1.95발 × 간격 0.3초 = 0.585초로 턴보다 길어서,
       // 밀린 예약 슛(TimerComponent)이 판 길이만큼 끝없이 쌓였다(390초에 67개 — 슛이 20초 뒤에 나감).
-      // 오래 보면 초당 슛 수는 어차피 간격 0.3초가 상한이라 난이도는 거의 같다.
-      if (arrive - fly - t - k * 0.12 > 1.2) continue;
+      // 오래 보면 초당 슛 수는 어차피 도착 간격(Balance.keeperArrivalGap)이 상한이라 난이도는 거의 같다.
+      if (arrive - fly - t - k * Balance.keeperKickStagger > 1.2) continue;
       _arrivals.add(arrive);
       _kick(game, si, kind, t, tier, delay: arrive - fly - t);
     }

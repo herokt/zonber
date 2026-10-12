@@ -222,11 +222,11 @@ class WorldData {
           motion: ProjectileMotion.curve, lateralAccel: 110,
           color: Color(0xFFBDE3FF), soccer: true,
         ),
-        // 꼬불꼬불 슛 — 분홍 축구공, 좌우로 흔들리며 온다
+        // 꼬불꼬불 슛 — 분홍 축구공, 좌우로 흔들리며 온다(2026-10-12 흔들림 폭 34 → 24px)
         ProjectileDef(
           id: 'wave', nameKey: 'proj_keeper_wave',
           speedMult: 0.9, radius: 7, visualSize: 19,
-          motion: ProjectileMotion.wave, waveAmp: 34, waveHz: 1.6,
+          motion: ProjectileMotion.wave, waveAmp: 24, waveHz: 1.6,
           color: Color(0xFFFFB8D9), soccer: true,
         ),
         // 총알슛 — 주황 축구공 + 꼬리, 아주 빠르다

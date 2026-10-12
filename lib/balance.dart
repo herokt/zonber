@@ -41,10 +41,13 @@ class Balance {
   /// [lv1]·[top] 은 예전(일직선) 곡선의 양 끝 — 실제 최고 레벨 값은 그보다 낮다(아래 각 속도 주석)
   static const int speedKnee = 5;
   static const double speedLateStep = 0.6;
+  /// 속도가 오르는 폭 전체에 곱하는 배율(2026-10-12 1.0 → 0.5) — 레벨이 올라도 공·탄이 갑자기 빨라지지 않게,
+  /// 어려움은 빈도·패턴이 먼저 올리고 속도는 천천히 따라온다
+  static const double speedGrowth = 0.5;
   static double speedByLevel(int level, double lv1, double top) {
     final l = level.clamp(1, maxLevel);
     final eff = l <= speedKnee ? l.toDouble() : speedKnee + (l - speedKnee) * speedLateStep;
-    return lv1 + (top - lv1) * ((eff - 1) / (maxLevel - 1));
+    return lv1 + (top - lv1) * speedGrowth * ((eff - 1) / (maxLevel - 1));
   }
 
   /// 패턴 단계(0~6)가 시작되는 레벨 — 피구·골키퍼 공통. 단계마다 새 패턴이 하나씩 나온다
@@ -58,23 +61,29 @@ class Balance {
   }
 
   // ── 갤럭시(링에서 나를 조준) ──
-  /// 초당 탄 수 7 → 20 (예전: 레벨 1부터 11, 25초마다 ×1.11 — 50초쯤 벽)
-  static double cyberRate(int level) => byLevel(level, 7.0, 20.0);
-  /// 탄속 160 → 239 ([speedByLevel] — L5 191 · L10 215. 예전 일직선 160 → 270)
-  static double cyberSpeed(int level) => speedByLevel(level, 160.0, 270.0);
+  /// 초당 탄 수 5 → 20 (2026-10-12 초반이 다른 두 존보다 어려워 시작 7 → 5. L5 9.3 · L10 14.6)
+  static double cyberRate(int level) => byLevel(level, 5.0, 20.0);
+  /// 탄속 150 → 193 ([speedByLevel] — L5 167 · L10 180. 2026-10-12 시작 160 → 150)
+  static double cyberSpeed(int level) => speedByLevel(level, 150.0, 270.0);
   /// 화면에 동시에 있는 탄 상한 60 → 140
   static int cyberCap(int level) => byLevel(level, 60.0, 140.0).round();
 
   // ── 피구 ──
   /// 외야 패스 횟수 범위(무작위)
   static const int passHopsMin = 1, passHopsMax = 5;
-  /// 턴 간격 1.6s → 0.45s. 던지는 빈도(1/간격)가 레벨마다 같은 폭으로 늘게 잡는다
-  static double dodgeBeat(int level) => 1 / byLevel(level, 1 / 1.6, 1 / 0.45);
-  /// 공 속도 170 → 363 ([speedByLevel] — L5 247 · L10 305. 예전 일직선 170 → 440)
+  /// 턴 간격 1.2s → 0.45s. 던지는 빈도(1/간격)가 레벨마다 같은 폭으로 늘게 잡는다(2026-10-12 초반이 쉬워 시작 1.6s → 1.2s)
+  static double dodgeBeat(int level) => 1 / byLevel(level, 1 / 1.2, 1 / 0.45);
+  /// 공 속도 210 → 292 ([speedByLevel] — L5 243 · L10 268. 2026-10-12 시작 170 → 210)
   /// (투구는 여기에 [dodgeThrowScale] 을 곱한다. 외야 패스 속공은 곱하지 않는다)
-  static double dodgeSpeed(int level) => speedByLevel(level, 170.0, 440.0);
+  static double dodgeSpeed(int level) => speedByLevel(level, 210.0, 440.0);
   /// 두 곳에서 동시 투구 확률(단계별) — 극악 50% → 40%
   static const List<double> dodgeTwin = [0, 0, 0, 0, 0, 0.25, 0.4];
+  /// 동시 투구의 두 번째 공은 이만큼(초) 늦게 — 두 공이 한 덩어리로 오지 않게(2026-10-12)
+  static const double dodgeTwinDelay = 0.35;
+  /// 일렬 투구(3·4·5개) — 공마다 이만큼(초)씩 늦게 던져 비스듬한·V자 대형으로 온다(2026-10-12, 예전엔 나란한 벽이 한꺼번에)
+  static const double dodgeRowStagger = 0.08;
+  /// 일렬 투구 공마다 속도를 이 비율 안에서 조금씩 다르게(±)
+  static const double dodgeRowSpeedJitter = 0.06;
   /// 극악 단계 예측 조준 — 캐릭터가 가는 방향 이 시간(초) 앞을 노린다(예전 0.35)
   static const double dodgeLead = 0.25;
   /// 2026-09-24 코트를 무대 가운데 크게(세로 460 → 624) 키우면서 내야 → 우리 진영 평균 거리가 248 → 330(×1.33)이 됐다.
@@ -83,16 +92,18 @@ class Balance {
   static const double dodgeThrowScale = 1.33;
 
   // ── 골키퍼 ──
-  /// 턴 간격 2.0s → 0.65s (빈도가 레벨마다 같은 폭으로). 예전 하한 0.55s
-  static double keeperBeat(int level) => 1 / byLevel(level, 1 / 2.0, 1 / 0.65);
-  /// 슛 속도 200 → 371 ([speedByLevel] — L5 269 · L10 320. 예전 일직선 200 → 440),
+  /// 턴 간격 1.5s → 0.65s (빈도가 레벨마다 같은 폭으로). 2026-10-12 초반이 쉬워 시작 2.0s → 1.5s
+  static double keeperBeat(int level) => 1 / byLevel(level, 1 / 1.5, 1 / 0.65);
+  /// 슛 속도 240 → 311 ([speedByLevel] — L5 269 · L10 290. 2026-10-12 시작 200 → 240),
   /// 여기에 [keeperShotScale] (슛 종류별 배수는 world_config.dart)
-  static double keeperSpeed(int level) => speedByLevel(level, 200.0, 440.0) * keeperShotScale;
+  static double keeperSpeed(int level) => speedByLevel(level, 240.0, 440.0) * keeperShotScale;
   /// 2026-09-24 경기장을 무대 전체로 넓히면서 슈터 자리를 y 280~395 → 110~395 로 넓혀 골라인까지 평균 거리가
   /// 383 → 468(×1.22)이 됐다. 슛이 골라인에 닿는 시간이 예전과 같도록 속도에 같은 배율을 곱한다.
   static const double keeperShotScale = 1.22;
-  /// 여러 공이 골라인에 이 간격(초)보다 가깝게 도착하지 않게 늦춘다(간발의 차는 허용)
-  static const double keeperArrivalGap = 0.3;
+  /// 여러 공이 골라인에 이 간격(초)보다 가깝게 도착하지 않게 늦춘다(2026-10-12 0.3 → 0.45 — 공이 뭉쳐 오지 않게)
+  static const double keeperArrivalGap = 0.45;
+  /// 여러 명이 동시에 찰 때 한 명씩 차는 간격(초)(2026-10-12 0.12 → 0.25)
+  static const double keeperKickStagger = 0.25;
   /// 키퍼가 막는 범위(히트박스 절반, px) — 장갑 능력치(reach)가 더해진다
   static const double keeperReach = 18.0;
 }
