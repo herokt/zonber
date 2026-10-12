@@ -231,6 +231,11 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     // 알림(친구·이벤트 소식)을 눌러 열렸으면(또는 켜 둔 채 눌렀으면) 알림 페이지로
     if (PushService.openInbox.value > 0) _openInboxFromPush();
     PushService.openInbox.addListener(_openInboxFromPush);
+    // 인앱 이벤트 링크로 켜졌으면 이벤트 화면으로
+    if (_pendingEventsLink || _isEventsLink(Uri.parse(WidgetsBinding.instance.platformDispatcher.defaultRouteName))) {
+      _pendingEventsLink = false;
+      _openEventsFromLink();
+    }
 
     // 4. Check Ads
     await _checkAdStatus();
@@ -344,6 +349,27 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   void _openInboxFromPush() {
     if (!mounted || _currentPage == 'Game') return;
     _navigateTo('Inbox');
+  }
+
+  /// 딥 링크 zonber://open/events — App Store 인앱 이벤트 카드의 "열기". 이벤트 화면으로 간다.
+  /// Flutter 기본 딥 링크(Info.plist FlutterDeepLinkingEnabled)로 받는다. 엔진이 경로만 넘기든(/events) 주소 전체를 넘기든 맞게 host+path 를 본다
+  static bool _isEventsLink(Uri uri) => '${uri.host}${uri.path}'.contains('events');
+  bool _pendingEventsLink = false; // 앱 준비(_initializeApp) 전에 온 링크 — 끝나면 연다
+
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async {
+    if (!_isEventsLink(routeInformation.uri)) return false;
+    _openEventsFromLink();
+    return true; // 처리함 — Navigator 에 경로를 쌓지 않는다
+  }
+
+  void _openEventsFromLink() {
+    if (!mounted || _currentPage == 'Game') return;
+    if (_currentPage == 'Splash') {
+      _pendingEventsLink = true;
+      return;
+    }
+    _navigateTo('Promo');
   }
 
   /// 게스트로 메뉴에 진입한다. 최초 실행과 로그아웃 직후에 쓴다.
