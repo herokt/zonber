@@ -1,0 +1,2 @@
+/* 광고 추적 동의(ATT) 창 문구 — Info.plist 의 NSUserTrackingUsageDescription 과 같게 */
+"NSUserTrackingUsageDescription" = "This app uses advertising to provide a better experience. Your data will be used to provide personalized ads.";

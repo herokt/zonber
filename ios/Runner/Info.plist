@@ -8,6 +8,14 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Zonber</string>
+	<!-- 앱이 지원하는 언어 — App Store 페이지 "언어" 칸이 여기와 *.lproj 를 보고 정해진다 (LanguageManager.releasedLanguages 와 같게) -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ko</string>
+		<string>ja</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -32,9 +40,22 @@
 				<string>com.googleusercontent.apps.682278346224-mjot1cnpi5invioufar0qe8u6850d9uj</string>
 			</array>
 		</dict>
+		<!-- 앱 딥 링크 zonber://open/events — App Store 인앱 이벤트의 "열기" (main.dart didPushRouteInformation) -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.zonber.game</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zonber</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-2067804993393343~6579695026</string>
 	<key>GCSupportsGameMode</key>

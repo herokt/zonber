@@ -61,6 +61,8 @@ class AdManager {
     }
 
     RequestConfiguration configuration = RequestConfiguration(
+      // 광고 등급 상한 G(전체 이용가) — 성인·폭력·공포 광고가 나오지 않게. 스토어 등급(전체이용가)과 같게 둔다
+      maxAdContentRating: MaxAdContentRating.g,
       tagForChildDirectedTreatment: TagForChildDirectedTreatment.unspecified,
       tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.unspecified,
     );

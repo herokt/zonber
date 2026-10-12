@@ -340,6 +340,14 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 - **배너** — 전역 (`AppScaffold` 하단), `ads_removed` 구매 시 숨김
 - **전면** — 게임 오버 5회마다
 - **리워드** — 결과 화면 부활, 세션당 1회, 게스트 포함 (사전 고지 다이얼로그 필수 — AdMob 정책)
+- **광고 등급 상한 G**(`RequestConfiguration.maxAdContentRating`) — 성인·폭력·공포 광고를 막는다(2026-10-12)
+- AdMob 콘솔 › 차단 관리(계정 전체 — 같은 계정의 다른 앱에도 적용, 2026-10-12): 광고 콘텐츠 등급 **G** · 민감한 카테고리 차단 = 데이트 · 선정성 · 성·임신 및 출산 관련 건강 · 성에 대한 언급 · 성형수술 및 체형 변형 · 소셜 카지노 게임(도박·주류는 원래 차단). MA→G 전환 시 AdMob 추정 노출 −35% · 수익 −34%
+
+## 스토어 운영 문서 (`store/`)
+
+- `data_safety.md` — Play 데이터 보안 · App Store 개인정보 답안(SDK 를 넣고 빼면 다시 맞춘다)
+- `app_store_events.md` — App Store 인앱 이벤트(4개 언어) · 피처링 추천. 이벤트 딥 링크 `zonber://open/events`(Info.plist URL 스킴 + `main.dart` didPushRouteInformation → 이벤트 화면). 그림은 `node scripts/make_event_media.mjs`
+- `paid_ua_test.md` — 소액 유료 테스트(Apple Ads · Google 앱 캠페인) 계획
 
 ## Android 설정 참고
 
