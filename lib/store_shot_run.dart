@@ -20,7 +20,7 @@ extension _StoreShotRun on _ZonberAppState {
     _rankCache = {};
     if (!mounted) return;
     _showPage('Menu');
-    await _runStoreShots();
+    await (kAdVideo ? _runAdVideo() : _runStoreShots()); // 광고 영상 모드는 판 화면만(ad_video.dart)
   }
 
   Future<void> _runStoreShots() async {

@@ -121,6 +121,17 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   /// 스토어 스크린샷 모드(store_shot.dart) — 캐릭터는 맞지 않고, 골을 먹어도 목숨이 줄지 않고, 붉은 번쩍임도 없다
   bool storeShot = false;
 
+  /// 광고 영상 모드(ad_video.dart) — 자동 플레이. 있으면 손가락 대신 캐릭터를 끈다
+  AutoPilot? autoPilot;
+
+  /// 광고 영상 — 캐릭터의 화면 좌표(논리 px). 합성할 때 손가락 표시를 그린다
+  Offset? playerScreenPosition() {
+    final box = buildContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !player.isMounted) return null;
+    final g = camera.localToGlobal(player.position);
+    return box.localToGlobal(Offset(g.x, g.y));
+  }
+
   /// 스토어 스크린샷 — 생존 시간 [t] 까지 판을 빠르게 돌려 둔다(엔진은 멈춘 채로 부른다)
   Future<void> storeShotAdvance(double t) async {
     storeShot = true;

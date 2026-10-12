@@ -179,6 +179,11 @@ python scripts/cut_sprites.py
 # 갤럭시 배경 — 원본에서 별만 옮겨 깔끔한 그라데이션으로(assets/images/worlds/cyber_bg.png)
 python scripts/clean_cyber_bg.py
 
+# 광고 동영상(Google Ads 앱 캠페인) — 광고 영상 모드(lib/ad_video.dart) 웹 빌드를 자동 플레이(game/autopilot.dart)로 돌려 한 프레임씩 캡처 → 문구·끝 화면·효과음을 입혀 9:16·16:9·1:1 mp4. ffmpeg 필요(PATH 또는 pip install imageio-ffmpeg)
+flutter build web --release --dart-define=STORE_SHOT=true --dart-define=AD_VIDEO=true --output build/web_advideo
+node scripts/ad_video_capture.mjs --lang ko   # → build/ad_video/ko/ (장면당 10초, 약 8분 · 언어 ko|en — 게임 화면 글자도 그 언어) · --dry = 찍지 않고 맞은 수·캐릭터 위치만
+python scripts/make_ad_video.py --lang ko     # → store/ad_videos/ko/zonber_{portrait_9x16,landscape_16x9,square_1x1}[_15s].mp4 (22초 · 15초)
+
 # 앱 아이콘 — 원본 assets/images/app_icon.png 에서 Android(모서리 투명)·iOS·Play 512 그림을 만든 뒤 플랫폼 아이콘 생성
 dart run scripts/make_app_icons.dart
 dart run flutter_launcher_icons

@@ -275,6 +275,10 @@ class Player extends PositionComponent
     // --- 근접 회피 ---
     if (!keeperMode && !_isInvincible && !game.isGameOver) _updateGraze();
 
+    // 광고 영상 — 자동 플레이가 손가락 대신 끈다(game/autopilot.dart)
+    final pilot = game.autoPilot;
+    if (pilot != null) game._dragDeltaAccumulator.add(pilot.drag(game, dt) / _speedMult);
+
     // Check if moving
     Vector2 rawDrag = game.consumeDragDelta();
     // 최종 이동량 = 손가락 이동 × 캐릭터 속도 × 유저 감도 설정

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flame_audio/flame_audio.dart';
 import 'game_settings.dart';
+import 'ad_video.dart';
 
 /// 효과음 이름 — assets/audio/*.wav. 새 효과음은 scripts/make_sfx.py 로 합성한다.
 class Sfx {
@@ -105,6 +106,7 @@ class AudioManager {
 
   /// 효과음. [minGapMs] 안에 같은 소리가 또 오면 건너뛴다(연달아 쌓이는 소리 방지)
   void playSfx(String name, {double volume = 1.0, int minGapMs = 0}) {
+    if (kAdVideo) return AdVideo.logSfx(name, volume); // 광고 영상 — 틀지 않고 프레임에 기록(합성 때 섞는다)
     if (!GameSettings().soundEnabled) return;
     if (minGapMs > 0) {
       final now = DateTime.now().millisecondsSinceEpoch;

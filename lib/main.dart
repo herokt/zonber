@@ -62,6 +62,8 @@ import 'backoffice/admin_gate.dart';
 import 'backoffice/backoffice_home.dart'; // Added for Secret Admin
 import 'firebase_options.dart'; // Added by instruction
 import 'store_shot.dart';
+import 'ad_video.dart';
+import 'ad_video_bridge.dart' if (dart.library.js_interop) 'ad_video_bridge_web.dart';
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -74,7 +76,9 @@ part 'game/keeper.dart';
 part 'game/dodgeball.dart';
 part 'game/pet.dart';
 part 'game/sprites.dart';
+part 'game/autopilot.dart';
 part 'store_shot_run.dart';
+part 'ad_video_run.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -628,7 +632,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       locale: Locale(LanguageManager().currentLanguage),
       theme: AppColors.materialTheme, // 다크 모드 전환(_applyTheme → setState)마다 다시 만든다
       // 스토어 스크린샷 — 시스템 바를 숨겼으니 위쪽에 상태바 자리를 비워 둔다(합성 때 그 자리에 상태바를 그린다)
-      builder: kStoreShot
+      builder: kStoreShot && !kAdVideo
           ? (context, child) {
               final mq = MediaQuery.of(context);
               const inset = EdgeInsets.only(top: StoreShot.statusBarDp);
