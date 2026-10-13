@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zonber/app_release.dart';
+import 'package:zonber/audio_manager.dart';
 import 'package:zonber/avatar.dart';
 import 'package:zonber/badges.dart';
 import 'package:zonber/balance.dart';
@@ -783,6 +784,17 @@ void main() {
   group('시즌', () {
     test('현재 시즌 번호 = 마지막 시작', () {
       expect(Season.current, Season.starts.length - 1);
+    });
+  });
+
+  group('효과음', () {
+    test('자주 나는 소리는 4벌, 나머지는 한 벌 — 파일이 모두 있다', () {
+      expect(Sfx.fileFor(Sfx.hit, 0), 'hit.wav');
+      expect(Sfx.fileFor(Sfx.hit, 3), 'hit_4.wav');
+      expect(Sfx.fileFor(Sfx.hit, 4), 'hit.wav');
+      expect(Sfx.fileFor(Sfx.badge, 1), 'badge.wav');
+      final missing = Sfx.files.where((f) => !File('assets/audio/$f').existsSync()).toList();
+      expect(missing, isEmpty, reason: 'python scripts/make_sfx.py 로 만든다');
     });
   });
 

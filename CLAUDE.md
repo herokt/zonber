@@ -352,7 +352,10 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 - `bgm_cyber.mp3` · `bgm_dodgeball.mp3` · `bgm_keeper.mp3` — 존별 배경음악(32마디 약 1분 루프, `scripts/make_bgm.py`). 게임에 들어갈 때 `AudioManager.startBgm(존 id)`
   - 처음 4마디 멜로디(훅)를 곡 내내 되풀이하고 악기는 끝까지 같다 — 갤럭시 128BPM D단조(버티는 신스) · 피구 116BPM C장조(놀리는 "솔-미-라-솔-미" 실로폰) · 골키퍼 124BPM F장조(3+3+2 당김 스틸드럼 · 삼바 타악기)
   - mp3 는 루프 이음매에 아주 짧은 틈이 생길 수 있다(인코더 여백) — 곡 자체는 끝과 처음이 이어지게 만들었다
-- 효과음 15개(`Sfx`) — `scripts/make_sfx.py`. `hit.wav` 피격, `gameover.wav` 게임 오버 …
+- 효과음 15개(`Sfx`) — `scripts/make_sfx.py`(v3, 2026-10-13). `hit.wav` 피격, `gameover.wav` 게임 오버 …
+  - 휴대폰 스피커 기준 — 200Hz 아래는 줄이고 배음으로 무게를 낸다 · 스테레오 작은 방 잔향
+  - 크기는 귀로 듣는 크기(LUFS 근사)로 맞춘다 — 소리별 목표는 스크립트의 `LOUD` 표(배경음악보다 조금 위, 자주 나는 소리는 더 작게), 꼭대기 -3dBFS
+  - 자주 나는 소리(`Sfx.busy` — 피격·선방·추가 기록·킥·던지기·코인)는 조금씩 다른 4벌(`hit.wav` · `hit_2.wav` …)을 플레이어마다 하나씩 실어 번갈아 낸다. 벌 수 = `Sfx.busyPlayers` = 스크립트 `VARIANTS`
 - 설정 › 사운드 토글(`ProfilePage`)이 `GameSettings.setSound` + BGM 정지를 처리한다
 
 ## AdMob 설정

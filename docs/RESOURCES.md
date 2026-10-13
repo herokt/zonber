@@ -55,8 +55,7 @@
 | P | 파일 | 용도 | 상태 |
 |---|---|---|---|
 | P1 | `bgm_{cyber,dodgeball,keeper}.mp3` | 존별 게임 배경음악(약 1분 루프) | 코드 합성 v2 (`scripts/make_bgm.py`) — 정식 음원으로 바꿀 수 있음 |
-| P1 | `hit.wav` | 피격 / 골키퍼 실점 | 코드 합성 v2 (`scripts/make_sfx.py`) |
-| P1 | `gameover.wav` | 게임 오버 | 코드 합성 v2 |
+| P1 | `hit.wav` 외 효과음 15개 | 피격 · 게임 오버 · 킥 · 선방 · 코인 … (`Sfx`) | 코드 합성 v3 (`scripts/make_sfx.py`, 2026-10-13 — 휴대폰 스피커 기준 · 크기 통일 · 자주 나는 소리 4벌) |
 
 ## 5. 스토어 (출시 자료, 앱에 넣지 않음)
 

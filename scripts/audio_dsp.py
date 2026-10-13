@@ -264,6 +264,15 @@ def rms_db(x):
     return 20 * np.log10(np.sqrt(np.mean(np.asarray(x) ** 2)) + 1e-12)
 
 
+def loudness(x, win=0.1):
+    """귀로 듣는 크기(LUFS 근사) — K-가중 후 win 초 창의 최댓값. 짧은 효과음끼리 크기를 맞출 때 쓴다(채널은 평균)"""
+    st = np.asarray(x, float)
+    st = st if st.ndim == 2 else st[:, None]
+    k = shelf(hp(st, 38), 1681, 4.0, 'high')
+    e = uniform_filter1d((k ** 2).mean(1), size=max(1, ns(win)))
+    return -0.691 + 10 * np.log10(e.max() + 1e-12)
+
+
 def pan(mono, p=0.0):
     """등전력 팬 — p = -1(왼쪽) ~ 1(오른쪽)"""
     a = (p + 1) * np.pi / 4

@@ -29,10 +29,21 @@ class Sfx {
 
   static const all = [hit, gameOver, throwBall, kick, save, goal, graze, coin, badge, purchase, equip, levelUp, newBest, heartbeat, click];
 
-  /// 자주 겹쳐 나는 소리 — 플레이어를 더 많이 만들어 둔다(동시에 [busyPlayers]개까지 겹쳐 난다)
+  /// 자주 겹쳐 나는 소리 — 플레이어를 더 많이 만들어 둔다(동시에 [busyPlayers]개까지 겹쳐 난다).
+  /// 파일도 조금씩 다른 [busyPlayers]벌(`hit.wav` · `hit_2.wav` …)이라 플레이어마다 한 벌씩 실어 똑같은 소리가 반복되지 않는다
   static const busy = [hit, save, graze, kick, throwBall, coin];
-  static const busyPlayers = 4;
+  static const busyPlayers = 4; // scripts/make_sfx.py VARIANTS 와 같게
   static const otherPlayers = 2;
+
+  /// [name] 의 i 번째 플레이어에 싣는 파일
+  static String fileFor(String name, int i) =>
+      busy.contains(name) && i % busyPlayers > 0 ? name.replaceFirst('.wav', '_${i % busyPlayers + 1}.wav') : name;
+
+  /// 미리 읽어 둘 효과음 파일 전부
+  static List<String> get files => [
+        for (final name in all)
+          for (int i = 0; i < (busy.contains(name) ? busyPlayers : 1); i++) fileFor(name, i),
+      ];
 }
 
 class AudioManager {
@@ -63,29 +74,29 @@ class AudioManager {
       },
     );
     try {
-      await FlameAudio.audioCache.loadAll([for (final w in WorldData.worlds) bgmFor(w.id), ...Sfx.all]);
+      await FlameAudio.audioCache.loadAll([for (final w in WorldData.worlds) bgmFor(w.id), ...Sfx.files]);
     } catch (e) {
       debugPrint("Audio load failed: $e (This is expected if files are missing)");
     }
     // 플레이어는 기다리지 않고 뒤에서 만든다 — 앱 시작을 늦추지 않게. 다 되기 전의 효과음은 건너뛴다
     unawaited(Future.wait([
       for (final name in Sfx.all)
-        for (int i = 0; i < (Sfx.busy.contains(name) ? Sfx.busyPlayers : Sfx.otherPlayers); i++) _addPlayer(name),
+        for (int i = 0; i < (Sfx.busy.contains(name) ? Sfx.busyPlayers : Sfx.otherPlayers); i++) _addPlayer(name, Sfx.fileFor(name, i)),
     ]));
   }
 
   static final AudioContext _sfxContext = AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build();
 
-  Future<void> _addPlayer(String name) async {
+  Future<void> _addPlayer(String name, String file) async {
     try {
       final p = AudioPlayer()..audioCache = FlameAudio.audioCache;
       await p.setAudioContext(_sfxContext);
       await p.setPlayerMode(PlayerMode.lowLatency);
       await p.setReleaseMode(ReleaseMode.stop);
-      await p.setSource(AssetSource(name));
+      await p.setSource(AssetSource(file));
       (_players[name] ??= []).add(p);
     } catch (e) {
-      debugPrint('Sfx player failed ($name): $e');
+      debugPrint('Sfx player failed ($file): $e');
     }
   }
 
