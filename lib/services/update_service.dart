@@ -18,7 +18,7 @@ import '../store_shot.dart';
 // 로그인한 유저 문서에는 appVersion · appBuild 로 남긴다(백오피스 › 유저 상세 · 앱 버전 화면의 버전 분포).
 //   이름 = 사람이 읽는 버전(기능이 크게 늘면 가운데 자리, 고친 것만이면 끝자리) · 빌드 = 스토어에 올릴 때마다 +1(줄일 수 없다)
 //
-// 업데이트 안내 — 백오피스 › 앱 버전 에 적은 스토어 빌드(config/app_release, lib/app_release.dart)보다 이 앱이 낮으면 홈에서 띄운다.
+// 업데이트 안내 — 백오피스 › 앱 버전 에 적은 스토어 버전의 빌드(config/app_release, lib/app_release.dart)보다 이 앱이 낮으면 홈에서 띄운다.
 //   보통 안내: [나중에] 를 누르면 그 빌드는 3일 동안 다시 묻지 않는다.
 //   필수(minBuild 보다 낮음): 닫을 수 없다 — [업데이트] 만. 앱을 켤 때마다·돌아올 때마다 다시 뜬다.
 //   [업데이트] = 그 기기의 스토어 페이지(in_app_review openStoreListing — Play / App Store).

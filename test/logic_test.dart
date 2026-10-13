@@ -178,6 +178,15 @@ void main() {
       expect(a.of('web'), isNull);
       expect(AppRelease.fromMap(null).android, isNull);
       expect(const PlatformRelease(version: 'x', build: 3, minBuild: 1).toMap(), {'version': 'x', 'build': 3, 'minBuild': 1});
+      final m = const PlatformRelease(version: '2.1.1', build: 213, minBuild: 210, minVersion: '2.1.0').toMap();
+      expect(m['minVersion'], '2.1.0');
+      expect(PlatformRelease.fromMap(m)?.minVersion, '2.1.0');
+    });
+    test('버전 이름 → 빌드(백오피스는 이름만 적는다) — 안내는 가장 큰 빌드, 필수는 가장 작은 빌드', () {
+      expect(PlatformRelease.buildFor([210, 212], lowest: false), 212); // 2.1.0(210) 앱도 212 를 받게
+      expect(PlatformRelease.buildFor([210, 212], lowest: true), 210); // 2.1.0 은 막지 않게
+      expect(PlatformRelease.buildFor([0], lowest: false), isNull);
+      expect(PlatformRelease.buildFor(const [], lowest: true), isNull);
     });
     test('화면 표시 — v이름 (빌드)', () {
       expect(const AppVersion('2.1.0', 210).label, 'v2.1.0 (210)');

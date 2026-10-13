@@ -4,7 +4,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 // 앱 버전 안내 — 백오피스가 정하는 "지금 스토어에 나가 있는 버전"(2026-10-12)
 //
 // Firestore config/app_release 한 문서. 백오피스 › 앱 버전 에서 쓰고(관리자만), 앱이 읽는다(누구나 — 게스트도).
-//   { android: {version: '2.1.0', build: 210, minBuild: 0}, ios: {...}, updatedAt, updatedBy }
+//   { android: {version: '2.1.0', build: 210, minBuild: 0, minVersion: ''}, ios: {...}, updatedAt, updatedBy }
+// 백오피스에는 버전 이름(2.1.0)만 적는다 — 빌드 번호는 저장할 때 백오피스가 채운다([PlatformRelease.buildFor]).
 // 앱은 자기 빌드 번호(pubspec version 의 + 뒤)가
 //   build    보다 낮으면 → 업데이트 안내(나중에 가능)
 //   minBuild 보다 낮으면 → 필수 업데이트(닫을 수 없다). 0 이면 안 쓴다
@@ -50,7 +51,9 @@ class PlatformRelease {
   final int build;
   /// 이보다 낮으면 필수 업데이트(0 = 안 씀)
   final int minBuild;
-  const PlatformRelease({required this.version, required this.build, this.minBuild = 0});
+  /// 필수 버전 이름(백오피스 표시용 — 앱은 [minBuild] 로 견준다)
+  final String minVersion;
+  const PlatformRelease({required this.version, required this.build, this.minBuild = 0, this.minVersion = ''});
 
   static PlatformRelease? fromMap(Object? m) {
     if (m is! Map) return null;
@@ -60,10 +63,21 @@ class PlatformRelease {
       version: (m['version'] as String? ?? '').trim(),
       build: build,
       minBuild: (m['minBuild'] as num?)?.toInt() ?? 0,
+      minVersion: (m['minVersion'] as String? ?? '').trim(),
     );
   }
 
-  Map<String, Object> toMap() => {'version': version, 'build': build, 'minBuild': minBuild};
+  Map<String, Object> toMap() =>
+      {'version': version, 'build': build, 'minBuild': minBuild, if (minVersion.isNotEmpty) 'minVersion': minVersion};
+
+  /// 버전 이름 → 앱이 견줄 빌드 번호. [known] = 그 이름으로 알려진 빌드들(백오피스 자신 · 저장된 값 · 회원 기록).
+  /// 안내 기준([lowest] false)은 가장 큰 빌드 — 같은 이름의 옛 빌드도 새로 받게. 필수 기준(true)은 가장 작은 빌드 — 그 버전은 막지 않게.
+  /// 모르면 null(빌드는 버전마다 늘기만 하므로 다른 버전의 빌드로 짐작하지 않는다)
+  static int? buildFor(Iterable<int> known, {required bool lowest}) {
+    final b = known.where((x) => x > 0).toList();
+    if (b.isEmpty) return null;
+    return b.reduce((x, y) => lowest ? (x < y ? x : y) : (x > y ? x : y));
+  }
 
   /// 빌드 [current] 인 앱에 무엇을 보일지
   UpdateNeed needFor(int current) {

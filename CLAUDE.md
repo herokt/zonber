@@ -109,7 +109,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `services/reminder_service.dart` | **주간 알림**(로컬 알림, 서버 없음) — 앱을 켜거나 돌아올 때마다 `reschedule()` 이 날짜를 박은 한 번짜리 알림을 7·14·21·28일 뒤로 다시 건다(반복 예약 periodicallyShow 는 켜자마자 뜨는 플러그인 버그가 있어 쓰지 않는다 — 한 달 넘게 안 오면 더 보내지 않는다). 켤 때 트레이의 지난 알림도 비운다(`clearShown`) → **일주일 동안 안 들어온 사람에게만** 간다. 권한은 첫 판 뒤 홈으로 나갈 때 한 번(`maybeAsk`, 리뷰 창과 겹치지 않게), 끄기는 프로필 › 설정 › 주간 알림. Android 는 desugaring·수신기·`ic_notification`(+ `res/raw/keep.xml`) 필요 |
 | `push.dart` | **푸시 단일 출처** — 토픽(`lang_{ko|en|ja|zh}` + `member`/`guest` + 관리자 기기 `tester`) · 대상(`PushAudience`) · 발송 문서(`PushCampaign` = `push_campaigns/{id}`) · 템플릿 문구 8종(`PushTemplates`, 4개 언어). `functions/index.js` 와 약속이 같아야 한다. 운영법 [docs/PUSH.md](docs/PUSH.md) |
 | `services/push_service.dart` | 이벤트·소식 푸시(FCM) 받기 — `sync()` 가 언어·로그인·설정에 맞게 토픽 구독(앱 시작·복귀·언어 변경·로그인/로그아웃). 앱을 켜 둔 채 온 푸시는 띄우지 않는다(종 아이콘 점만). 기기 토큰은 저장하지 않는다. 끄기는 프로필 › 설정 › 이벤트·소식 알림 |
-| `app_release.dart` · `services/update_service.dart` | **앱 버전 · 업데이트 안내**(2026-10-12) — `AppVersion`(pubspec `이름+빌드` → "v2.1.0 (210)", 유저 문서 `appVersion`·`appBuild`) · `AppRelease`(Firestore `config/app_release` = 백오피스 › 앱 버전 에 적은 스토어 버전). 이 앱 빌드가 그보다 낮으면 홈에서 안내 창(나중에 → 3일), 필수 빌드보다 낮으면 닫을 수 없다. 첫 홈 · 앱 복귀 때만(판 끝나고 돌아올 때는 안 띄움). [업데이트] = 스토어 페이지(`in_app_review openStoreListing`). 규칙·버전 규칙 [docs/RELEASE.md](docs/RELEASE.md) |
+| `app_release.dart` · `services/update_service.dart` | **앱 버전 · 업데이트 안내**(2026-10-12) — `AppVersion`(pubspec `이름+빌드` → "v2.1.0 (210)", 유저 문서 `appVersion`·`appBuild`) · `AppRelease`(Firestore `config/app_release` = 백오피스 › 앱 버전 에 적은 스토어 버전). 이 앱 빌드가 그보다 낮으면 홈에서 안내 창(나중에 → 3일), 필수 버전보다 낮으면 닫을 수 없다. 백오피스에는 버전 이름만 적고 빌드는 백오피스가 채운다(`PlatformRelease.buildFor`). 첫 홈 · 앱 복귀 때만(판 끝나고 돌아올 때는 안 띄움). [업데이트] = 스토어 페이지(`in_app_review openStoreListing`). 규칙·버전 규칙 [docs/RELEASE.md](docs/RELEASE.md) |
 | `admin_emails.dart` | 관리자 이메일 — 백오피스 로그인 · 푸시 tester 토픽. `firestore.rules isAdmin()` · `functions/index.js ADMIN_EMAILS` 와 같게 |
 | `friends.dart` | **친구 단일 출처**(docs/FRIENDS.md) — 읽기는 앱이 직접(`users/{me}/friends` · `friend_requests`), 쓰기는 서버 함수(`addByCode` · `request` · `answer` · `remove` → `functions/friends.js`). `FriendResult` 코드는 서버와 같다. 친구 코드는 바로 친구, 랭킹·프로필 카드에서는 요청→수락. 최대 100명 · 대기 요청 50 · 요청 7일 |
 | `pages/friends_page.dart` | 친구 화면(프로필 탭 › 친구) — 내 코드(복사·공유) · 코드로 추가 · 받은 요청 · 친구 랭킹(존별 최고 기록) |
@@ -131,7 +131,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 - `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
 - `promo_page.dart` · `promo_codes_page.dart` — 이벤트 · 이벤트 코드(만들기·검증·사용한 사람)
 - `push_page.dart` — 푸시 보내기(템플릿 · 4개 언어 문구 · 대상 · 미리보기 · 테스트 발송) + 보낸 기록
-- `app_release_page.dart` — **앱 버전**: 스토어에 나가 있는 버전(Android·iOS 따로, 필수 빌드 선택) 저장 → 그보다 낮은 앱에 업데이트 안내. 유저 앱 버전 분포 · 안내 받을 사람 수. 유저 상세에도 앱 버전
+- `app_release_page.dart` — **앱 버전**: 스토어에 나가 있는 버전 이름(Android·iOS 따로, 필수 버전 선택 — 빌드 칸 없음. 빌드는 이 백오피스와 같은 버전이면 그 빌드, 아니면 회원 기록에서 채운다 → 새 버전은 백오피스도 같이 배포) 저장 → 그보다 낮은 앱에 업데이트 안내. 유저 앱 버전 분포 · 안내 받을 사람 수. 유저 상세에도 앱 버전
 - 유저 상세 개요 탭 아래 **친구** 카드(`users/{uid}/friends`)
 - 이름표(캐릭터·장비·뱃지 한글명)는 `bo_catalog.dart`
 
@@ -278,7 +278,7 @@ custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규�
 push_campaigns/             # 백오피스 푸시 발송 기록 — 만들면 서버 함수가 보낸다(status · results)
 friend_requests/            # 친구 요청 {from, to, status, expiresAt} — 쓰기는 서버 함수만
 push_state/                 # 친구 기록 알림 하루 횟수(서버만)
-config/app_release          # 스토어에 나가 있는 버전 {android|ios: {version, build, minBuild}} — 백오피스가 쓰고 앱이 읽는다(공개 읽기)
+config/app_release          # 스토어에 나가 있는 버전 {android|ios: {version, build, minBuild, minVersion}} — 백오피스가 쓰고 앱이 읽는다(공개 읽기)
 news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공개 읽기) — users/{uid}/inbox(친구 알림) · users/{uid}/inbox_state/news(읽은 소식)
 # users/{uid}/friends/{친구uid} · users/{uid}/devices/{기기 id}(친구 알림 토큰, 본인만)
 ```
