@@ -62,13 +62,11 @@ ZONBER: 탄막 피하기 생존게임
 서바이벌,하이퍼캐주얼,골키퍼,페널티킥,랭킹,아케이드,원터치,반응속도,회피,존버,캐주얼게임,슈팅,축구,총알피하기,똥피하기,시간때우기,한손게임,미니게임,킬링타임,피지컬
 
 ### 이번 버전의 새로운 기능 (4000자)
-ZONBER 2.1.0
-• 펫 6종 등장 — 캐릭터 둘레를 돌며 탄과 공을 바깥으로 쳐내 줘요
-• 갤럭시가 운석 지대로 — 크기가 다른 운석 4종
-• 피구·골키퍼 상대 팀과 공, 스테이지 배너를 새로 그렸어요
-• 장비·꾸미기 대부분에 능력치, 새 아이템 추가
-• 게임 오버 연출·로딩 화면이 부드러워졌어요
-• 새 버전이 나오면 앱에서 알려 드려요
+ZONBER 2.1.2
+• 존 3곳 모두 새 배경음악
+• 탄·공이 빨라지는 폭을 줄였어요 — 중·후반이 조금 더 버틸 만해요
+• 로그인 없이 한 판을 끝내도, 바로 로그인하면 방금 기록이 랭킹에 올라가요
+• 모든 광고를 아이에게 맞는 광고로 — 맞춤 광고·추적 허용 창이 없어요
 
 ---
 
@@ -123,13 +121,11 @@ Beat yesterday by just one more second.
 danmaku,shmup,dodgeball,goalkeeper,penalty,soccer,football,freekick,reflex,casual,avoid,ranking
 
 ### What's New (4000)
-ZONBER 2.1.0
-• 6 pets that orbit you and knock bullets and balls away
-• Galaxy is now a meteor field — 4 meteor sizes
-• New art for rival teams, balls and stage banners
-• Most gear and cosmetics now have stats, plus new items
-• Smoother game-over and loading screens
-• The app tells you when a new version is out
+ZONBER 2.1.2
+• New background music for all 3 zones
+• Bullets and balls speed up more gently — the mid and late game is a bit more forgiving
+• Finished a run without logging in? Log in right after and that run goes on the leaderboard
+• All ads are now kid-safe — no personalized ads and no tracking prompt
 
 ---
 
@@ -184,13 +180,11 @@ ZONBER: 弾幕よけサバイバル
 弾幕,避けゲー,よける,カジュアル,ゴールキーパー,アーケード,反射神経,サッカー,ボール,フリーキック,暇つぶし,ハイパーカジュアル,シューティング,ランキング,片手,ミニゲーム,弾避け
 
 ### このバージョンの新機能 (4000)
-ZONBER 2.1.0
-• ペット6種登場 — まわりを回って弾やボールを外へはじく
-• ギャラクシーが隕石ゾーンに — 大きさの違う隕石4種
-• 相手チーム・ボール・ステージバナーを描き直し
-• 装備・着せ替えの多くに能力値、新アイテム追加
-• ゲームオーバー演出とロード画面がなめらかに
-• 新バージョンが出たらアプリでお知らせ
+ZONBER 2.1.2
+• 3つのゾーンすべてに新しいBGM
+• 弾とボールの加速をゆるやかに — 中盤・終盤が少し粘りやすく
+• ログインせずに遊んでも、すぐログインすればその記録がランキングに
+• 広告はすべて子ども向けに — パーソナライズ広告・トラッキング許可の画面なし
 
 ---
 
@@ -245,10 +239,8 @@ ZONBER：躲弹幕生存挑战
 弹幕,躲避,休闲,守门员,街机,反应,足球,球类,任意球,闪避,单指,小游戏,排行榜,射击,解压,打发时间,手速,反应力,躲球,单机,躲子弹,极限,硬核
 
 ### 此版本的新增内容 (4000)
-ZONBER 2.1.0
-• 6种宠物登场——围着你转圈，把子弹和球弹开
-• 银河变成陨石带——4种大小的陨石
-• 重新绘制对手队伍、球和关卡横幅
-• 大部分装备和装扮都有属性，新增道具
-• 游戏结束动画和加载画面更流畅
-• 有新版本时会在应用内提醒你
+ZONBER 2.1.2
+• 3个区域全部换上新背景音乐
+• 子弹和球加速更平缓——中后期更容易坚持
+• 未登录玩完一局后立即登录，这局记录也会登上排行榜
+• 所有广告改为适合儿童的广告——无个性化广告，也不再弹出跟踪授权
