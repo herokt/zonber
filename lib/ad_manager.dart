@@ -64,7 +64,9 @@ class AdManager {
     RequestConfiguration configuration = RequestConfiguration(
       // 광고 등급 상한 G(전체 이용가) — 성인·폭력·공포 광고가 나오지 않게. 스토어 등급(전체이용가)과 같게 둔다
       maxAdContentRating: MaxAdContentRating.g,
-      tagForChildDirectedTreatment: TagForChildDirectedTreatment.unspecified,
+      // 앱 전체를 아동 대상(COPPA)으로 — 초등학생도 하므로 맞춤 광고·광고 ID 추적 없이 아동에게 맞는 광고만.
+      // tagForUnderAgeOfConsent 는 같이 켜지 않는다(둘 다 켜면 아동 대상이 우선 — Google 권고)
+      tagForChildDirectedTreatment: TagForChildDirectedTreatment.yes,
       tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.unspecified,
     );
     await MobileAds.instance.updateRequestConfiguration(configuration);
