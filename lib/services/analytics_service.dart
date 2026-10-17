@@ -91,6 +91,10 @@ class AnalyticsService {
   /// 로그인 화면에서 게스트로 계속하기를 눌러 로그인을 건너뛴 시점.
   Future<void> logLoginSkipped() => _log('login_skipped');
 
+  /// 판이 끝난 게스트에게 띄운 로그인 창(`showLoginPrompt`) — [action] shown(띄움) · close(닫기).
+  /// 거기서 로그인하면 `sign_up`/`login` 이 따로 남는다
+  Future<void> logLoginPrompt(String action) => _log('login_prompt', {'action': action});
+
   /// 로그인 성공. 처음 만든 계정이면 표준 `sign_up`, 원래 있던 계정이면 표준 `login` —
   /// 게스트 → 회원 전환(sign_up)과 재로그인을 나눠 본다.
   Future<void> logLogin(String method, {bool isNewUser = false}) async {
@@ -172,6 +176,10 @@ class AnalyticsService {
   /// 게스트가 점수 제출을 눌렀다가 로그인 안내를 받은 시점 — 게스트→계정 전환 퍼널의 입구.
   Future<void> logGuestRankingBlocked({required double survivalTime}) =>
       _log('guest_ranking_blocked', {'survival_time': _round3(survivalTime)});
+
+  /// 게스트 때 끝낸 판을 로그인(가입) 뒤 회원 기록으로 올린 시점 — 판 끝 로그인 창 퍼널의 끝
+  Future<void> logGuestRunClaimed({required String mapId, required double survivalTime}) =>
+      _log('guest_run_claim', {'map_id': mapId, 'survival_time': _round3(survivalTime)});
 
   // ── 공유 / 이벤트 ───────────────────────────────────────────────────
 

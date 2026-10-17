@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../design_system.dart';
 import '../coin_store.dart';
 import '../ad_manager.dart';
 import '../language_manager.dart';
+import '../login_page.dart' show showLoginPrompt;
 import '../progress_store.dart';
 import '../promotions.dart';
 import '../ranking_system.dart';
@@ -19,6 +21,7 @@ import '../services/auth_service.dart';
 import '../services/reminder_service.dart';
 import '../services/review_service.dart';
 import '../services/share_service.dart';
+import '../store_shot.dart' show kStoreShot;
 import '../user_profile.dart';
 import '../world_config.dart';
 import 'promo_page.dart' show rewardText;
@@ -32,7 +35,8 @@ class ResultPage extends StatefulWidget {
   final double previousBest;
   final VoidCallback onRestart;
   final VoidCallback onExit;
-  final VoidCallback onNavigateToLogin;
+  /// 판 끝 로그인 창에서 로그인했을 때 — 가입(닉네임·국가) 화면이나 홈으로 바꾼다(main)
+  final Future<void> Function() onLoginSuccess;
   final VoidCallback onShowRanking;
   /// 부활 콜백 — 보상 지급 시 삭제해야 할 제출 기록 id를 함께 넘긴다.
   final void Function(String? submittedRecordId)? onRevive;
@@ -45,7 +49,7 @@ class ResultPage extends StatefulWidget {
     required this.previousBest,
     required this.onRestart,
     required this.onExit,
-    required this.onNavigateToLogin,
+    required this.onLoginSuccess,
     required this.onShowRanking,
     this.onRevive,
     this.revivesLeft = 0,
@@ -207,10 +211,31 @@ class _ResultPageState extends State<ResultPage> {
       PromoService.loginGifts().then((g) {
         if (mounted && (g.$1 > 0 || g.$2.isNotEmpty)) setState(() => _loginGifts = g);
       });
+      if (!kStoreShot) _promptLogin();
     }
   }
 
   (int, List<String>)? _loginGifts;
+  final Completer<void> _rankDone = Completer(); // 순위 계산이 끝났나 — 로그인 창에 순위를 싣는다
+
+  /// 게스트 — 판이 끝날 때마다 로그인 창. 결과를 잠깐 보여 주고, 순위가 나오면(늦어도 몇 초 안에) 같이 싣는다
+  Future<void> _promptLogin() async {
+    await Future.delayed(const Duration(milliseconds: 1200));
+    await _rankDone.future.timeout(const Duration(seconds: 2), onTimeout: () {});
+    // 화면을 떠났거나 다른 창(부활 안내 등)이 떠 있으면 넘긴다
+    if (!mounted || ModalRoute.of(context)?.isCurrent == false) return;
+    _openLoginPrompt();
+  }
+
+  void _openLoginPrompt() {
+    final gifts = _loginGifts;
+    showLoginPrompt(
+      context,
+      onLoginSuccess: widget.onLoginSuccess,
+      rank: _worldRank,
+      gift: gifts == null ? null : rewardText(LanguageManager.of(context, listen: false), gifts.$1, gifts.$2),
+    );
+  }
 
   void _soundBadges() {
     if (!mounted) return;
@@ -252,6 +277,7 @@ class _ResultPageState extends State<ResultPage> {
       _untilTop100 = topTimes.length >= 100 ? (topTimes[99] - _time).clamp(0, double.infinity) : null;
       _rankLoading = false;
     });
+    if (!_rankDone.isCompleted) _rankDone.complete();
     if (global != null) {
       ProgressStore.setRankCache(widget.world.id, global.rank, global.total);
     }
@@ -751,12 +777,12 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
-  /// 게스트 안내 — 이번 판이 몇 위였는지 + 로그인하면 받는 선물(있을 때) 한 줄씩, 누르면 로그인으로 보낸다
+  /// 게스트 안내 — 이번 판이 몇 위였는지 + 로그인하면 받는 선물(있을 때) 한 줄씩, 누르면 로그인 창
   Widget _guestRank(LanguageManager lm, Color accent) {
     final gifts = _loginGifts;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: widget.onNavigateToLogin,
+      onTap: _openLoginPrompt,
       child: Row(
         children: [
           Expanded(
@@ -767,7 +793,7 @@ class _ResultPageState extends State<ResultPage> {
                 OneLineText(
                   _worldRank == null
                       ? lm.translate('guest_no_ranking_note')
-                      : lm.translate('guest_lost_rank').replaceAll('{rank}', formatCount(_worldRank!)),
+                      : lm.translate('guest_login_rank').replaceAll('{rank}', formatCount(_worldRank!)),
                   style: AppTextStyles.text(13, weight: FontWeight.w700),
                 ),
                 if (gifts != null) ...[

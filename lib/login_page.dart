@@ -8,6 +8,141 @@ import 'services/analytics_service.dart';
 import 'user_profile.dart';
 import 'language_manager.dart';
 
+/// 로그인 단일 출처 — 구글·애플 로그인 → 프로필 동기화 → 분석(sign_up/login).
+/// 로그인 화면([LoginPage])과 판 끝 로그인 창([showLoginPrompt])이 같이 쓴다. 성공하면 true, 취소·실패는 false.
+/// 프로필은 여기서 만들지 않는다 — 없으면 main 의 _checkProfile() 이 가입(닉네임·국가) 화면으로 보낸다
+Future<bool> signInWith(String method) async {
+  final auth = AuthService();
+  final UserCredential? credential;
+  if (method == 'apple') {
+    final result = await auth.signInWithApple();
+    credential = result == null ? null : result['credential'] as UserCredential?;
+  } else {
+    credential = await auth.signInWithGoogle();
+  }
+  if (credential == null) return false;
+  await UserProfileManager.syncProfile();
+  AnalyticsService().logLogin(method, isNewUser: credential.additionalUserInfo?.isNewUser ?? false);
+  return true;
+}
+
+/// 애플 로그인은 AuthService 가 iOS 에서만 지원한다 — Android 에는 보여 주지 않는다
+bool get appleSignInAvailable => !kIsWeb && Platform.isIOS;
+
+/// 판 끝 로그인 창 — 게스트가 판을 끝낼 때마다 결과 화면 위에 띄운다(ResultPage).
+/// 구글·애플 로그인 버튼 + 작은 [닫기]. [rank] = 이 기록이면 세계 몇 위였나, [gift] = 로그인 선물 문구(있을 때).
+/// 로그인하면 창에 스피너를 띄운 채 [onLoginSuccess](가입 화면·홈으로 바꾸기)를 기다렸다가 닫는다
+Future<void> showLoginPrompt(
+  BuildContext context, {
+  required Future<void> Function() onLoginSuccess,
+  int? rank,
+  String? gift,
+}) async {
+  AnalyticsService().logLoginPrompt('shown');
+  final loggedIn = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _LoginPrompt(onLoginSuccess: onLoginSuccess, rank: rank, gift: gift),
+  );
+  if (loggedIn != true) AnalyticsService().logLoginPrompt('close');
+}
+
+class _LoginPrompt extends StatefulWidget {
+  final Future<void> Function() onLoginSuccess;
+  final int? rank;
+  final String? gift;
+
+  const _LoginPrompt({required this.onLoginSuccess, this.rank, this.gift});
+
+  @override
+  State<_LoginPrompt> createState() => _LoginPromptState();
+}
+
+class _LoginPromptState extends State<_LoginPrompt> {
+  bool _busy = false;
+
+  Future<void> _signIn(String method) async {
+    setState(() => _busy = true);
+    if (!await signInWith(method)) {
+      if (mounted) setState(() => _busy = false); // 취소·실패 — 창은 그대로(다시 고르거나 닫기)
+      return;
+    }
+    await widget.onLoginSuccess();
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lm = LanguageManager.of(context);
+    final rank = widget.rank, gift = widget.gift;
+    return PopScope(
+      canPop: !_busy,
+      child: NeonDialog(
+        title: lm.translate('login_prompt_title'),
+        message: lm.translate('login_prompt_body'),
+        barrierDismissible: false,
+        content: rank == null && gift == null
+            ? null
+            : Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surface2,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  children: [
+                    if (rank != null)
+                      OneLineText(
+                        lm.translate('guest_login_rank').replaceAll('{rank}', formatCount(rank)),
+                        style: AppTextStyles.text(13, weight: FontWeight.w700),
+                      ),
+                    if (rank != null && gift != null) const SizedBox(height: 3),
+                    if (gift != null)
+                      OneLineText(
+                        lm.translate('guest_login_gift').replaceAll('{reward}', gift),
+                        style: AppTextStyles.text(12, color: AppColors.coin, weight: FontWeight.w800),
+                      ),
+                  ],
+                ),
+              ),
+        actions: [
+          if (_busy)
+            const SizedBox(height: 120, child: Center(child: AppSpinner(size: 32, stroke: 3))) // 버튼들과 비슷한 높이
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NeonButton(
+                  text: lm.translate('signin_google'),
+                  icon: Icons.g_mobiledata_rounded,
+                  onPressed: () => _signIn('google'),
+                ),
+                if (appleSignInAvailable) ...[
+                  const SizedBox(height: 8),
+                  NeonButton(
+                    text: lm.translate('signin_apple'),
+                    icon: Icons.apple,
+                    onPressed: () => _signIn('apple'),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                // 그냥 닫기 — 작게
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(lm.translate('close'), style: AppTextStyles.text(13, color: AppColors.textDim, weight: FontWeight.w600)),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
   final VoidCallback? onGuestContinue;
@@ -23,59 +158,19 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
-  Future<void> _handleGoogleSignIn() async {
+  Future<void> _signIn(String method) async {
     setState(() => _isLoading = true);
-    final credential = await _authService.signInWithGoogle();
-
-    if (credential != null) {
-      // Sync existing profile from Firestore (returning user).
-      // Do NOT auto-create a profile here — let _checkProfile() route to
-      // InitialSetupPage if no profile exists, so the user can pick a country.
-      // 스피너는 그대로 — 동기화가 끝나고 화면이 바뀔 때까지
-      await UserProfileManager.syncProfile();
-      AnalyticsService().logLogin('google', isNewUser: credential.additionalUserInfo?.isNewUser ?? false);
-
-      widget.onLoginSuccess();
-    } else {
-      if (mounted) setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Google Sign In failed or cancelled')),
-        );
-      }
+    if (await signInWith(method)) {
+      widget.onLoginSuccess(); // 스피너는 그대로 — 화면이 바뀔 때까지
+      return;
     }
-  }
-
-  Future<void> _handleAppleSignIn() async {
-    setState(() => _isLoading = true);
-    final result = await _authService.signInWithApple();
-
-    if (result != null) {
-      final credential = result['credential'] as UserCredential?;
-
-      if (credential != null) {
-        // Sync existing profile from Firestore (returning user).
-        // Do NOT auto-create a profile here — let _checkProfile() route to
-        // InitialSetupPage if no profile exists, so the user can pick a country.
-        // 스피너는 그대로 — 동기화가 끝나고 화면이 바뀔 때까지
-        await UserProfileManager.syncProfile();
-        AnalyticsService().logLogin('apple', isNewUser: credential.additionalUserInfo?.isNewUser ?? false);
-
-        widget.onLoginSuccess();
-      } else {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    } else {
-      if (mounted) setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Apple Sign In failed or cancelled')),
-        );
-      }
-    }
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${method == 'apple' ? 'Apple' : 'Google'} Sign In failed or cancelled')),
+    );
   }
 
   /// 게스트로 계속 — 로그인 없이 게임 맛보기만(아무것도 저장하지 않는다)
@@ -115,14 +210,13 @@ class _LoginPageState extends State<LoginPage> {
               else ...[
                 _buildLoginButton(
                   LanguageManager.of(context).translate('signin_google'),
-                  _handleGoogleSignIn,
+                  () => _signIn('google'),
                   Icons.g_mobiledata_rounded,
                 ),
-                // Apple 로그인은 AuthService가 iOS에서만 지원한다 — Android에는 노출하지 않는다.
-                if (!kIsWeb && Platform.isIOS)
+                if (appleSignInAvailable)
                   _buildLoginButton(
                     LanguageManager.of(context).translate('signin_apple'),
-                    _handleAppleSignIn,
+                    () => _signIn('apple'),
                     Icons.apple,
                   ),
                 ...[

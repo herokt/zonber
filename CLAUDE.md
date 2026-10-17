@@ -115,7 +115,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `pages/friends_page.dart` | 친구 화면(프로필 탭 › 친구) — 내 코드(복사·공유) · 코드로 추가 · 받은 요청 · 친구 랭킹(존별 최고 기록) |
 | `inbox.dart` · `pages/inbox_page.dart` | **알림 페이지**(홈 위 종 아이콘) — 친구 알림 `users/{uid}/inbox`(서버 함수가 쓴다) + 이벤트 소식 `news/{id}`(푸시를 보내면 남는다) 최근 순, 읽음/안 읽음. 푸시를 누르면 여기로 온다 |
 | `services/review_service.dart` | `ReviewPrompt` — 신기록·새 뱃지가 있었던 회원이 홈으로 나갈 때, 5판 이상 · 120일에 한 번 앱 리뷰 창(`in_app_review`) |
-| `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 게스트가 랭킹 등록을 시도하거나 프로필에서 로그인을 누를 때만 진입 |
+| `login_page.dart` | Firebase 인증 UI (Google / Apple(iOS) · 게스트로 계속 = 로그인 없이 메뉴로). **첫 실행에는 뜨지 않는다** — 프로필·랭킹에서 로그인을 누를 때 진입. `signInWith`(로그인 단일 출처) + **판 끝 로그인 창** `showLoginPrompt`(2026-10-17) — 게스트가 판을 끝낼 때마다 결과 화면 위에(1.2초 뒤, 이 기록 순위·로그인 선물을 싣는다) 구글·애플 버튼 + 작은 닫기. 로그인하면 가입(닉네임·국가) 화면이나 홈으로, 그리고 **방금 판을 회원 기록으로 이어서 올린다**(`main.dart` `_guestRun` → `_claimGuestRun`: 랭킹 기록·존 최고·판 기록 한 번, 코인·미션·뱃지는 소급 안 함, 다음 판을 시작하면 버림) |
 | `services/auth_service.dart` | Firebase Auth 래퍼 (Google, Apple) + `AuthService.isGuest`(게스트 판정 단일 출처) |
 | `promotions.dart` | **이벤트(프로모션) 단일 출처** — `Promotion` 모델 · `Promotions.builtIn`(앱 기본 7종, 4개 언어) · `PromoCode`/`PromoCodes`(이벤트 코드: 정리·형식·자동 생성) · `PromoService`(서버 목록 병합·받기·중복 차단·`redeem` 코드 사용). 새 이벤트는 백오피스에서 `promos/{id}` 추가 = 앱 업데이트 없이 반영. 기획·운영법은 [docs/PROMOTIONS.md](docs/PROMOTIONS.md) |
 | `pages/promo_page.dart` | 홈 이벤트 배너 + 이벤트 페이지 `'Promo'`(한 줄 = 제목 · 설명 한 줄 · 버튼 / 받기 · 이벤트·친구 코드 입력 · 공유하기 = 내 친구 코드(4~5자)를 실은 OS 공유 창, `share_plus`) |
@@ -142,7 +142,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 - **로딩은 전부 도는 스피너**(2026-10-12): `AppSpinner`(작은 링) · `AppLoading`(빈 칸 가운데) · `runBusy(context, () async {...})`(누른 동작 — 끝날 때까지 화면을 덮는 스피너). 새 화면에 `CircularProgressIndicator` 를 직접 쓰지 않는다
 
 ### 인증
-**게스트 = 로그인하지 않은 상태 · 게임 맛보기만(2026-09-22):** 앱 첫 실행은 `_ZonberAppState._enterAsGuest()`가 **로그인 없이**(익명 로그인도 하지 않는다) 바로 메뉴에 들어간다. 로그아웃도 게스트로 복귀한다. 게스트는 **기기·서버 어디에도 아무것도 저장하지 않는다** — 기록·코인·미션·뱃지·통계·프로필·플레이 수 모두. 화면(코인·상점·뱃지·미션·내 최고·통계)은 그대로 보이되 값은 초기값(0·—)이고, 구매·보상 받기는 로그인 안내(`guest_login_to_save`). 저장 차단은 각 store(`CoinStore`·`ProgressStore`·`DailyRewards`·`AchievementManager`·`BadgeStatsStore`·`UserProfileManager`·`PlaytestLog`)가 `AuthService.isGuest`로 직접 막고, `_handleGameOver`도 게스트는 결과만 보여 준다. 게스트 진입 때 기기의 유저 데이터를 지우고(`_clearLocalData`), 예전 버전의 익명 세션은 시작 시 로그아웃시킨다. 로그인 세션은 Firebase 가 기기에 저장하므로 다음 실행에 자동 로그인된다. 규칙도 회원(`isMember`)만 쓰기 허용. 예전 게스트 데이터 정리 = `scripts/delete_guest_data.mjs`.
+**게스트 = 로그인하지 않은 상태 · 게임 맛보기만(2026-09-22):** 앱 첫 실행은 `_ZonberAppState._enterAsGuest()`가 **로그인 없이**(익명 로그인도 하지 않는다) 바로 메뉴에 들어간다. 로그아웃도 게스트로 복귀한다. 게스트는 **기기·서버 어디에도 아무것도 저장하지 않는다** — 기록·코인·미션·뱃지·통계·프로필·플레이 수 모두. 화면(코인·상점·뱃지·미션·내 최고·통계)은 그대로 보이되 값은 초기값(0·—)이고, 구매·보상 받기는 로그인 안내(`guest_login_to_save`). 저장 차단은 각 store(`CoinStore`·`ProgressStore`·`DailyRewards`·`AchievementManager`·`BadgeStatsStore`·`UserProfileManager`·`PlaytestLog`)가 `AuthService.isGuest`로 직접 막고, `_handleGameOver`도 게스트는 결과만 보여 준다(방금 판 하나만 메모리 `_guestRun` 에 두었다가 로그인하면 `_claimGuestRun` 이 올린다). 게스트 진입 때 기기의 유저 데이터를 지우고(`_clearLocalData`), 예전 버전의 익명 세션은 시작 시 로그아웃시킨다. 로그인 세션은 Firebase 가 기기에 저장하므로 다음 실행에 자동 로그인된다. 규칙도 회원(`isMember`)만 쓰기 허용. 예전 게스트 데이터 정리 = `scripts/delete_guest_data.mjs`.
 
 Firebase Auth 로그인 방식 (Google, Apple(iOS 전용 노출)):
 - `services/auth_service.dart`에서 Firebase Auth 호출 래핑
@@ -341,7 +341,7 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 
 ## Analytics
 
-`AnalyticsService()`(모바일 전용, 그 외 no-op). 퍼널: `session_ready`(유저 속성 `is_guest`/`login_provider`) → `game_start` → `game_over`(+표준 `post_score`) → `revive` | `score_submit` | `guest_ranking_blocked`.
+`AnalyticsService()`(모바일 전용, 그 외 no-op). 퍼널: `session_ready`(유저 속성 `is_guest`/`login_provider`) → `game_start` → `game_over`(+표준 `post_score`) → `revive` | `score_submit` | `guest_ranking_blocked` → `login_prompt`(action = shown · close — 판 끝 로그인 창) → `guest_run_claim`(로그인 뒤 방금 판을 회원 기록으로).
 성장 지표(2026-09-29): 표준 `sign_up`(새 계정)/`login`(재로그인) · `share`(content_type = result·promo) · `promo_claim` · `promo_code_redeem`(실패 포함, 캠페인만) · `earn_virtual_currency`(source)/`spend_virtual_currency`(`CoinStore.add/spend` 가 직접 남긴다) · `unlock_achievement`(뱃지) · `review_prompt`.
 유료 유입(2026-10-12): `engaged_user`(reason = runs_3 · day2_return, 기기당 한 번 — `NewUser`) — Firebase 에서 주요 이벤트로 표시해 Google Ads 인앱 전환으로 가져간다.
 공유 링크는 `https://stayzone-88364.web.app/get/{lang}/?src=&c=` — `node scripts/make_share_page.mjs` 가 `hosting_root/get/` 에 만들고(OS별 스토어 이동 · Play `referrer` UTM · og 미리보기 · `c`(친구 코드)가 있으면 바로 넘기지 않고 코드 카드를 보여 주고 설치 버튼을 누를 때 복사, Play 에는 `utm_content=코드`. iOS 캠페인은 스크립트의 `APPLE_PT` 를 채워야 잡힌다) `deploy_admin.bat` 이 같이 올린다. 화면은 `_navigateTo()`에서 `logScreen(page)`로 자동 기록. 새 이벤트는 반드시 `analytics_service.dart`에 메서드로 추가하고 호출부에서 문자열을 만들지 않는다.

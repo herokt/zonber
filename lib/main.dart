@@ -147,6 +147,10 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
 
   int _reviveCount = 0; // Track revives per game session
 
+  /// 게스트가 방금 끝낸 판 — 로그인하면(가입이면 닉네임·국가까지 마친 뒤) 회원 기록으로 이어서 올린다([_claimGuestRun]).
+  /// 부활로 이어진 판은 마지막 값으로 덮고, 다음 판을 시작하면 버린다. 메모리에만 둔다(앱을 끄면 없다)
+  ({String worldId, double time, int level, int statCount, int revive})? _guestRun;
+
   // Current game instance (for accessing in callbacks)
   ZonberGame? _currentGame;
   BuildContext? _latestContext; // For back-button pause during game
@@ -454,6 +458,64 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     });
   }
 
+  /// 로그인 성공(로그인 화면 · 판 끝 로그인 창) — 프로필이 없으면 가입(닉네임·국가) 화면, 있으면 홈
+  Future<void> _onLoggedIn() async {
+    PushService.sync(); // 게스트 → 회원 토픽으로 · 친구 알림 기기 등록
+    Friends.refresh();
+    await _checkProfile();
+    if (_currentPage == 'Menu') _claimGuestRun(); // 가입 화면이면 가입을 마친 뒤(UserProfilePage.onComplete)
+  }
+
+  /// 게스트 때 끝낸 판([_guestRun])을 회원 기록으로 — 랭킹 기록 · 존 최고 기록 · 판 기록(서버)을 한 번만 올리고 알린다.
+  /// 코인·미션·뱃지·통계는 소급하지 않는다(로그인 동기는 "이 기록이 랭킹에 오른다"까지)
+  Future<void> _claimGuestRun() async {
+    final run = _guestRun;
+    _guestRun = null;
+    if (run == null || AuthService.isGuest) return;
+    final profile = await UserProfileManager.getProfile();
+    final flag = profile['flag'] ?? '';
+    if (!UserProfileManager.isCompleteProfile(profile['nickname'], flag, profile['countryName'])) return;
+    final world = WorldData.getWorld(run.worldId);
+    final mapId = world.rankingMapId;
+    final characterId = profile['characterId'] ?? 'neon_green';
+    final recordId = await RankingSystem().saveRecord(mapId, run.time, characterId: characterId, flag: flag);
+    if (recordId.isEmpty) return; // 저장 실패(오프라인 등) — 알리지 않는다
+    AnalyticsService().logScoreSubmit(mapId: mapId, characterId: characterId, survivalTime: run.time);
+    AnalyticsService().logGuestRunClaimed(mapId: mapId, survivalTime: run.time);
+    final prev = await ProgressStore.updateBestTime(world.id, run.time);
+    RunHistory.save({
+      'stage': world.difficulty,
+      'mapId': mapId,
+      'time': run.time,
+      'level': run.level,
+      'stat': world.statKey,
+      'statCount': run.statCount,
+      'coins': 0,
+      'bonus': 0,
+      'revive': run.revive,
+      'character': 'neon_green', // 게스트는 기본 캐릭터·기본 착용으로 한다
+      'gear': const <String>[],
+      'skin': Cosmetics.defaultSkin,
+      'best': run.time > prev,
+      'claimed': true, // 게스트 때 끝낸 판을 로그인 뒤 올림
+    });
+    final global = await RankingSystem().getGlobalRank(mapId, run.time);
+    if (global != null) await ProgressStore.setRankCache(world.id, global.rank, global.total);
+    _bestTimes = await ProgressStore.getBestTimes();
+    _rankCache = await ProgressStore.getRankCache();
+    if (!mounted) return;
+    setState(() {}); // 홈 카드·프로필의 최고 기록·순위
+    final ctx = _latestContext;
+    if (ctx == null || !ctx.mounted) return;
+    final lm = LanguageManager.of(ctx, listen: false);
+    ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+      content: Text(lm
+          .translate('guest_run_saved')
+          .replaceAll('{zone}', lm.translate(world.nameKey))
+          .replaceAll('{time}', formatSurvival(run.time))),
+    ));
+  }
+
   /// 화면만 바꾼다(분석·게임 준비 없이) — 스토어 스크린샷 시작용
   void _showPage(String page) => setState(() => _currentPage = page);
 
@@ -512,6 +574,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       // Reset revive count when starting a NEW game from MapSelect (Time 0)
       if (page == 'Game' && initialTime == 0.0) {
         _reviveCount = 0;
+        _guestRun = null; // 새 판 — 게스트 때 끝낸 판은 버린다
       }
     });
   }
@@ -712,11 +775,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         );
       case 'Login':
         return LoginPage(
-          onLoginSuccess: () {
-            PushService.sync(); // 게스트 → 회원 토픽으로 · 친구 알림 기기 등록
-            Friends.refresh();
-            _checkProfile();
-          },
+          onLoginSuccess: _onLoggedIn,
           onGuestContinue: () {
             _navigateTo('Menu');
           },
@@ -744,7 +803,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           previousBest: _previousBest,
           onRestart: () => _navigateTo('Game', source: 'retry'), // 상대가 있으면 그대로 다시 도전
           onExit: () => _navigateTo('Menu'),
-          onNavigateToLogin: () => _navigateTo('Login'),
+          onLoginSuccess: _onLoggedIn, // 판 끝 로그인 창(게스트)
           onShowRanking: () => _navigateTo('Ranking'),
           // 부활은 게스트에게도 허용한다 — 광고 수익 관점에서 게스트를
           // 제외할 이유가 없고, 랭킹 등록과 달리 계정이 필요한 기능도 아니다.
@@ -789,7 +848,13 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           revivesLeft: 1 - _reviveCount,
         );
       case 'Profile':
-        return UserProfilePage(onComplete: () => _navigateTo('Menu'), onCancel: _cancelSignup);
+        return UserProfilePage(
+          onComplete: () {
+            _navigateTo('Menu');
+            _claimGuestRun(); // 가입을 마쳤다 — 게스트 때 끝낸 판을 이어서 올린다
+          },
+          onCancel: _cancelSignup,
+        );
       case 'Badges':
         return BadgesPage(onBack: () => _navigateTo('Menu'));
       case 'MyProfile':
@@ -947,6 +1012,13 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
       _previousBest = 0;
       result['coinsEarned'] = 0;
       result['coinsBonus'] = 0;
+      _guestRun = (
+        worldId: _currentWorldId,
+        time: (result['survivalTime'] as num).toDouble(),
+        level: (result['level'] as num?)?.toInt() ?? 0,
+        statCount: (result['graze'] as num?)?.toInt() ?? 0,
+        revive: _reviveCount,
+      );
       NewUser.onRunFinished();
       AnalyticsService().logGameOver(
         mapId: result['mapId'] ?? _currentMapId,
