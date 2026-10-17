@@ -1,2 +1,4 @@
-/* 광고 추적 동의(ATT) 창 문구 — Info.plist 의 NSUserTrackingUsageDescription 과 같게 */
-"NSUserTrackingUsageDescription" = "This app uses advertising to provide a better experience. Your data will be used to provide personalized ads.";
+/* 추적 허용(ATT) 창 문구 — Info.plist 의 NSUserTrackingUsageDescription 과 같게.
+   앱은 이 창을 띄우지 않는다(2026-10-17, 광고 전부 아동 대상). AdMob UMP 의 IDFA 안내 메시지가 켜져 있을 때만 뜰 수 있어
+   키를 남겨 둔다(키가 없으면 그때 앱이 죽을 수 있다). 이 lproj 폴더들은 App Store 지원 언어 표시에도 쓰이니 지우지 않는다 */
+"NSUserTrackingUsageDescription" = "Ads in ZONBER are not personalized. If you allow this, it is only used to measure ad performance.";

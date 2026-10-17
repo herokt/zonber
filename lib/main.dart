@@ -216,7 +216,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         debugPrint("❌ Firebase initialization failed (Mobile): $e");
       }
 
-      // 동의 폼(UMP)·ATT 가 사용자 응답을 기다릴 수 있으므로 앱 시작을 막지 않는다.
+      // 동의 폼(UMP)이 사용자 응답을 기다릴 수 있으므로 앱 시작을 막지 않는다.
       // 배너는 _checkAdStatus 에서 AdManager().whenReady 뒤에 요청한다.
       AdManager().initialize().then(
         (_) => debugPrint("✅ AdMob initialized"),

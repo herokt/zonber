@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_helper.dart';
@@ -23,7 +22,7 @@ class AdManager {
 
   bool get _isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
-  /// 동의(UMP)·ATT 를 거쳐 SDK 초기화까지 끝났을 때만 true. 그 전엔 어떤 광고도 요청하지 않는다.
+  /// 동의(UMP)를 거쳐 SDK 초기화까지 끝났을 때만 true. 그 전엔 어떤 광고도 요청하지 않는다.
   bool _sdkReady = false;
   final Completer<void> _readyCompleter = Completer<void>();
 
@@ -31,7 +30,9 @@ class AdManager {
   Future<void> get whenReady => _readyCompleter.future;
 
   /// 초기화 순서: 광고 제거 확인 → UMP 동의(EEA·영국 등 필요한 지역에서만 폼 표시)
-  /// → iOS ATT 요청 → canRequestAds 일 때만 SDK 초기화.
+  /// → canRequestAds 일 때만 SDK 초기화.
+  /// iOS 추적 허용(ATT) 창은 띄우지 않는다(2026-10-17) — 광고가 전부 아동 대상(맞춤 광고 없음)이라 IDFA 를 쓸 데가 없다.
+  /// App Store 개인정보 라벨도 "추적 안 함"으로 맞춘다(store/data_safety.md).
   /// 폼이 떠 있는 동안 기다리므로 호출부는 await 하지 말고 [whenReady] 를 쓴다.
   Future<void> initialize() async {
     try {
@@ -53,7 +54,6 @@ class AdManager {
     }
 
     await _gatherConsent();
-    if (Platform.isIOS) await _requestTrackingAuthorization();
 
     // 동의 정보 갱신이 실패해도(오프라인) 이전 세션의 동의로 요청 가능할 수 있다
     if (!await ConsentInformation.instance.canRequestAds()) {
@@ -77,7 +77,7 @@ class AdManager {
     _loadRewardedAd();
   }
 
-  // --- 동의(UMP) · 추적 허용(ATT) ---
+  // --- 동의(UMP) ---
 
   /// Google UMP. 동의가 필요한 지역이면 AdMob 콘솔(개인정보 보호 및 메시지)에서 만든 폼을 띄우고 닫힐 때까지 기다린다.
   Future<void> _gatherConsent() {
@@ -96,21 +96,6 @@ class AdManager {
       },
     );
     return done.future;
-  }
-
-  /// iOS 14.5+ 추적 허용. 이미 결정된 경우 팝업 없이 지나간다.
-  /// (UMP 에 IDFA 안내 메시지를 설정했다면 UMP 가 먼저 띄우고, 여기서는 notDetermined 가 아니게 된다)
-  Future<void> _requestTrackingAuthorization() async {
-    try {
-      final status = await AppTrackingTransparency.trackingAuthorizationStatus;
-      if (status == TrackingStatus.notDetermined) {
-        // 앱이 완전히 활성화된 뒤 요청해야 팝업이 무시되지 않는다
-        await Future.delayed(const Duration(milliseconds: 300));
-        await AppTrackingTransparency.requestTrackingAuthorization();
-      }
-    } catch (e) {
-      debugPrint('ATT request failed: $e');
-    }
   }
 
   /// 설정 화면의 "광고 개인정보 설정" 버튼을 보여야 하는지 (UMP 가 요구하는 지역에서만 true)

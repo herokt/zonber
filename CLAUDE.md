@@ -370,6 +370,7 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 - **리워드** — 결과 화면 부활, 세션당 1회, 게스트 포함 (사전 고지 다이얼로그 필수 — AdMob 정책)
 - **광고 등급 상한 G**(`RequestConfiguration.maxAdContentRating`) — 성인·폭력·공포 광고를 막는다(2026-10-12)
 - **앱 전체 아동 대상**(`tagForChildDirectedTreatment: yes`, 2026-10-17) — 초등학생도 하므로 맞춤 광고·광고 ID 추적 없이 아동에게 맞는 광고만. 맞춤 광고가 빠져 광고 수익은 더 준다. `tagForUnderAgeOfConsent` 는 같이 켜지 않는다
+  - 그래서 **iOS 추적 허용(ATT) 창을 띄우지 않는다**(2.1.2, `app_tracking_transparency` 패키지 제거). App Store 개인정보 라벨도 추적 전부 "아니요" — 라벨에 추적이 남으면 5.1.2 거절([store/data_safety.md](store/data_safety.md)). Info.plist 의 `NSUserTrackingUsageDescription` 은 UMP IDFA 메시지 대비로만 남겨 둔다
 - AdMob 콘솔 › 차단 관리(계정 전체 — 같은 계정의 다른 앱에도 적용, 2026-10-12): 광고 콘텐츠 등급 **G** · 민감한 카테고리 차단 = 데이트 · 선정성 · 성·임신 및 출산 관련 건강 · 성에 대한 언급 · 성형수술 및 체형 변형 · 소셜 카지노 게임(도박·주류는 원래 차단). MA→G 전환 시 AdMob 추정 노출 −35% · 수익 −34%
 
 ## 스토어 운영 문서 (`store/`)

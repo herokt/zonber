@@ -1,2 +1,2 @@
-/* 광고 추적 동의(ATT) 창 문구 */
-"NSUserTrackingUsageDescription" = "我们通过广告为您提供更好的体验。您的数据将用于展示个性化广告。";
+/* 추적 허용(ATT) 창 문구 — 앱은 띄우지 않는다(en.lproj 설명 참고) */
+"NSUserTrackingUsageDescription" = "ZONBER 中的广告不是个性化广告。如果允许，仅用于衡量广告效果。";
