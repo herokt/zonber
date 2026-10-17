@@ -1,2 +1,2 @@
-/* 추적 허용(ATT) 창 문구 — 앱은 띄우지 않는다(en.lproj 설명 참고) */
-"NSUserTrackingUsageDescription" = "ZONBER 中的广告不是个性化广告。如果允许，仅用于衡量广告效果。";
+/* 언어별 Info.plist 값 — en.lproj 설명 참고 */
+"CFBundleDisplayName" = "Zonber";
