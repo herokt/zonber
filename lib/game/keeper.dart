@@ -94,7 +94,7 @@ class _KeeperShooter {
   static double beatAt(double t) => Balance.keeperBeat(Balance.levelAt(t));
 
   /// 슛 속도 240 → 311 × 1.22 — 레벨마다 조금씩(Balance.keeperSpeed). 총알슛은 여기에 1.6배
-  static double speedAt(double t) => Balance.keeperSpeed(Balance.levelAt(t));
+  static double speedAt(double t) => Balance.keeperSpeed(Balance.levelAt(t)) * Balance.lateGrowth(t);
 
   /// 공이 골라인에 닿는 시각(예상)들 — 여러 공이 한꺼번에 도착하지 않게 이 간격 이상 벌린다(간발의 차는 허용)
   final List<double> _arrivals = [];
@@ -135,7 +135,7 @@ class _KeeperShooter {
     if (_since < _nextBeat) return;
     _since = 0;
     final t = game.survivalTime;
-    _nextBeat = beatAt(t);
+    _nextBeat = beatAt(t) / (Balance.lateGrowth(t) * game.spawnScale);
     final goal = game.goal;
     if (goal.shooters.isEmpty || game.isGameOver || !game.player.isMounted) return;
     final tier = KeeperGoal.tierAt(t);

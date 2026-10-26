@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../balance.dart';
 import 'bo_charts.dart';
 import 'bo_common.dart';
 import 'runs_page.dart' show kNoRunsHint;
@@ -149,7 +150,7 @@ class _DashboardPageState extends State<DashboardPage> with BoReloadable {
             minItemWidth: 420,
             maxColumns: 2,
             stretch: false,
-            children: [_dailyCard(), _stageCard(), _signupCard(), _charCard()],
+            children: [_dailyCard(), _stageCard(), _levelCard(), _signupCard(), _charCard()],
           ),
           const SizedBox(height: Bo.gap),
           _feedCard(),
@@ -359,6 +360,35 @@ class _DashboardPageState extends State<DashboardPage> with BoReloadable {
               ),
             ),
         ],
+      )),
+    );
+  }
+
+  // ── 존별 끝난 레벨 분포(2026-10-26) — 밸런스 확인용. docs/STAGES.md 밸런스 기록이 "다음에 판 기록으로 다시 본다"던 그 화면 ──
+  Widget _levelCard() {
+    final labels = [for (int l = 1; l <= Balance.maxLevel; l++) 'L$l'];
+    final counts = {for (final s in kStages) s.id: List<double>.filled(Balance.maxLevel, 0)};
+    final levels = {for (final s in kStages) s.id: <int>[]};
+    for (final r in _runs7d) {
+      final l = r.level.clamp(1, Balance.maxLevel);
+      final c = counts[r.mapId];
+      if (c == null) continue;
+      c[l - 1] += 1;
+      levels[r.mapId]!.add(l);
+    }
+    String median(List<int> v) {
+      if (v.isEmpty) return '-';
+      v.sort();
+      return 'L${v[v.length ~/ 2]}';
+    }
+    final sub = kStages.map((s) => '${s.label} 중앙값 ${median(levels[s.id]!)}').join(' · ');
+    return BoCard(
+      title: '존별 끝난 레벨 분포',
+      subtitle: '최근 7일 · 판이 끝난 레벨 — 한 레벨에 몰리면 그 레벨이 벽이다 · $sub',
+      child: _chartBody(BoChart(
+        labels: labels,
+        bars: [for (final s in kStages) BoSeries(s.label, s.color, counts[s.id]!)],
+        height: _chartH,
       )),
     );
   }

@@ -1,7 +1,7 @@
 import 'dart:math';
 
 // ─────────────────────────────────────────────────────────────
-// 밸런스 수치 모음 — 조정할 때 여기부터 본다. 플레이 로그(PlaytestLog)로 확인하고 바꾼다.
+// 밸런스 수치 모음 — 조정할 때 여기부터 본다. 백오피스 대시보드 "존별 끝난 레벨 분포"로 확인하고 바꾼다.
 // ⚠️ 스테이지 난이도(속도·간격)를 크게 바꾸면 시즌을 올린다(season.dart · docs/RELEASE.md).
 // 장비 능력치는 gear.dart, 상점 가격은 gear.dart · cosmetics.dart · character_data.dart, 일일 보상은 daily_rewards.dart.
 // ─────────────────────────────────────────────────────────────
@@ -48,6 +48,18 @@ class Balance {
     final l = level.clamp(1, maxLevel);
     final eff = l <= speedKnee ? l.toDouble() : speedKnee + (l - speedKnee) * speedLateStep;
     return lv1 + (top - lv1) * speedGrowth * ((eff - 1) / (maxLevel - 1));
+  }
+
+  // ── 최고 레벨 뒤(2026-10-26) ──
+  /// 최고 레벨(210초)에 닿은 뒤로도 [lateStepSeconds]초마다 [lateStep]씩 아주 천천히 더 어려워진다(빈도·동시 상한·속도 모두 곱한다) —
+  /// 상위권 기록이 집중력 싸움으로만 갈리지 않게. 최대 [lateMax](= 최고 레벨 뒤 12분 30초). 레벨 표시는 15 그대로다
+  static const double lateStepSeconds = 30;
+  static const double lateStep = 0.02;
+  static const double lateMax = 1.5;
+  static double lateGrowth(double t) {
+    final past = t - levelSeconds * (maxLevel - 1);
+    if (past <= 0) return 1;
+    return min(lateMax, 1 + lateStep * (past / lateStepSeconds).floor());
   }
 
   /// 패턴 단계(0~6)가 시작되는 레벨 — 피구·골키퍼 공통. 단계마다 새 패턴이 하나씩 나온다

@@ -74,7 +74,7 @@ class _DodgeballThrower {
     if (_sinceThrow < _nextBeat) return;
     _sinceThrow = 0;
     final level = Balance.levelAt(game.survivalTime);
-    _nextBeat = Balance.dodgeBeat(level);
+    _nextBeat = Balance.dodgeBeat(level) / (Balance.lateGrowth(game.survivalTime) * game.spawnScale);
     final tier = Balance.tierOf(level);
     _throw(game, _pick(tier), tier, level);
     // 5단계부터 가끔 다른 자리에서 한 번 더 (동시 투구) — 조금 늦게 던져 두 공이 한 덩어리로 오지 않게
@@ -134,7 +134,7 @@ class _DodgeballThrower {
     final dir = (target - origin).normalized();
     final perp = Vector2(-dir.y, dir.x);
     // 코트가 길어진 만큼 빠르게 — 공이 오는 시간은 예전 코트와 같다(Balance.dodgeThrowScale)
-    final speed = Balance.dodgeSpeed(level) * Balance.dodgeThrowScale;
+    final speed = Balance.dodgeSpeed(level) * Balance.dodgeThrowScale * Balance.lateGrowth(game.survivalTime);
 
     void add(Vector2 from, ProjectileDef def, double v, {int splitInto = 0}) {
       final b = Bullet(from, from + dir * 100, speed: v * def.speedMult, def: def);

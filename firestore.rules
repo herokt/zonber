@@ -37,8 +37,6 @@ service cloud.firestore {
     // 유저 문서 값 검사 — 조작하면 곤란한 필드만
     function validUser(d) {
       return intIn(d, 'coins', 0, 10000000)
-        && intIn(d, 'nicknameTickets', 0, 999)
-        && intIn(d, 'countryTickets', 0, 999)
         && (!('nickname' in d) || (d.nickname is string && d.nickname.size() <= 40));
     }
 
@@ -186,6 +184,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 명예의 전당 — 끝난 시즌의 존별 TOP 3(lib/season.dart HallOfFameSeason). 서버 함수가 쓴다(규칙을 안 거친다), 관리자는 고칠 수 있다
+    match /hall_of_fame/{seasonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // 알림 하루 횟수(친구 기록 알림) — 서버 함수만
     match /push_state/{uid} {
       allow read, write: if false;
@@ -275,14 +279,6 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rewarded'])
         && request.resource.data.rewarded == true;
       allow delete: if isAdmin();
-    }
-
-    // 커스텀 맵
-    match /custom_maps/{mapId} {
-      allow read: if true;
-      allow create: if isMember();
-      allow update: if isAdmin();
-      allow delete: if isAdmin() || (signedIn() && resource.data.get('authorUid', '') == request.auth.uid);
     }
   }
 }

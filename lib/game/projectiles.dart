@@ -333,38 +333,6 @@ class Bullet extends PositionComponent
     keeperCd = 0.25;
   }
 
-  /// 펫이 쳐낸 공(lib/game/pet.dart) — 다시 쳐내지 않는다
-  bool petTouched = false;
-
-  /// 펫이 쳐냄 — [outward] 캐릭터 → 공 방향. 공은 늘 **바깥쪽**(캐릭터에서 멀어지는 쪽)으로 튕겨 나간다(2026-10-12).
-  /// 들어오던 방향의 옆 성분을 조금 살려 벽에 맞은 공처럼 튕기고, 캐릭터 쪽(안쪽) 성분은 남기지 않는다.
-  /// 골키퍼: 골대(아래) 쪽으로도 보내지 않는다 — 키퍼보다 아래에서 맞으면 옆으로 쳐낸다. 결과는 골라인에서(연속 선방에는 세지 않는다).
-  /// 피하기 존: 흐려지며 사라지고, 더는 캐릭터를 다치게 하지 않는다(deflected).
-  void petSwat(Vector2 outward) {
-    petTouched = true;
-    final keeper = game.worldConfig.mode == WorldMode.keeper;
-    final speed = velocity.length;
-    final out = outward.length2 > 0 ? outward.normalized() : -velocity.normalized();
-    final tangent = velocity - out * velocity.dot(out);
-    final dir = out + (tangent.length2 > 0 ? tangent.normalized() * 0.35 : Vector2.zero());
-    if (keeper) {
-      // 아래(골대 쪽)로는 보내지 않는다. 그래도 키퍼 쪽을 향하면 옆으로(키퍼에서 멀어지는 쪽)
-      if (dir.y > 0) dir.y = 0;
-      if (dir.length2 < 1e-6 || dir.dot(out) <= 0) dir.setValues(out.x >= 0 ? 1 : -1, 0);
-    }
-    dir.normalize();
-    velocity = dir * (keeper ? max(speed * 0.75, 200) : max(speed, 240));
-    _baseDir = velocity.normalized();
-    _free = true; // 휘기·흔들림 없이 직선으로
-    if (keeper) {
-      keeperCd = 0.25;
-      return;
-    }
-    deflected = true;
-    _deflectAge = _age;
-    splitAfter = null; // 피구 분열 공은 갈라지지 않고 튕겨 나간다
-  }
-
   /// 튕긴 뒤 — 휘기·흔들림 없이 직선으로 난다
   bool _free = false;
 
@@ -673,9 +641,10 @@ class BulletSpawner extends Component with HasGameReference<ZonberGame> {
     }
     _timeSinceLastSpawn += dt;
 
-    // 갤럭시 — 레벨마다 초당 탄 수가 같은 폭으로 는다(Balance.cyberRate)
+    // 갤럭시 — 레벨마다 초당 탄 수가 같은 폭으로 는다(Balance.cyberRate). 최고 레벨 뒤엔 아주 천천히(lateGrowth),
+    // 첫 판 안내 동안은 반만(spawnScale)
     final int level = currentLevel;
-    if (_timeSinceLastSpawn >= 1 / Balance.cyberRate(level)) {
+    if (_timeSinceLastSpawn >= 1 / (Balance.cyberRate(level) * Balance.lateGrowth(game.survivalTime) * game.spawnScale)) {
       _timeSinceLastSpawn = 0;
       _spawnBullet(level);
     }
@@ -693,13 +662,14 @@ class BulletSpawner extends Component with HasGameReference<ZonberGame> {
         : game.player.position;
 
     // 화면에 동시에 있는 탄 상한 — 레벨마다 조금씩
-    if (game.mapArea.children.whereType<Bullet>().length > Balance.cyberCap(level)) {
+    final late = Balance.lateGrowth(game.survivalTime);
+    if (game.mapArea.children.whereType<Bullet>().length > (Balance.cyberCap(level) * late).round()) {
       return;
     }
 
     // 탄속 — 레벨마다 조금씩, 최고 레벨에서 멈춘다
     // (slowTime 감속은 Bullet.update()에서 실시간 적용 — 여기서 곱하지 않는다)
-    final double currentSpeed = Balance.cyberSpeed(level);
+    final double currentSpeed = Balance.cyberSpeed(level) * late;
 
     final world = game.worldConfig;
     final def = _pick(world.projectiles);

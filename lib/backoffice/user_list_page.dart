@@ -276,7 +276,6 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
           Wrap(spacing: 6, children: [
             OutlinedButton.icon(onPressed: _bulkCoins, icon: const Icon(Icons.paid_outlined, size: 16), label: const Text('코인')),
             OutlinedButton.icon(onPressed: _bulkItem, icon: const Icon(Icons.card_giftcard_outlined, size: 16), label: const Text('아이템')),
-            OutlinedButton.icon(onPressed: _bulkTickets, icon: const Icon(Icons.confirmation_number_outlined, size: 16), label: const Text('변경권')),
             OutlinedButton.icon(onPressed: _bulkCountry, icon: const Icon(Icons.flag_outlined, size: 16), label: const Text('국가')),
             FilledButton.icon(
               onPressed: _bulkDelete,
@@ -340,22 +339,6 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
       return;
     }
     _done('${itemName(id)} 지급', await _each((u) => BoData.src.grantItem(u.id, id)));
-  }
-
-  Future<void> _bulkTickets() async {
-    final kind = await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(title: const Text('변경권 일괄 지급'), children: [
-        SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'nicknameTickets'), child: const Text('닉네임 변경권')),
-        SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'countryTickets'), child: const Text('국가 변경권')),
-      ]),
-    );
-    if (kind == null || !mounted) return;
-    final label = kind == 'nicknameTickets' ? '닉네임 변경권' : '국가 변경권';
-    final n = await _askInt('$label 일괄 지급', '한 사람당 몇 장 (1~99)');
-    if (n == null || n > 99 || !mounted) return;
-    if (!await confirmCode(context, '$label 일괄 지급', '${_whoLine()}\n\n한 사람당 +$n장', ok: '지급', okColor: Bo.accent)) return;
-    _done('$label 지급', await _each((u) => BoData.src.incrementField(u.id, kind, n)));
   }
 
   Future<void> _bulkCountry() async {

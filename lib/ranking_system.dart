@@ -8,8 +8,6 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-enum RankingPeriod { weekly, monthly, allTime }
-
 class RankingSystem {
   FirebaseFirestore? _db;
 
@@ -23,36 +21,20 @@ class RankingSystem {
     }
   }
 
-  /// 기간 시작점을 **기기 로컬 타임존** 기준으로 계산한다.
-  ///
-  /// UTC 기준이면 한국(UTC+9) 유저의 일간 랭킹이 오전 9시에 리셋되어
-  /// "오늘의 기록"이라는 개념이 어긋난다. Timestamp 비교는 절대 시각으로
-  /// 이루어지므로 로컬 DateTime을 그대로 써도 정확하다.
-  /// 기간 안의 기록을 이만큼까지 읽어 와 시간순으로 정렬한다.
+  /// 시즌 안의 기록을 이만큼까지 읽어 와 시간순으로 정렬한다.
   /// (timestamp 범위 필터 + survivalTime 정렬은 Firestore 가 한 쿼리로 못 해서 앱에서 정렬한다.
   ///  500 이면 옛 기록을 옮겨 온 갤럭시(약 600건)에서 상위 기록이 빠질 수 있었다)
   static const int _scanLimit = 3000;
 
-  /// 기간 시작 — 현재 시즌 시작보다 앞이면 시즌 시작(season.dart)
-  DateTime _getPeriodStart(RankingPeriod period) {
-    final start = _periodStart(period);
-    return start.isBefore(Season.currentStart) ? Season.currentStart : start;
-  }
+  /// 랭킹은 **시즌 하나**뿐이다(2026-10-26 주간·월간 제거) — 지금 시즌(season.dart) 시작 이후 · 끝 전 기록만.
+  /// 시즌이 끝나면 서버 함수가 TOP 3 를 명예의 전당에 남기고, 랭킹은 비어서 다시 시작한다
+  static SeasonInfo get _season => Season.now;
 
-  DateTime _periodStart(RankingPeriod period) {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-
-    switch (period) {
-      case RankingPeriod.weekly:
-        // 주 시작 = 월요일 00:00 (로컬)
-        return todayStart.subtract(Duration(days: todayStart.weekday - 1));
-      case RankingPeriod.monthly:
-        return DateTime(now.year, now.month, 1);
-      case RankingPeriod.allTime:
-        // "All Time"은 실제로는 올해 1월 1일부터
-        return DateTime(now.year, 1, 1);
-    }
+  Query<Map<String, dynamic>> _inSeason(Query<Map<String, dynamic>> q) {
+    final se = _season;
+    return q
+        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(se.start))
+        .where('timestamp', isLessThan: Timestamp.fromDate(se.end));
   }
 
   // 1. Save Score (Write) — flag stored for national query; nickname fetched live from users
@@ -75,7 +57,7 @@ class RankingSystem {
             'flag': flag,
             'survivalTime': time,
             'characterId': characterId,
-            'season': Season.current,
+            'season': _season.id,
             'timestamp': FieldValue.serverTimestamp(),
           });
       _bestCache.clear();
@@ -109,17 +91,11 @@ class RankingSystem {
   static final Map<String, ({DateTime at, List<Map<String, dynamic>> players})> _bestCache = {};
   static const Duration _bestCacheFor = Duration(seconds: 30);
 
-  Future<List<Map<String, dynamic>>> _bestPlayers(String mapId, RankingPeriod period) async {
-    final key = '$mapId|${period.name}';
+  Future<List<Map<String, dynamic>>> _bestPlayers(String mapId) async {
+    final key = '$mapId|${_season.id}';
     final hit = _bestCache[key];
     if (hit == null || DateTime.now().difference(hit.at) >= _bestCacheFor) {
-      final snap = await _db!
-          .collection('maps')
-          .doc(mapId)
-          .collection('records')
-          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(_getPeriodStart(period)))
-          .limit(_scanLimit)
-          .get();
+      final snap = await _inSeason(_db!.collection('maps').doc(mapId).collection('records')).limit(_scanLimit).get();
       final records = [
         for (final doc in snap.docs) {...doc.data(), 'id': doc.id},
       ]..sort((a, b) => _timeOf(b).compareTo(_timeOf(a)));
@@ -211,15 +187,12 @@ class RankingSystem {
   // _maintainTop30 Removed as we save all records now.
 
   // 2. Fetch Top 30 (Read) with period filter
-  Future<List<Map<String, dynamic>>> getTopRecords(
-    String mapId, {
-    RankingPeriod period = RankingPeriod.allTime,
-  }) async {
+  Future<List<Map<String, dynamic>>> getTopRecords(String mapId) async {
     if (kStoreShot) return StoreShot.records(mapId);
     if (_db == null) return [];
     try {
       // 한 사람은 한 번만 — 가장 좋은 기록으로
-      final top30 = (await _bestPlayers(mapId, period)).take(30).toList();
+      final top30 = (await _bestPlayers(mapId)).take(30).toList();
       await _enrichWithUserData(top30, worldId: mapId);
       return top30;
     } catch (e) {
@@ -228,13 +201,13 @@ class RankingSystem {
     }
   }
 
-  /// 이 시간이 올해 세계 몇 위인지 — **사람 단위**(한 사람 = 가장 좋은 기록 하나, 랭킹 탭 '올해'와 같은 목록).
+  /// 이 시간이 이번 시즌 세계 몇 위인지 — **사람 단위**(한 사람 = 가장 좋은 기록 하나, 랭킹 탭과 같은 목록).
   /// 나는 빼고 센다(내 예전 더 좋은 기록이 내 위에 서지 않게). total = 기록이 있는 사람 수(나 포함)
   Future<({int rank, int total})?> getGlobalRank(String mapId, double time) async {
     if (kStoreShot) return StoreShot.rankOf(mapId, time);
     if (_db == null) return null;
     try {
-      final others = _others(await _bestPlayers(mapId, RankingPeriod.allTime));
+      final others = _others(await _bestPlayers(mapId));
       final better = others.where((r) => _timeOf(r) > time).length;
       return (rank: better + 1, total: others.length + 1);
     } catch (e) {
@@ -243,13 +216,13 @@ class RankingSystem {
     }
   }
 
-  /// 올해 상위 기록 시간 — 사람 단위(한 사람 = 가장 좋은 기록 하나), 내림차순 최대 limit. 목표선·TOP N 진입선 계산용.
+  /// 이번 시즌 상위 기록 시간 — 사람 단위(한 사람 = 가장 좋은 기록 하나), 내림차순 최대 limit. 목표선·TOP N 진입선 계산용.
   /// [excludeMe] = 나를 빼고(목표선은 "남을 몇 명 제쳐야 TOP N 인가" 라서 getGlobalRank 와 같은 기준)
   Future<List<double>> getTopTimes(String mapId, {int limit = 100, bool excludeMe = false}) async {
     if (kStoreShot) return StoreShot.topTimes(mapId, limit: limit);
     if (_db == null) return [];
     try {
-      var players = await _bestPlayers(mapId, RankingPeriod.allTime);
+      var players = await _bestPlayers(mapId);
       if (excludeMe) players = _others(players);
       return players.take(limit).map(_timeOf).toList();
     } catch (e) {
@@ -258,7 +231,7 @@ class RankingSystem {
     }
   }
 
-  /// [uid] 의 지금 세계 순위(존별, 올해 · 사람 단위 — 랭킹 탭 '올해 · 세계'와 같은 숫자). 올해 기록이 없는 존은 빠진다.
+  /// [uid] 의 지금 세계 순위(존별, 이번 시즌 · 사람 단위 — 랭킹 탭 '세계'와 같은 숫자). 이번 시즌 기록이 없는 존은 빠진다.
   /// 스크린샷 모드·Firebase 없음이면 null(부르는 쪽이 캐시를 쓴다)
   Future<Map<String, int>?> playerRanks(String uid) async {
     if (kStoreShot || _db == null || uid.isEmpty) return null;
@@ -267,7 +240,7 @@ class RankingSystem {
       for (final w in WorldData.worlds)
         () async {
           try {
-            final i = (await _bestPlayers(w.rankingMapId, RankingPeriod.allTime)).indexWhere((r) => r['userId'] == uid);
+            final i = (await _bestPlayers(w.rankingMapId)).indexWhere((r) => r['userId'] == uid);
             if (i >= 0) out[w.id] = i + 1;
           } catch (e) {
             debugPrint('Player rank ${w.id} failed: $e');
@@ -285,19 +258,18 @@ class RankingSystem {
   }
 
   // 3. Fetch National Top 30 — query by flag field (works for all records including legacy)
-  /// 국가 랭킹 — 기간 안의 기록을 한 사람 한 번(가장 좋은 기록)으로 모은 뒤, 유저의 **현재 국가**(users.flag)로 거른다.
+  /// 국가 랭킹 — 이번 시즌 기록을 한 사람 한 번(가장 좋은 기록)으로 모은 뒤, 유저의 **현재 국가**(users.flag)로 거른다.
   /// 기록 문서의 flag 는 기록 당시 국가라서, 국가를 바꾼 유저가 빠지던 문제를 막는다(2026-09-22).
   /// 결과 화면의 국가 순위 계산([limit] 500)도 같은 목록(사람 단위)을 쓴다.
   Future<List<Map<String, dynamic>>> getNationalRankings(
     String mapId,
     String flag, {
-    RankingPeriod period = RankingPeriod.allTime,
     int limit = 30,
   }) async {
     if (kStoreShot) return StoreShot.records(mapId, limit: limit);
     if (_db == null) return [];
     try {
-      final players = await _bestPlayers(mapId, period);
+      final players = await _bestPlayers(mapId);
       await _enrichWithUserData(players, worldId: mapId); // flag = 유저의 현재 국가
       return players.where((r) => r['flag'] == flag).take(limit).toList();
     } catch (e) {
@@ -306,26 +278,20 @@ class RankingSystem {
     }
   }
 
-  /// 친구 랭킹(docs/FRIENDS.md) — [uids](나 + 친구)의 이 기간 최고 기록, 한 사람 한 줄.
-  /// userId in(30명씩) + 기간 → 색인 records(userId, timestamp)
-  Future<List<Map<String, dynamic>>> getFriendRankings(
-    String mapId,
-    Iterable<String> uids, {
-    RankingPeriod period = RankingPeriod.allTime,
-  }) async {
+  /// 친구 랭킹(docs/FRIENDS.md) — [uids](나 + 친구)의 이번 시즌 최고 기록, 한 사람 한 줄.
+  /// userId in(30명씩) + 시즌 → 색인 records(userId, timestamp)
+  Future<List<Map<String, dynamic>>> getFriendRankings(String mapId, Iterable<String> uids) async {
     if (_db == null) return [];
     final list = uids.where((u) => u.isNotEmpty).toSet().toList();
     if (list.isEmpty) return [];
     try {
-      final periodStart = _getPeriodStart(period);
       final records = <Map<String, dynamic>>[];
       for (var i = 0; i < list.length; i += 30) {
-        final snap = await _db!
-            .collection('maps')
-            .doc(mapId)
-            .collection('records')
-            .where('userId', whereIn: list.skip(i).take(30).toList())
-            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(periodStart))
+        final snap = await _inSeason(_db!
+                .collection('maps')
+                .doc(mapId)
+                .collection('records')
+                .where('userId', whereIn: list.skip(i).take(30).toList()))
             .get();
         for (final d in snap.docs) {
           records.add({...d.data(), 'id': d.id});
@@ -341,16 +307,12 @@ class RankingSystem {
     }
   }
 
-  // 4. Fetch My Best Record for period (queried by userId)
-  Future<Map<String, dynamic>?> getMyRank(
-    String mapId,
-    String userId, {
-    RankingPeriod period = RankingPeriod.allTime,
-  }) async {
+  // 4. 이번 시즌 내 최고 기록(userId 로 읽는다)
+  Future<Map<String, dynamic>?> getMyRank(String mapId, String userId) async {
     if (kStoreShot) return null;
     if (_db == null || userId.isEmpty) return null;
     try {
-      final periodStart = _getPeriodStart(period);
+      final se = _season;
 
       final snap = await _db!
           .collection('maps')
@@ -364,7 +326,8 @@ class RankingSystem {
       var docs = snap.docs.where((doc) {
         final ts = doc.data()['timestamp'] as Timestamp?;
         if (ts == null) return false;
-        return !ts.toDate().isBefore(periodStart);
+        final t = ts.toDate().toUtc();
+        return !t.isBefore(se.start) && t.isBefore(se.end);
       }).toList();
 
       if (docs.isEmpty) return null;

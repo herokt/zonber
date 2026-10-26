@@ -210,6 +210,42 @@ class _GameScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // 첫 판 안내 — 손가락을 끌면 사라진다(ZonberGame.tutorial)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 28,
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: game.tutorialNotifier,
+                          builder: (context, on, _) => !on
+                              ? const SizedBox.shrink()
+                              : Center(
+                                  child: TweenAnimationBuilder<double>(
+                                    tween: Tween(begin: 0, end: 1),
+                                    duration: const Duration(milliseconds: 320),
+                                    builder: (context, a, child) => Opacity(opacity: a, child: child),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.6),
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.touch_app_rounded, color: accent, size: 22),
+                                          const SizedBox(width: 10),
+                                          Text(lm.translate('tutorial_drag'),
+                                              style: AppTextStyles.text(15, color: Colors.white, weight: FontWeight.w800)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
                     // 게임 오버 — 기절 연출 동안 GAME OVER, 그 뒤 결과 화면을 준비하는 동안 스피너
                     Positioned.fill(
                       child: IgnorePointer(

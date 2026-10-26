@@ -37,9 +37,8 @@ ZONBER: 탄막 피하기 생존게임
 • 랭킹에서 다른 플레이어를 누르면 프로필과 기록을 볼 수 있습니다
 
 ■ 나만의 존버 꾸미기
-• 펫 6종 — 캐릭터 둘레를 돌며 날아오는 탄과 공을 바깥으로 쳐내 줍니다
-• 캐릭터 8종, 몸통 스킨 14종, 이동 잔상 12종, 오라 12종
-• 존마다 다른 장비 63종 — 비쌀수록 능력치(속도·무적·회복·막는 범위·코인)가 높아집니다
+• 캐릭터 8종, 몸통 스킨 14종, 이동 잔상 12종, 오라 18종(둘레를 도는 펫 6종 포함)
+• 존마다 다른 장비 39종 — 능력치 없이 외형만. 랭킹은 순수 실력 경쟁
 • 버틴 시간만큼 코인이 쌓입니다
 
 ■ 뱃지·미션
@@ -96,9 +95,8 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • Tap any player in the rankings to see their profile and records
 
 ■ DRESS UP YOUR ZONBER
-• 6 pets that orbit your Zonber and knock incoming bullets and balls away
-• 8 characters, 14 body skins, 12 trails and 12 auras
-• 63 pieces of gear for each zone — pricier gear gives bigger stats (speed, invincibility, recovery, reach, coins)
+• 8 characters, 14 body skins, 12 trails and 18 auras — including 6 pets that orbit you
+• 39 pieces of zone gear — looks only, no stat boosts. Rankings are pure skill
 • Earn coins for every second you survive
 
 ■ BADGES & MISSIONS
@@ -155,9 +153,8 @@ ZONBER: 弾幕よけサバイバル
 • ランキングでプレイヤーをタップすると、プロフィールと記録が見られる
 
 ■ 自分だけのZONBERに
-• ペット6種 — キャラのまわりを回って、飛んでくる弾やボールを外へはじく
-• キャラクター8種、ボディスキン14種、トレイル12種、オーラ12種
-• ゾーンごとの装備63種 — 高いほど能力値（速さ・無敵・回復・守備範囲・コイン）がアップ
+• キャラクター8種、ボディスキン14種、トレイル12種、オーラ18種（まわりを回るペット6種を含む）
+• ゾーンごとの装備39種 — 能力値なしの見た目だけ。ランキングは純粋な腕くらべ
 • 生き残った時間に応じてコインが貯まる
 
 ■ バッジとミッション
@@ -214,9 +211,8 @@ ZONBER：躲弹幕生存挑战
 • 在排行榜中点击玩家，即可查看其资料与记录
 
 ■ 打造你的 ZONBER
-• 6种宠物——围着角色转圈，把飞来的子弹和球弹开
-• 8个角色、14款身体皮肤、12种拖尾、12种光环
-• 每个区域专属装备63件——越贵属性越高（速度、无敌、回复、守备范围、金币）
+• 8个角色、14款身体皮肤、12种拖尾、18种光环（含 6 种绕身旋转的宠物）
+• 每个区域专属装备 39 件——只改外观，不加属性。排行榜比的是纯实力
 • 坚持越久，金币越多
 
 ■ 徽章与任务

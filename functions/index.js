@@ -4,7 +4,8 @@
 // 친구(friends.js) — addFriendByCode · sendFriendRequest · answerFriendRequest · removeFriend(앱이 부름)
 //   · onRecordCreated(친구 기록 알림) · onUserDeleted(탈퇴 정리). 알림 보내기는 notify.js, 순수 로직은 logic.js
 //
-// sendPushCampaign — 백오피스가 push_campaigns/{id} 를 status: pending 으로 만들면 보낸다.
+// seasonTick(season.js) — 매시간: 시즌 마감 n일 전 자동 푸시 · 끝난 시즌의 존별 TOP 3 를 hall_of_fame 에 남긴다.
+// sendPushCampaign — 백오피스가 push_campaigns/{id} 를 status: pending 으로 만들면 보낸다(시즌 푸시는 서버가 createdBy 'system' 으로).
 //   언어마다 한 번씩, FCM 토픽 조건으로 — 기기는 언어 토픽 하나(lang_ko …) + member/guest + (관리자) tester 를 구독한다.
 //   약속(토픽 이름·대상·문구 규칙)은 lib/push.dart 가 정본이다. 바꾸면 여기도 같이 고친다.
 //   결과: status sending → sent(하나라도 보냄) | failed, results.{언어} = "ok <message id>" | "error: …" | "skip: …"
@@ -56,7 +57,8 @@ exports.sendPushCampaign = onDocumentCreated(
     });
     if (!mine) return;
 
-    if (!ADMIN_EMAILS.includes(String(c.createdBy || '').toLowerCase())) {
+    // 백오피스(관리자) 또는 서버 자신(시즌 마감 푸시 — season.js, createdBy: 'system'. 규칙상 앱은 'system' 으로 못 만든다)
+    if (c.createdBy !== 'system' && !ADMIN_EMAILS.includes(String(c.createdBy || '').toLowerCase())) {
       await ref.update({ status: 'failed', results: { all: 'error: not an admin' }, sentAt: FieldValue.serverTimestamp() });
       return;
     }
@@ -114,3 +116,6 @@ Object.assign(exports, require('./friends'));
 
 // ── 백오피스 관리(일괄 삭제 · 랭킹 정리) ──
 Object.assign(exports, require('./admin'));
+
+// ── 시즌(매시간) — 마감 전 자동 푸시 · 끝난 시즌의 명예의 전당 ──
+Object.assign(exports, require('./season'));

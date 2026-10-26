@@ -28,7 +28,8 @@
 - **계측:** Firebase Analytics (`services/analytics_service.dart`) — session_ready / game_start / game_over / revive / score_submit / guest_ranking_blocked
 - **비주얼:** 다크 스페이스 + 네온 라인아트
 - **수익 모델:** AdMob (배너 / 전면 / 리워드), IAP는 코드만 존재하고 **현재 비활성**
-- **미출시 기능:** 광고 제거 IAP(`iap_service.dart` — 코드만 있고 초기화 안 함). 맵 에디터(UGC)·커스텀 맵·장애물 스테이지는 2026-09-22 코드째 제거
+- **미출시 기능:** 없음 — 광고 제거 IAP 코드(`iap_service.dart`)·`custom_maps` 규칙은 2026-10-26 제거. 맵 에디터(UGC)·커스텀 맵·장애물 스테이지는 2026-09-22 코드째 제거
+- **2026-10-26 정리(이 문서보다 CLAUDE.md 가 최신):** 장비·꾸미기·펫의 전투 능력치 제거(코인 +% 만) · 장비 63 → 39종(`retired`) · 변경권 → 닉네임 30일에 한 번 · 통계 페이지·플레이 로그 삭제 · 알림 토글 하나 · 뱃지 46 → 41 · 첫 판 튜토리얼(`ZonberGame.tutorial`) · 게임 방법 시트를 홈 ? 아이콘에 연결 · 게스트 최고 기록·코인 기기 저장 · 최고 레벨 뒤 완만한 상승(`Balance.lateGrowth`) · 백오피스 존별 끝난 레벨 분포 · 시즌 1 = 2026-11-01 UTC
 
 ### 플랫폼 매트릭스
 

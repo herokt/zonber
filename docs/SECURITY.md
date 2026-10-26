@@ -11,7 +11,6 @@
 | `users/{uid}` | 로그인한 누구나(랭킹 표시) | 회원 본인(익명 제외) · 관리자. 코인 0~1천만 정수, 변경권 0~999, 닉네임 40자 이하 |
 | `users/{uid}/private/account` | 본인 · 관리자 | 본인 · 관리자 — **이메일은 여기** |
 | `users/{uid}/runs/*` | 본인 · 관리자(collection group 포함) | 본인이 추가만(서버 시각, 0~3600초). 수정 불가, 삭제는 본인(탈퇴)·관리자 |
-| `custom_maps/*` | 누구나 | 로그인하면 생성, 삭제는 작성자(`authorUid`)·관리자 — 옛 UGC, 앱은 2026-09-22부터 쓰지 않음(규칙만 남음) |
 
 - **관리자** = Google 로그인 + 인증된 이메일 `herokt851103@gmail.com`. 목록은 `firestore.rules` 의 `isAdmin()` 과 `lib/backoffice/admin_gate.dart` 의 `kAdminEmails` 두 곳 — 같이 고친다.
 - 백오피스(`/secret_admin`, `lib/backoffice/main_backoffice.dart`)는 `AdminGate` 로 관리자만 들어간다(예전엔 익명 로그인으로 누구나).

@@ -102,6 +102,141 @@ function textFor(kind, lang, params) {
   return [fill(t[l][0]), fill(t[l][1])];
 }
 
+
+// ── 시즌(2026-10-26) — lib/season.dart SeasonConfig.seasonAt 과 **같은 식**. 바꾸면 둘 다 고친다 ──
+const HOUR_MS = 60 * 60 * 1000;
+
+function defaultSeasonConfig() {
+  return { mode: 'year', firstStartMs: Date.UTC(2026, 10, 1), offsetHours: 0, periodDays: 90, pushDays: [30, 10, 3], pushHour: 18 };
+}
+
+// 시즌 시간대의 벽시계(UTC 로 표현한 ms) ↔ 실제 순간
+const toS = (cfg, ms) => ms + cfg.offsetHours * HOUR_MS;
+const fromS = (cfg, ms) => ms - cfg.offsetHours * HOUR_MS;
+
+/// [nowMs] 순간의 시즌 — {number, id, startMs, endMs, mode}
+function seasonAt(cfg, nowMs) {
+  if (nowMs < cfg.firstStartMs) return { number: 0, id: 'S0', startMs: Date.UTC(2000, 0, 1), endMs: cfg.firstStartMs, mode: cfg.mode };
+  const s = new Date(toS(cfg, nowMs));
+  const fs = new Date(toS(cfg, cfg.firstStartMs));
+  const y = s.getUTCFullYear();
+  const m = s.getUTCMonth(); // 0~11
+  let startS;
+  let endS;
+  let id;
+  let number;
+  switch (cfg.mode) {
+    case 'quarter': {
+      const q = Math.floor(m / 3);
+      startS = Date.UTC(y, q * 3, 1);
+      endS = Date.UTC(y, q * 3 + 3, 1);
+      id = `${y}Q${q + 1}`;
+      number = (y - fs.getUTCFullYear()) * 4 + q - Math.floor(fs.getUTCMonth() / 3) + 1;
+      break;
+    }
+    case 'month':
+      startS = Date.UTC(y, m, 1);
+      endS = Date.UTC(y, m + 1, 1);
+      id = `${y}-${String(m + 1).padStart(2, '0')}`;
+      number = (y - fs.getUTCFullYear()) * 12 + m - fs.getUTCMonth() + 1;
+      break;
+    case 'days': {
+      const len = Math.max(1, cfg.periodDays) * DAY_MS;
+      const n = Math.floor((s.getTime() - fs.getTime()) / len);
+      startS = fs.getTime() + n * len;
+      endS = startS + len;
+      id = `S${n + 1}`;
+      number = n + 1;
+      break;
+    }
+    default: // year
+      startS = Date.UTC(y, 0, 1);
+      endS = Date.UTC(y + 1, 0, 1);
+      id = `${y}`;
+      number = y - fs.getUTCFullYear() + 1;
+  }
+  if (startS < fs.getTime()) startS = fs.getTime(); // 첫 시즌은 시즌 1 시작부터
+  return { number, id, startMs: fromS(cfg, startS), endMs: fromS(cfg, endS), mode: cfg.mode };
+}
+
+function seasonPrevious(cfg, info) {
+  return info.number <= 0 ? null : seasonAt(cfg, info.startMs - 1);
+}
+
+/// lib/season.dart SeasonInfo.label 과 같게 — '2026' · '2026 Q4' · '2026.10' · 'S3'
+function seasonLabel(info) {
+  switch (info.mode) {
+    case 'quarter':
+      return info.id.replace('Q', ' Q');
+    case 'month':
+      return info.id.replace('-', '.');
+    default:
+      return info.id;
+  }
+}
+
+/// 지금 보낼 마감 전 푸시가 있으면 며칠 전인지, 없으면 null — 시즌 시간대의 pushHour 시(그 시간 안 아무 때나)이고,
+/// 오늘(시즌 시간대 날짜)부터 마감일까지 남은 날이 pushDays 에 있을 때
+function seasonPushDue(cfg, info, nowMs) {
+  const s = new Date(toS(cfg, nowMs));
+  if (s.getUTCHours() !== cfg.pushHour) return null;
+  const today = Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
+  const e = new Date(toS(cfg, info.endMs));
+  const endDay = Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate());
+  const days = Math.round((endDay - today) / DAY_MS);
+  return cfg.pushDays.includes(days) ? days : null;
+}
+
+/// 시간순(좋은 순)으로 정렬된 기록에서 사람마다 첫 기록만 — lib/ranking_system.dart _uniquePlayers 와 같게
+function topUnique(sorted, n) {
+  const seen = new Set();
+  const out = [];
+  for (const r of sorted) {
+    const uid = r.userId || '';
+    const key = uid || `legacy:${r.nickname || ''}|${r.flag || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+// 마감 전 푸시 문구 — {days} 남은 날 · {season} 시즌 이름. 30·10·3 일은 따로, 나머지는 공통
+const SEASON_TEXTS = {
+  30: {
+    ko: ['🏆 {season} 시즌 마감 한 달 전', '명예의 전당에 오를 기회가 한 달 남았어요. 지금 TOP 3 는 영원히 남아요!'],
+    en: ['🏆 One month left in Season {season}', 'One month to earn a place in the Hall of Fame. The final TOP 3 stays forever!'],
+    ja: ['🏆 シーズン{season} 締め切りまであと1か月', '殿堂入りのチャンスはあと1か月。最終TOP3は永遠に残ります！'],
+    zh: ['🏆 {season} 赛季还剩一个月', '登上名人堂的机会只剩一个月。最终 TOP 3 将永久保留！'],
+  },
+  10: {
+    ko: ['🏆 시즌 마감 D-10', '열흘 뒤 {season} 시즌이 끝나요. 명예의 전당 TOP 3, 아직 바꿀 수 있어요!'],
+    en: ['🏆 Season ends in 10 days', 'Season {season} closes in 10 days. The Hall of Fame TOP 3 can still change!'],
+    ja: ['🏆 シーズン締め切りまであと10日', 'あと10日でシーズン{season}が終了。殿堂のTOP3はまだ変えられる！'],
+    zh: ['🏆 赛季结算倒计时 10 天', '{season} 赛季 10 天后结束，名人堂 TOP 3 还有变数！'],
+  },
+  3: {
+    ko: ['🔥 시즌 마감 D-3', '사흘 남았어요! 마지막으로 기록을 올려 명예의 전당에 이름을 남기세요.'],
+    en: ['🔥 3 days left in the season', 'Three days to go! Push your record one more time and get into the Hall of Fame.'],
+    ja: ['🔥 シーズン締め切りまであと3日', 'あと3日！最後に記録を伸ばして殿堂に名前を残そう。'],
+    zh: ['🔥 赛季结算倒计时 3 天', '只剩 3 天！最后冲一次纪录，把名字留在名人堂。'],
+  },
+  any: {
+    ko: ['🏆 시즌 마감 D-{days}', '{days}일 뒤 {season} 시즌이 끝나요 — 명예의 전당에 오를 마지막 기회!'],
+    en: ['🏆 Season ends in {days} days', 'Season {season} closes in {days} days — last chance for the Hall of Fame!'],
+    ja: ['🏆 シーズン締め切りまであと{days}日', 'あと{days}日でシーズン{season}が終了 — 殿堂入りのラストチャンス！'],
+    zh: ['🏆 赛季结算倒计时 {days} 天', '{season} 赛季 {days} 天后结束 — 登上名人堂的最后机会！'],
+  },
+};
+
+function seasonText(lang, days, label) {
+  const l = LANGS.includes(lang) ? lang : 'en';
+  const t = (SEASON_TEXTS[days] || SEASON_TEXTS.any)[l];
+  const fill = (s) => s.replace(/\{days\}/g, String(days)).replace(/\{season\}/g, String(label));
+  return [fill(t[0]), fill(t[1])];
+}
+
 module.exports = {
   LANGS,
   MAX_FRIENDS,
@@ -124,4 +259,12 @@ module.exports = {
   kstDay,
   fmtTime,
   textFor,
+  defaultSeasonConfig,
+  seasonAt,
+  seasonPrevious,
+  seasonLabel,
+  seasonPushDue,
+  topUnique,
+  SEASON_TEXTS,
+  seasonText,
 };

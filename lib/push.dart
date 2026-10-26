@@ -172,19 +172,20 @@ class PushTemplates {
       body: {
         'ko': '이벤트 화면에서 코인 받고 한 판 어때요?',
         'en': 'Grab your coins on the Events screen and play a round.',
-        'ja': 'イベント画面でコインを受け取って1回遊ぼう。',
+        'ja': 'イベント画面でコインを受け取って、1回遊んでみよう。',
         'zh': '在活动页面领取金币，来一局吧。',
       },
     ),
+    // 시즌 마감 — 마감 30·10·3일 전에는 서버가 자동으로 보낸다(functions/season.js, 백오피스 › 시즌). 이건 손으로 더 보낼 때
     PushTemplate(
-      id: 'weekly_ranking',
-      name: '주간 랭킹 마감',
-      title: {'ko': '🏆 주간 랭킹이 곧 마감돼요', 'en': '🏆 Weekly rankings close soon', 'ja': '🏆 週間ランキングがまもなく締め切り', 'zh': '🏆 周榜即将结算'},
+      id: 'season_ending',
+      name: '시즌 마감 임박',
+      title: {'ko': '🏆 시즌 마감이 다가와요', 'en': '🏆 The season is ending soon', 'ja': '🏆 シーズン締め切りが近づいています', 'zh': '🏆 赛季即将结算'},
       body: {
-        'ko': '마지막 기회! 기록을 1초만 더 늘려 볼까요?',
-        'en': 'Last chance — can you add one more second?',
-        'ja': 'ラストチャンス！あと1秒記録を伸ばそう。',
-        'zh': '最后机会！再多坚持一秒吧？',
+        'ko': '명예의 전당에 오를 기회가 얼마 안 남았어요. 지금 TOP 3 는 영원히 남아요!',
+        'en': 'Not much time left to earn a place in the Hall of Fame. The final TOP 3 stays forever!',
+        'ja': '殿堂入りのチャンスはもうわずか。最終TOP3は永遠に残ります！',
+        'zh': '登上名人堂的机会所剩无几，最终 TOP 3 将永久保留！',
       },
     ),
     PushTemplate(
@@ -227,7 +228,7 @@ class PushTemplates {
       body: {
         'ko': '로그인하면 기록이 랭킹에 올라가고 환영 선물도 받아요.',
         'en': 'Log in to put your records on the rankings and get a welcome gift.',
-        'ja': 'ログインすると記録がランキングに載り、ようこそギフトももらえます。',
+        'ja': 'ログインすると記録がランキングに載り、ウェルカムギフトももらえます。',
         'zh': '登录后记录会上榜，还能领取欢迎礼包。',
       },
     ),

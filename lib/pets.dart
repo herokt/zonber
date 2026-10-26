@@ -5,56 +5,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 // ─────────────────────────────────────────────────────────────
-// 펫 — 게임을 돕는 서브 캐릭터(2026-10-12). docs/SHOP.md §펫
+// 펫 그림 — 주위를 도는 오라 6종(2026-10-26 펫을 오라로 합쳤다, cosmetics.dart `Cosmetic.pet`). docs/SHOP.md §오라
 //
-//   세 존 모두 캐릭터 둘레를 같은 빠르기로 계속 돌며(도는 길은 얇은 원), 캐릭터 쪽으로 오던 탄·공을 바깥쪽으로 튕겨 낸다.
-//   골키퍼에서는 골대 쪽으로 튕기지 않는다. 자세한 동작은 lib/game/pet.dart · Bullet.petSwat.
-//   한 번 쳐내면 [PetPower.cooldown] 초 쉰다(흐려진다). 비쌀수록 쉬는 시간이 짧고, 쳐내는 범위가 넓고, 빨리 돈다.
-//
-// 판정은 공과의 거리로만 한다(lib/game/pet.dart) — 펫에는 히트박스가 없어 캐릭터 판정과 섞이지 않고,
-// 도는 궤도는 캐릭터 몸(히트박스)에서 늘 떨어져 있다.
-// 주위를 도는 오라(Cosmetic.orbits)와 같이 쓸 수 없다 — 가방이 둘 중 하나를 벗긴다.
+//   예전(2026-10-12)엔 따로 데리고 다니는 펫 슬롯이 있었고, 도는 오라와 같이 못 쓰는 규칙이 있었다. 지금은 오라 칸에서 하나를 고른다.
+//   아이템 id 는 그대로(pet_star …) — 예전에 산 기록(ownedItems)이 그대로 이어진다. 예전 착용 슬롯 'pet' 은
+//   CoinStore 가 읽을 때 오라 슬롯으로 옮긴다(Cosmetics.migrateEquipped).
+//   여기에는 그림(PetArt · paintPet · PetPreview)과 도는 속도·색만 남는다. 그리기는 paintAura 가 부른다.
 // 그림(2026-10-12 시안 아트) — Gemini 로 뽑은 assets/images/sprites/{펫 id}.png([PetArt]). 못 읽었으면 코드 드로잉.
-// 게임과 가방 미리보기가 같은 [paintPet] 을 쓴다. 비교용 --dart-define=ART=code = 코드 드로잉만.
+// 비교용 --dart-define=ART=code = 코드 드로잉만.
 // ─────────────────────────────────────────────────────────────
-
-class PetPower {
-  /// 한 번 쳐낸 뒤 쉬는 시간(초)
-  final double cooldown;
-  /// 쳐내는 범위 — 펫 중심에서 이 거리(px, 공 반지름은 따로 더한다) 안의 공을 쳐낸다
-  final double reach;
-  /// 도는 속도(rad/s) — 쉬는 동안에도 같다
-  final double orbitSpeed;
-  const PetPower({required this.cooldown, required this.reach, required this.orbitSpeed});
-}
 
 class Pet {
   final String id;
-  final int price;
-  final PetPower power;
-  /// 몸 색(쳐낼 때 터지는 파편 색)
+  /// 도는 속도(rad/s)
+  final double orbitSpeed;
+  /// 몸 색(반짝임·미리보기 색)
   final Color color;
-  const Pet(this.id, this.price, this.power, this.color);
-
-  /// 번역 키 = id
-  String get nameKey => id;
+  const Pet(this.id, this.orbitSpeed, this.color);
 }
 
 class Pets {
-  /// 착용 슬롯 키(CoinStore.equipped) · 펫 없음
-  static const String slotKey = 'pet';
-  static const String none = '';
+  /// 예전 착용 슬롯 키(2026-10-26 전) — 읽을 때 오라로 옮기고 지운다
+  static const String legacySlotKey = 'pet';
 
-  /// 캐릭터 중심에서 펫까지 거리(px) — 캐릭터 히트박스 반(11) + 가장 큰 쳐내는 범위(15) + 여유보다 멀다
-  static const double orbitRadius = 36;
+  /// 도는 길 반지름 = 캐릭터 몸 반지름 × 이 배수(게임 반지름 약 20.6 → 36px). 캐릭터 히트박스(반 11)보다 늘 바깥
+  static const double orbitScale = 1.75;
+  /// 펫 몸 반지름 = 캐릭터 몸 반지름 × 이 배수(게임 약 10px)
+  static const double bodyScale = 0.48;
 
   static const List<Pet> all = [
-    Pet('pet_star', 600, PetPower(cooldown: 7.0, reach: 10, orbitSpeed: 2.2), Color(0xFFFFD23F)),
-    Pet('pet_slime', 800, PetPower(cooldown: 6.0, reach: 11, orbitSpeed: 2.4), Color(0xFF5EF2C2)),
-    Pet('pet_ghost', 1000, PetPower(cooldown: 5.2, reach: 12, orbitSpeed: 2.6), Color(0xFFE8ECF8)),
-    Pet('pet_robot', 1200, PetPower(cooldown: 4.5, reach: 13, orbitSpeed: 2.8), Color(0xFF9FB0CC)),
-    Pet('pet_cat', 1500, PetPower(cooldown: 3.8, reach: 14, orbitSpeed: 3.0), Color(0xFFFF9F43)),
-    Pet('pet_dragon', 1800, PetPower(cooldown: 3.0, reach: 15, orbitSpeed: 3.3), Color(0xFF4ADE80)),
+    Pet('pet_star', 2.2, Color(0xFFFFD23F)),
+    Pet('pet_slime', 2.4, Color(0xFF5EF2C2)),
+    Pet('pet_ghost', 2.6, Color(0xFFE8ECF8)),
+    Pet('pet_robot', 2.8, Color(0xFF9FB0CC)),
+    Pet('pet_cat', 3.0, Color(0xFFFF9F43)),
+    Pet('pet_dragon', 3.3, Color(0xFF4ADE80)),
   ];
 
   static Pet? byId(String id) {
@@ -63,9 +48,28 @@ class Pets {
     }
     return null;
   }
+}
 
-  /// 지금 데리고 다니는 펫 — 없으면 null
-  static Pet? worn(String Function(String key, String fallback) equipped) => byId(equipped(slotKey, none));
+/// 펫 오라 — 캐릭터([center], 몸 반지름 [r]) 둘레를 돈다. [front] false = 도는 길(얇은 원), true = 펫(늘 캐릭터 위 — 위에서 보는 화면)
+void paintPetAura(Canvas canvas, String id, Offset center, double r, double t, {required bool front}) {
+  final pet = Pets.byId(id);
+  if (pet == null) return;
+  final orbit = r * Pets.orbitScale;
+  if (!front) {
+    // 도는 길 — 아주 얇고 옅은 원. 어두운 바닥·밝은 바닥 모두 보이게 옅은 그림자 + 흰 선
+    canvas.drawCircle(center, orbit, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.068
+      ..color = Colors.black.withValues(alpha: 0.06));
+    canvas.drawCircle(center, orbit, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.03
+      ..color = Colors.white.withValues(alpha: 0.26));
+    return;
+  }
+  final a = -pi / 2 + t * pet.orbitSpeed; // 위에서 출발해 시계 방향
+  // 왼쪽으로 가는 중(x 가 줄어드는 중 = sin(a) > 0)이면 그림을 뒤집는다
+  paintPet(canvas, id, center + Offset(cos(a), sin(a)) * orbit, r * Pets.bodyScale, t, flip: sin(a) > 0);
 }
 
 // ── 그림 ─────────────────────────────────────────────────────

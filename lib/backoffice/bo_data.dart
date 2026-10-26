@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../app_release.dart';
+import '../season.dart';
 import '../promotions.dart';
 import '../push.dart';
 import 'bo_catalog.dart';
@@ -213,6 +214,12 @@ abstract class BoSource {
   Future<AppRelease> appRelease();
   Future<void> saveAppRelease(AppRelease r);
 
+  // ── 시즌(config/season — lib/season.dart) · 명예의 전당(hall_of_fame) ──
+  Future<SeasonConfig> seasonConfig();
+  Future<void> saveSeasonConfig(SeasonConfig c);
+  /// 끝난 시즌(최근 순)
+  Future<List<HallOfFameSeason>> hallOfFame(int limit);
+
   // ── 푸시(push_campaigns) ──
   /// 최근 보낸 것부터
   Future<List<PushCampaign>> pushCampaigns(int limit);
@@ -302,7 +309,7 @@ class BoData {
 // ─────────────────────────────────────────────────────────────
 // 화면 이동 — 왼쪽 메뉴 섹션 + (있으면) 그 위에 유저 상세
 // ─────────────────────────────────────────────────────────────
-enum BoSection { dashboard, users, ranking, runs, promos, codes, push, release, economy }
+enum BoSection { dashboard, users, ranking, runs, promos, codes, push, release, season, economy }
 
 class BoNav {
   static final ValueNotifier<BoSection> section = ValueNotifier(BoSection.dashboard);

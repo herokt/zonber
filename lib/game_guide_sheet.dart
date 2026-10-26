@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'design_system.dart';
 import 'language_manager.dart';
 
-/// 게임 방법 바텀시트 — 디자인 시스템 v2(플랫, 단색). 스테이지 공통 규칙만 담는다.
+/// 게임 방법 바텀시트 — 디자인 시스템 v2(플랫, 단색). 공통 규칙 3줄 + 존 3곳의 규칙. 홈 위 ? 아이콘으로 연다(2026-10-26 연결)
 class GameGuideSheet extends StatelessWidget {
   const GameGuideSheet({super.key});
 
@@ -58,20 +58,20 @@ class GameGuideSheet extends StatelessWidget {
                 controller: controller,
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                 children: [
-                  _rule(Icons.adjust_rounded, lm.translate('guide_rule_1')),
-                  _rule(Icons.directions_run_rounded, lm.translate('guide_rule_2')),
-                  _rule(Icons.timer_outlined, lm.translate('guide_rule_3')),
+                  _rule(Icons.touch_app_rounded, lm.translate('guide_rule_1')),
+                  _rule(Icons.timer_outlined, lm.translate('guide_rule_2')),
+                  _rule(Icons.grid_view_rounded, lm.translate('guide_rule_3')),
                   const SizedBox(height: 22),
-                  _section(lm.translate('guide_energy_title'), lm.translate('guide_energy_desc'), [
+                  _section(lm.translate('guide_zone_cyber_title'), lm.translate('guide_zone_cyber_desc'), [
                     lm.translate('guide_rule_4'),
                     lm.translate('guide_rule_5'),
                   ]),
                   const SizedBox(height: 22),
+                  _section(lm.translate('guide_zone_dodgeball_title'), lm.translate('guide_zone_dodgeball_desc'), const []),
+                  const SizedBox(height: 22),
+                  _section(lm.translate('guide_zone_keeper_title'), lm.translate('guide_zone_keeper_desc'), const []),
+                  const SizedBox(height: 22),
                   _section(lm.translate('guide_iframe_title'), lm.translate('guide_iframe_desc'), const []),
-                  const SizedBox(height: 22),
-                  _section(lm.translate('guide_speed_title'), lm.translate('guide_speed_desc'), const []),
-                  const SizedBox(height: 22),
-                  _section(lm.translate('guide_warning_title'), lm.translate('guide_warning_desc'), const []),
                 ],
               ),
             ),

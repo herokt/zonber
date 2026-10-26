@@ -8,13 +8,14 @@ import '../badges.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
 import '../ranking_system.dart';
+import '../season.dart';
 import '../store_shot.dart';
 import '../services/auth_service.dart';
 import '../user_profile.dart';
 import '../world_config.dart';
 import 'player_profile_view.dart';
 
-/// 랭킹 탭 — 월드 탭 × 기간 × 세계/국가, 포디움, 내 행 고정. (docs/UI_DESIGN.md §4.5)
+/// 랭킹 탭 — 월드 탭 × 세계/국가/친구, 포디움, 내 행 고정. 기간은 **시즌 하나**(2026-10-26 주간·월간 제거, season.dart) — 머리에 시즌 이름·마감 D-day · 명예의 전당. (docs/UI_DESIGN.md §4.5)
 class RankingPage extends StatefulWidget {
   final String initialWorldId;
   final Map<String, RankCacheEntry> rankCache;
@@ -24,6 +25,8 @@ class RankingPage extends StatefulWidget {
   final void Function(String worldId) onPlay;
   /// 이 기록 깨러 가기 — 프로필 창에서 고른 상대의 기록을 목표로 판을 연다
   final void Function(String worldId, String name, double time) onChallenge;
+  /// 명예의 전당(지난 시즌 TOP 3)
+  final VoidCallback onHallOfFame;
 
   const RankingPage({
     super.key,
@@ -33,6 +36,7 @@ class RankingPage extends StatefulWidget {
     required this.onBack,
     required this.onPlay,
     required this.onChallenge,
+    required this.onHallOfFame,
   });
 
   @override
@@ -42,7 +46,6 @@ class RankingPage extends StatefulWidget {
 class _RankingPageState extends State<RankingPage> {
   final RankingSystem _ranking = RankingSystem();
   late String _worldId;
-  int _period = 2; // 0 주 1 월 2 올해
   /// 0 세계 · 1 국가 · 2 친구
   int _scope = 0;
   bool get _national => _scope == 1;
@@ -53,12 +56,6 @@ class _RankingPageState extends State<RankingPage> {
   String _myFlag = '';
   String _myUid = '';
   int _loadSeq = 0;
-
-  static const _periods = [
-    RankingPeriod.weekly,
-    RankingPeriod.monthly,
-    RankingPeriod.allTime,
-  ];
 
   @override
   void initState() {
@@ -106,20 +103,19 @@ class _RankingPageState extends State<RankingPage> {
     final profile = await UserProfileManager.getProfile();
     _myFlag = profile['flag'] ?? '';
     _myUid = kStoreShot ? '' : (FirebaseAuth.instance.currentUser?.uid ?? ''); // 스크린샷 모드(웹)는 Firebase 를 켜지 않는다
-    final period = _periods[_period];
 
     List<Map<String, dynamic>> records;
     if (_scope == 2 && !_isGuest) {
       final ids = await Friends.load();
-      records = await _ranking.getFriendRankings(mapId, {...ids, _myUid}, period: period);
+      records = await _ranking.getFriendRankings(mapId, {...ids, _myUid});
     } else if (_national && _myFlag.isNotEmpty) {
-      records = await _ranking.getNationalRankings(mapId, _myFlag, period: period);
+      records = await _ranking.getNationalRankings(mapId, _myFlag);
     } else {
-      records = await _ranking.getTopRecords(mapId, period: period);
+      records = await _ranking.getTopRecords(mapId);
     }
     Map<String, dynamic>? mine;
     if (!_isGuest && _myUid.isNotEmpty) {
-      mine = await _ranking.getMyRank(mapId, _myUid, period: period);
+      mine = await _ranking.getMyRank(mapId, _myUid);
     }
     if (!mounted || seq != _loadSeq) return;
     int myIndex = -1;
@@ -168,20 +164,8 @@ class _RankingPageState extends State<RankingPage> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 children: [
-                  Expanded(
-                    child: AppSegmented(
-                      items: [
-                        lm.translate('period_week'),
-                        lm.translate('period_month'),
-                        lm.translate('period_year'),
-                      ],
-                      index: _period,
-                      onChanged: (i) {
-                        setState(() => _period = i);
-                        _load();
-                      },
-                    ),
-                  ),
+                  // 시즌 — 이름 · 마감 D-day. 누르면 명예의 전당(지난 시즌 TOP 3)
+                  Expanded(child: _seasonChip(lm, accent)),
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 168,
@@ -260,6 +244,46 @@ class _RankingPageState extends State<RankingPage> {
       ),
     );
   }
+
+  /// 시즌 이름 + 마감까지 남은 날 — 누르면 명예의 전당
+  Widget _seasonChip(LanguageManager lm, Color accent) => ValueListenableBuilder<SeasonInfo>(
+        valueListenable: Season.notifier,
+        builder: (context, se, _) {
+          final name = se.isPreSeason ? lm.translate('season_pre') : lm.translate('season_name').replaceAll('{s}', se.label);
+          final d = se.daysLeft;
+          final sub = se.isPreSeason
+              ? lm.translate('hall_of_fame')
+              : d <= 0
+                  ? lm.translate('season_ends_today')
+                  : lm.translate('season_ends_in').replaceAll('{d}', '$d');
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onHallOfFame,
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.line),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 16),
+                  const SizedBox(width: 6),
+                  Flexible(child: OneLineText(name, style: AppTextStyles.text(13, weight: FontWeight.w800))),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: OneLineText(sub,
+                        style: AppTextStyles.text(11, color: d <= 3 && !se.isPreSeason ? AppColors.danger : AppColors.textDim, weight: FontWeight.w700)),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 16),
+                ],
+              ),
+            ),
+          );
+        },
+      );
 
   Widget _empty(LanguageManager lm) => Center(
         child: Padding(

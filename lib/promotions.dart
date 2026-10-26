@@ -159,8 +159,8 @@ class Promotions {
       kind: PromoKind.welcome,
       coins: 300,
       items: ['skin_cloud'],
-      title: {'ko': '환영 선물', 'en': 'Welcome gift', 'zh': '欢迎礼包', 'ja': 'ようこそギフト'},
-      desc: {'ko': '코인 300 + 구름 스킨', 'en': '300 coins + Cloud skin', 'zh': '300 金币 + 云朵皮肤', 'ja': 'コイン300 + くもスキン'},
+      title: {'ko': '환영 선물', 'en': 'Welcome gift', 'zh': '欢迎礼包', 'ja': 'ウェルカムギフト'},
+      desc: {'ko': '코인 300 + 구름 스킨', 'en': '300 coins + Cloud skin', 'zh': '300 金币 + 云朵皮肤', 'ja': 'コイン300 + 雲スキン'},
     ),
     // 글로벌 출시 기념 — 출시 첫 달
     Promotion(
@@ -190,7 +190,7 @@ class Promotions {
       startAt: DateTime.utc(2026, 10, 24),
       endAt: DateTime.utc(2026, 11, 2, 23, 59, 59),
       title: {'ko': '할로윈 파티', 'en': 'Halloween party', 'zh': '万圣节派对', 'ja': 'ハロウィンパーティー'},
-      desc: {'ko': '코인 300 + 불꽃 잔상', 'en': '300 coins + Flame trail', 'zh': '300 金币 + 火焰拖尾', 'ja': 'コイン300 + 炎の軌跡'},
+      desc: {'ko': '코인 300 + 불꽃 잔상', 'en': '300 coins + Flame trail', 'zh': '300 金币 + 火焰拖尾', 'ja': 'コイン300 + 炎のトレイル'},
     ),
     // 연말 — 크리스마스 ~ 새해
     Promotion(
@@ -201,7 +201,7 @@ class Promotions {
       startAt: DateTime.utc(2026, 12, 20),
       endAt: DateTime.utc(2027, 1, 4, 23, 59, 59),
       title: {'ko': '연말 선물', 'en': 'Holiday gift', 'zh': '节日礼物', 'ja': 'ホリデーギフト'},
-      desc: {'ko': '코인 500 + 눈송이 잔상', 'en': '500 coins + Snow trail', 'zh': '500 金币 + 雪花拖尾', 'ja': 'コイン500 + 雪の軌跡'},
+      desc: {'ko': '코인 500 + 눈송이 잔상', 'en': '500 coins + Snow trail', 'zh': '500 金币 + 雪花拖尾', 'ja': 'コイン500 + 雪のトレイル'},
     ),
     // 공식 SNS 코드 안내 — 보상은 코드마다(백오피스 > 이벤트 코드)
     const Promotion(
@@ -216,7 +216,7 @@ class Promotions {
       coins: 50,
       cooldownHours: 24,
       title: {'ko': '공유하기', 'en': 'Share', 'zh': '分享', 'ja': 'シェア'},
-      desc: {'ko': '내 코드 공유하면 매일 코인 50', 'en': 'Share your code — 50 coins daily', 'zh': '分享代码 每天 50 金币', 'ja': 'コードをシェアで毎日コイン50'},
+      desc: {'ko': '내 코드 공유하면 매일 코인 50', 'en': 'Share your code — 50 coins daily', 'zh': '分享好友码，每天 50 金币', 'ja': 'コードをシェアして毎日コイン50'},
     ),
   ];
 

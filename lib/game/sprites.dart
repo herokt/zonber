@@ -3,7 +3,7 @@ part of '../main.dart';
 // 시안 아트(2026-10-12) — Gemini 로 뽑은 그림. assets/images/sprites/(128px 투명 PNG)
 //   원본 시트는 assets/images/gemini/src_*.png, 자르기·배경 지우기·워터마크 지우기는 scripts/cut_sprites.py. docs/RESOURCES.md §시안 아트
 //   갤럭시 운석 4종(meteor_1~4) · 피구 공 2종 · 축구공 2종(나머지 축구공은 흰 공에 색을 입힌다) · 피구 상대 선수 4종(rival_*)
-//   골키퍼 슈터 4종(shooter_*) · 펫 6종(pets.dart PetArt 가 따로 읽는다 — 가방 화면에서도 쓰므로)
+//   골키퍼 슈터 4종(shooter_*) · 펫 오라 6종(pets.dart PetArt 가 따로 읽는다 — 가방 화면에서도 쓰므로)
 // 그림을 아직 못 읽었거나 없으면 지금까지의 코드 드로잉으로 그린다 — 게임을 기다리게 하지 않는다(읽기는 기다리지 않고 건다).
 // 비교용: --dart-define=ART=code 로 빌드하면 코드 드로잉만 쓴다.
 

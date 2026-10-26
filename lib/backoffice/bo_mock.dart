@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../app_release.dart';
+import '../season.dart';
 import '../badges.dart';
 import '../gear.dart';
 import '../promotions.dart';
@@ -136,8 +137,6 @@ class MockSource implements BoSource {
         'equipped': equipped,
         'bestTimes': best,
         'achievements': badges,
-        'nicknameTickets': _r.nextInt(3),
-        'countryTickets': _r.nextInt(2),
         'adsRemoved': _r.nextDouble() < 0.08,
         'characterPlayCounts': charCounts,
         'badgeStats': {
@@ -442,6 +441,34 @@ class MockSource implements BoSource {
   Future<void> saveAppRelease(AppRelease r) => _later(() {
         _release = AppRelease(android: r.android, ios: r.ios, updatedAt: DateTime.now(), updatedBy: adminEmail);
       });
+
+  SeasonConfig _season = SeasonConfig(mode: SeasonMode.quarter, firstStart: DateTime.utc(2026, 9, 30, 15), offsetHours: 9, updatedAt: DateTime(2026, 10, 26), updatedBy: 'preview@zonber.admin');
+
+  @override
+  Future<SeasonConfig> seasonConfig() => _later(() => _season);
+
+  @override
+  Future<void> saveSeasonConfig(SeasonConfig c) => _later(() {
+        _season = SeasonConfig(mode: c.mode, firstStart: c.firstStart, offsetHours: c.offsetHours, periodDays: c.periodDays, pushDays: c.pushDays, pushHour: c.pushHour, updatedAt: DateTime.now(), updatedBy: adminEmail);
+      });
+
+  @override
+  Future<List<HallOfFameSeason>> hallOfFame(int limit) => _later(() => [
+        HallOfFameSeason(
+          id: 'S0',
+          number: 0,
+          mode: SeasonMode.quarter,
+          start: DateTime.utc(2026, 9, 1),
+          end: DateTime.utc(2026, 9, 30, 15),
+          zones: {
+            for (final s in kStages)
+              s.id: [
+                for (int i = 0; i < 3; i++)
+                  {'userId': 'u$i', 'nickname': ['Neo', 'Mina', 'Kai'][i], 'flag': ['🇰🇷', '🇯🇵', '🇺🇸'][i], 'survivalTime': 180.0 - i * 23.4 - s.no * 7, 'characterId': 'neon_green', 'skin': 'skin_none'},
+              ],
+          },
+        ),
+      ]);
 
   @override
   Future<List<PushCampaign>> pushCampaigns(int limit) => _later(() => _pushes.take(limit).toList());

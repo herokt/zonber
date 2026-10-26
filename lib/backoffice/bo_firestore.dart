@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../app_release.dart';
+import '../season.dart';
 import '../promotions.dart';
 import '../push.dart';
 import 'bo_catalog.dart';
@@ -243,6 +244,22 @@ class FirestoreSource implements BoSource {
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': adminEmail,
       });
+
+  // ── 시즌 · 명예의 전당 ──
+  DocumentReference<Map<String, dynamic>> get _season => _db.collection(SeasonConfig.collection).doc(SeasonConfig.docId);
+
+  @override
+  Future<SeasonConfig> seasonConfig() async => SeasonConfig.fromMap((await _season.get()).data());
+
+  @override
+  Future<void> saveSeasonConfig(SeasonConfig c) =>
+      _season.set({...c.toMap(), 'updatedAt': FieldValue.serverTimestamp(), 'updatedBy': adminEmail});
+
+  @override
+  Future<List<HallOfFameSeason>> hallOfFame(int limit) async {
+    final snap = await _db.collection('hall_of_fame').orderBy('end', descending: true).limit(limit).get();
+    return [for (final d in snap.docs) HallOfFameSeason.fromDoc(d.id, d.data())];
+  }
 
   // ── 푸시 ──
   CollectionReference<Map<String, dynamic>> get _push => _db.collection('push_campaigns');

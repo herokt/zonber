@@ -102,7 +102,7 @@ class StoreShot {
     'ach_survivor', 'ach_veteran', 'ach_elite', 'ach_master', 'b_s1_30', 'b_s1_90', 'b_s1_180', 'b_s2_30', 'b_s2_75',
     'b_s3_30', 'b_s3_75', 'b_graze_15', 'b_graze_40', 'b_close_5', 'b_close_15', 'b_streak_3', 'b_streak_8', 'b_runs_10',
     'b_runs_100', 'b_time_1h', 'b_nat_top10', 'b_world_top100', 'ach_glob_top30', 'b_items_5', 'b_items_15', 'b_att_7',
-    'b_mission_1', 'b_mission_10', 'b_newbest_10', 'ach_glob_top10',
+    'b_mission_1', 'b_newbest_10', 'ach_glob_top10',
   ];
 
   /// 이번 판에 새로 얻은 뱃지(결과 화면)
@@ -119,7 +119,7 @@ class StoreShot {
       'equipped': {'skin': _skins[n % _skins.length], 'aura': _auras[n % _auras.length]},
       'createdAt': DateTime(2026, 9, 18),
       'lastUpdated': DateTime(2026, 9, 29, 21, 40),
-      'achievements': ['ach_legend', 'ach_glob_champion', 'ach_master', 'b_s1_180', 'b_s2_150', 'b_s3_150', 'b_graze_80', 'b_runs_500', 'b_time_10h'],
+      'achievements': ['ach_legend', 'ach_glob_champion', 'ach_master', 'b_s1_180', 'b_s2_150', 'b_s3_150', 'b_graze_80', 'b_runs_100', 'b_time_1h'],
       'bestTimes': {'cyber': _timeAt('cyber', n), 'dodgeball': _timeAt('dodgeball', n + 2), 'keeper': _timeAt('keeper', n + 1)},
       'totalGamesPlayed': 1284 - n * 37,
       'totalPlayTime': 61234.0 - n * 900,

@@ -40,8 +40,7 @@ import 'avatar.dart';
 import 'cosmetics.dart';
 import 'gear.dart';
 import 'loadout.dart';
-import 'pets.dart';
-import 'playtest_log.dart';
+import 'pets.dart' show PetArt; // 펫 오라 그림을 게임 시작 때 같이 읽는다(game/sprites.dart)
 import 'balance.dart';
 import 'haptics.dart';
 import 'run_history.dart';
@@ -49,6 +48,8 @@ import 'daily_rewards.dart';
 import 'badges.dart';
 import 'zonber_painter.dart';
 import 'pages/home_page.dart';
+import 'pages/hall_of_fame_page.dart';
+import 'season.dart';
 import 'pages/ranking_page.dart';
 import 'pages/result_page.dart';
 import 'pages/badges_page.dart';
@@ -57,7 +58,6 @@ import 'pages/promo_page.dart';
 import 'pages/player_profile_view.dart' show showPlayerCard;
 import 'package:provider/provider.dart'; // Added by instruction
 import 'language_manager.dart'; // Added by instruction
-import 'statistics_page.dart'; // Added by instruction
 import 'backoffice/admin_gate.dart';
 import 'backoffice/backoffice_home.dart'; // Added for Secret Admin
 import 'firebase_options.dart'; // Added by instruction
@@ -74,7 +74,6 @@ part 'game/player.dart';
 part 'game/projectiles.dart';
 part 'game/keeper.dart';
 part 'game/dodgeball.dart';
-part 'game/pet.dart';
 part 'game/sprites.dart';
 part 'game/autopilot.dart';
 part 'store_shot_run.dart';
@@ -223,12 +222,6 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         onError: (e) => debugPrint("❌ AdMob initialization failed: $e"),
       );
 
-      try {
-        // await IAPService().initialize();
-        debugPrint("✅ IAP initialized");
-      } catch (e) {
-        debugPrint("❌ IAP initialization failed: $e");
-      }
     }
 
     // 2. Initialize App Settings & Resources
@@ -245,6 +238,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     NewUser.onOpen();
     ReminderService.clearShown().then((_) => ReminderService.reschedule()); // 트레이의 지난 알림을 치우고, 주간 알림은 "7일 뒤"로 다시 건다
     PushService.sync(); // 이벤트·소식 푸시 — 언어·회원 여부에 맞게 토픽 구독
+    Season.load(); // 시즌 설정(config/season) — 랭킹 기간. 못 읽으면 캐시·기본값
     // 알림(친구·이벤트 소식)을 눌러 열렸으면(또는 켜 둔 채 눌렀으면) 알림 페이지로
     if (PushService.openInbox.value > 0) _openInboxFromPush();
     PushService.openInbox.addListener(_openInboxFromPush);
@@ -324,7 +318,6 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     LanguageManager().removeListener(_handleLanguageChange);
     GameSettings().removeListener(_applyTheme);
     _bannerAd?.dispose();
-    // IAPService().dispose();
     super.dispose();
   }
 
@@ -391,9 +384,10 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   }
 
   /// 게스트로 메뉴에 진입한다. 최초 실행과 로그아웃 직후에 쓴다.
-  /// 게스트는 로그인 없이 게임 맛보기만 한다 — 기기에 남은 이전 데이터(예전 게스트 기록 포함)는 지운다.
-  Future<void> _enterAsGuest() async {
-    await _clearLocalData();
+  /// 게스트는 로그인 없이 논다 — 최고 기록·코인은 기기에만 남는다(2026-10-26). [clear] 는 로그아웃·가입 취소 때만:
+  /// 회원 데이터가 게스트로 새지 않게 기기 데이터를 지운다. 앱을 켤 때는 지우지 않는다(어제 게스트 기록이 남아 있게)
+  Future<void> _enterAsGuest({bool clear = false}) async {
+    if (clear) await _clearLocalData();
     PushService.sync(); // 로그아웃 → 게스트 토픽으로
     AnalyticsService().logGuestStart();
     AnalyticsService().logSessionReady(
@@ -541,6 +535,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         initialSurvivalTime: initialTime,
         personalBest: _bestTimes[world.id] ?? 0.0,
         rival: _rival,
+        tutorial: !GameSettings().firstRunDone, // 이 기기의 첫 판 — 10초 동안 공이 반만 나오고 "끌어서 움직여요" 안내
         onExit: () {
           AdManager().showInterstitialIfReady();
           _navigateTo('Menu');
@@ -613,7 +608,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     try {
       await UserProfileManager.clearProfile().timeout(const Duration(seconds: 1));
     } catch (_) {}
-    await _enterAsGuest();
+    await _enterAsGuest(clear: true);
   }
 
   /// Handles Android Back Button
@@ -654,11 +649,11 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         _navigateTo('MyProfile');
         break;
 
-      case 'Inbox':
-        _navigateTo('Menu');
+      case 'HallOfFame':
+        _navigateTo('Ranking');
         break;
 
-      case 'Statistics':
+      case 'Inbox':
         _navigateTo('Menu');
         break;
 
@@ -795,6 +790,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           onBack: () => _navigateTo('Menu'),
           onPlay: (worldId) => _play(worldId, source: 'ranking'),
           onChallenge: (worldId, name, time) => _play(worldId, source: 'rival', rival: (name: name, time: time)),
+          onHallOfFame: () => _navigateTo('HallOfFame'),
         );
       case 'Result':
         return ResultPage(
@@ -857,13 +853,14 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         );
       case 'Badges':
         return BadgesPage(onBack: () => _navigateTo('Menu'));
+      case 'HallOfFame':
+        return HallOfFamePage(onBack: () => _navigateTo('Ranking'));
       case 'MyProfile':
         return ProfilePage(
           key: ValueKey('profile_${_bestTimes.length}_${_rankCache.length}'),
           bestTimes: _bestTimes,
           rankCache: _rankCache,
           onOpenShop: () => _navigateTo('Shop'),
-          onStatistics: () => _navigateTo('Statistics'),
           onFriends: () => _navigateTo('Friends'),
           onBack: () => _navigateTo('Menu'),
           onLogin: () => _navigateTo('Login'),
@@ -914,7 +911,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
               // 5. 로그아웃 = 게스트로 복귀 (게스트 기본화). 로그인 화면은 필요할 때만 띄운다.
               AnalyticsService().logLogout();
               debugPrint('Main: Re-entering as guest after logout');
-              await _enterAsGuest();
+              await _enterAsGuest(clear: true);
             }
           },
         );
@@ -924,8 +921,6 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           onBack: () => _navigateTo(_shopReturn),
           onPurchaseReset: refreshPurchaseStatus,
         );
-      case 'Statistics':
-        return StatisticsPage(onBack: () => _navigateTo('MyProfile'));
       case 'Promo':
         return PromoPage(onBack: () => _navigateTo('Menu'));
       case 'Inbox':
@@ -1001,17 +996,29 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
   }
 
   void _handleGameOver(Map<String, dynamic> result) async {
+    GameSettings().markFirstRunDone(); // 첫 판 안내(튜토리얼)는 이 기기에서 한 번만
     // 이 기록 깨러 가기 — 결과 화면이 이겼는지 보여 준다
     final rival = _rival;
     if (rival != null) {
       result['rivalName'] = rival.name;
       result['rivalTime'] = rival.time;
     }
-    // 게스트 — 게임 맛보기만. 기록·코인·미션·뱃지·통계를 어디에도 남기지 않고 결과만 보여 준다
+    // 게스트 — 최고 기록과 코인은 **이 기기에만** 남긴다(2026-10-26, 다음 날 돌아와도 어제 기록이 보이게 · 로그인하면 합쳐진다).
+    // 미션·뱃지·통계·서버 기록은 없다. 방금 판은 _guestRun 에 두었다가 로그인하면 랭킹에 올린다
     if (AuthService.isGuest) {
-      _previousBest = 0;
-      result['coinsEarned'] = 0;
-      result['coinsBonus'] = 0;
+      final double gTime = (result['survivalTime'] as num).toDouble();
+      final gPrev = await ProgressStore.updateBestTime(_currentWorldId, gTime);
+      if (_reviveCount == 0) {
+        _previousBest = gPrev;
+        _runCoins = 0;
+      }
+      final gBonus = CoinStore.bonusFor(_currentWorld.statKey, (result['graze'] as num?)?.toInt() ?? 0);
+      final gEarned = (CoinStore.coinsForRun(gTime) + gBonus - _runCoins).clamp(0, 1 << 30);
+      _runCoins += gEarned;
+      await CoinStore.add(gEarned, source: 'run');
+      result['coinsEarned'] = gEarned;
+      result['coinsBonus'] = gBonus;
+      _bestTimes = await ProgressStore.getBestTimes();
       _guestRun = (
         worldId: _currentWorldId,
         time: (result['survivalTime'] as num).toDouble(),
@@ -1117,18 +1124,6 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
           ],
           'skin': CoinStore.equipped(Cosmetics.kindKey(CosmeticKind.skin), Cosmetics.defaultSkin),
           'best': time >= _previousBest && _reviveCount == 0,
-        }));
-    // 밸런스 확인용 플레이 로그(이 기기에만) — 통계 화면에서 CSV 로 복사
-    UserProfileManager.getProfile().then((p) => PlaytestLog.add({
-          'stage': _currentWorld.difficulty,
-          'time': time,
-          'level': result['level'] ?? 0,
-          'stat': _currentWorld.statKey,
-          'statCount': result['graze'] ?? 0,
-          'coins': earned,
-          'bonus': bonus,
-          'revive': _reviveCount,
-          'character': p['characterId'] ?? '',
         }));
     NewUser.onRunFinished();
     UserProfileManager.getProfile().then(

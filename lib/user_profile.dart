@@ -25,12 +25,11 @@ class UserProfileManager {
   static const String _keyCountryName = 'user_country_name';
   static const String _keyCharacterId = 'user_character_id';
   static const String _keyInitialSetupDone = 'initial_setup_done';
-  static const String _keyNicknameTicket = 'nickname_change_ticket';
-  static const String _keyCountryTicket = 'country_change_ticket';
+  /// 닉네임을 마지막으로 바꾼 때(ISO) — 처음은 바로, 그 뒤로는 30일에 한 번(2026-10-26 변경권 제거)
+  static const String _keyNicknameChangedAt = 'nickname_changed_at';
   static const String _keyAdsRemoved = 'ads_removed';
   static const String _keyManuallyResetPurchases = 'manually_reset_purchases';
   static const String _keyIsGuest = 'is_guest_mode';
-  static const String _keyFirstEdit = 'first_edit_available';
 
   // Statistics Keys
   static const String _keyTotalPlayTime = 'stats_total_play_time';
@@ -146,12 +145,7 @@ class UserProfileManager {
             _keyCharacterId,
             data['characterId'] ?? 'neon_green',
           );
-          // Sync First Edit Status
-          if (data['firstEditUsed'] == true) {
-            await prefs.setBool(_keyFirstEdit, false);
-          }
-          await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
-          await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
+          await _syncNicknameChangedAt(prefs, data['nicknameChangedAt']);
           await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
 
           // Stats Sync
@@ -252,12 +246,7 @@ class UserProfileManager {
           _keyCharacterId,
           data['characterId'] ?? 'neon_green',
         );
-        // Sync First Edit Status
-        if (data['firstEditUsed'] == true) {
-          await prefs.setBool(_keyFirstEdit, false);
-        }
-        await prefs.setInt(_keyNicknameTicket, data['nicknameTickets'] ?? 0);
-        await prefs.setInt(_keyCountryTicket, data['countryTickets'] ?? 0);
+        await _syncNicknameChangedAt(prefs, data['nicknameChangedAt']);
         await prefs.setBool(_keyAdsRemoved, data['adsRemoved'] ?? false);
 
         // Stats Sync
@@ -303,8 +292,7 @@ class UserProfileManager {
     await prefs.remove(_keyCountryName);
     await prefs.remove(_keyCharacterId);
     await prefs.remove(_keyInitialSetupDone);
-    await prefs.remove(_keyNicknameTicket);
-    await prefs.remove(_keyCountryTicket);
+    await prefs.remove(_keyNicknameChangedAt);
     await prefs.remove(_keyAdsRemoved);
     await prefs.remove(_keyManuallyResetPurchases);
     await prefs.remove(_keyTotalPlayTime);
@@ -312,33 +300,9 @@ class UserProfileManager {
     await prefs.remove(_keyMapPlayCounts);
     await prefs.remove(_keyCharacterPlayCounts);
     await prefs.remove(_keyIsGuest);
-    await prefs.remove(_keyFirstEdit);
     await AchievementManager.clearLocal();
     await BadgeStatsStore.clearLocal();
     await PromoService.clearLocal();
-  }
-
-  // First Edit (Free edit for first-time users)
-  static Future<bool> isFirstEditAvailable() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyFirstEdit) ?? true; // Default: available
-  }
-
-  static Future<void> useFirstEdit() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyFirstEdit, false);
-
-    // Sync to Firebase
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && !user.isAnonymous) { // 게스트 통계는 기기에만
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'firstEditUsed': true,
-        }, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint("Error syncing firstEdit to Firebase: $e");
-      }
-    }
   }
 
   static Future<Map<String, String>> getProfile() async {
@@ -391,8 +355,6 @@ class UserProfileManager {
           'countryName': countryName,
           'characterId':
               characterId ?? prefs.getString(_keyCharacterId) ?? 'neon_green',
-          'nicknameTickets': prefs.getInt(_keyNicknameTicket) ?? 0,
-          'countryTickets': prefs.getInt(_keyCountryTicket) ?? 0,
           'platform': _getCurrentPlatform(),
           'loginProvider': _getLoginProvider(user),
           ...?AppVersion.current?.fields,
@@ -419,70 +381,39 @@ class UserProfileManager {
     await prefs.setBool(_keyInitialSetupDone, true);
   }
 
-  static Future<int> getNicknameTickets() async {
+  /// 닉네임 변경 간격 — 처음은 바로, 그 뒤로는 이 간격마다 한 번(2026-10-26 변경권 제거)
+  static const Duration nicknameChangeInterval = Duration(days: 30);
+
+  /// 다시 바꿀 수 있을 때까지 남은 날 — 0 이면 지금 바꿀 수 있다
+  static Future<int> nicknameChangeWaitDays() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_keyNicknameTicket) ?? 0;
+    final at = DateTime.tryParse(prefs.getString(_keyNicknameChangedAt) ?? '');
+    if (at == null) return 0;
+    final next = at.add(nicknameChangeInterval);
+    final left = next.difference(DateTime.now());
+    return left.isNegative ? 0 : (left.inHours / 24).ceil().clamp(1, nicknameChangeInterval.inDays);
   }
 
-  static Future<int> getCountryTickets() async {
+  static Future<void> markNicknameChanged() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_keyCountryTicket) ?? 0;
-  }
-
-  static Future<void> addNicknameTicket(int count) async {
-    final prefs = await SharedPreferences.getInstance();
-    int current = (prefs.getInt(_keyNicknameTicket) ?? 0) + count;
-    await prefs.setInt(_keyNicknameTicket, current);
-    _syncTickets(nickname: current);
-  }
-
-  static Future<void> addCountryTicket(int count) async {
-    final prefs = await SharedPreferences.getInstance();
-    int current = (prefs.getInt(_keyCountryTicket) ?? 0) + count;
-    await prefs.setInt(_keyCountryTicket, current);
-    _syncTickets(country: current);
-  }
-
-  static Future<void> setNicknameTickets(int count) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyNicknameTicket, count);
-    _syncTickets(nickname: count);
-  }
-
-  static Future<void> setCountryTickets(int count) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyCountryTicket, count);
-    _syncTickets(country: count);
-  }
-
-  static Future<bool> useNicknameTicket() async {
-    final prefs = await SharedPreferences.getInstance();
-    int current = prefs.getInt(_keyNicknameTicket) ?? 0;
-    if (current > 0) {
-      int newVal = current - 1;
-      await prefs.setInt(_keyNicknameTicket, newVal);
-      _syncTickets(nickname: newVal);
-      return true;
-    }
-    return false;
-  }
-
-  static Future<void> _syncTickets({int? nickname, int? country}) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    await prefs.setString(_keyNicknameChangedAt, now);
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        Map<String, dynamic> updates = {};
-        if (nickname != null) updates['nicknameTickets'] = nickname;
-        if (country != null) updates['countryTickets'] = country;
-        if (updates.isNotEmpty) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .set(updates, SetOptions(merge: true));
-        }
-      } catch (e) {
-        debugPrint("Error syncing tickets: $e");
-      }
+    if (user == null || user.isAnonymous) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({'nicknameChangedAt': now}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error syncing nicknameChangedAt: $e');
+    }
+  }
+
+  /// 원격 값 → 기기(문자열(ISO)이나 Timestamp 둘 다 받는다 — 백오피스가 고칠 수 있게)
+  static Future<void> _syncNicknameChangedAt(SharedPreferences prefs, Object? v) async {
+    final iso = v is String ? v : v is Timestamp ? v.toDate().toUtc().toIso8601String() : null;
+    if (iso != null) {
+      await prefs.setString(_keyNicknameChangedAt, iso);
+    } else {
+      await prefs.remove(_keyNicknameChangedAt);
     }
   }
 
@@ -670,10 +601,6 @@ class _InitialSetupPageState extends State<InitialSetupPage> {
     try {
       // 저장이 끝날 때까지 스피너
       await runBusy(context, () async {
-        // Grant Initial Tickets (1 of each)
-        await UserProfileManager.setNicknameTickets(1);
-        await UserProfileManager.setCountryTickets(1);
-
         await UserProfileManager.saveProfile(
           _nicknameController.text.trim(),
           _selectedFlag,

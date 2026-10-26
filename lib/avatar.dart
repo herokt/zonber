@@ -5,7 +5,6 @@ import 'coin_store.dart';
 import 'cosmetics.dart';
 import 'gear.dart';
 import 'loadout.dart';
-import 'pets.dart';
 import 'zonber_painter.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -18,7 +17,7 @@ import 'zonber_painter.dart';
 //
 // 내 것도 남의 것도 같은 클래스다 — 내 것은 [Avatar.equipped](기기에 저장된 착용),
 // 남의 것은 [Avatar.fromUserDoc](users/{uid} 문서)·[Avatar.fromRecord](랭킹 기록 한 줄).
-// 게임에 주는 영향은 능력치(loadout.dart — 장비·꾸미기)와 펫(lib/game/pet.dart)이다.
+// 게임에 주는 영향은 없다 — 전부 외형(2026-10-26). 펫은 오라의 한 종류다.
 // ─────────────────────────────────────────────────────────────
 
 @immutable
@@ -31,8 +30,6 @@ class Avatar {
   final String trailId;
   final String auraId;
 
-  /// 데리고 다니는 펫(pets.dart) — 없으면 [Pets.none]
-  final String petId;
 
   /// 존 id → 그 존에서 입은 장비 id 목록(gear.dart). 한 존만 받아 온 경우엔 그 존만 들어 있다
   final Map<String, List<String>> gearByZone;
@@ -42,7 +39,6 @@ class Avatar {
     this.skinId = Cosmetics.defaultSkin,
     this.trailId = Cosmetics.defaultTrail,
     this.auraId = Cosmetics.defaultAura,
-    this.petId = Pets.none,
     this.gearByZone = const {},
   });
 
@@ -88,7 +84,6 @@ class Avatar {
     String? skinId,
     String? trailId,
     String? auraId,
-    String? petId,
     Map<String, List<String>>? gearByZone,
   }) =>
       Avatar(
@@ -96,7 +91,6 @@ class Avatar {
         skinId: skinId ?? this.skinId,
         trailId: trailId ?? this.trailId,
         auraId: auraId ?? this.auraId,
-        petId: petId ?? this.petId,
         gearByZone: gearByZone ?? this.gearByZone,
       );
 
@@ -106,8 +100,7 @@ class Avatar {
         characterId: characterId,
         skinId: equipped(Cosmetics.kindKey(CosmeticKind.skin), Cosmetics.defaultSkin),
         trailId: equipped(Cosmetics.kindKey(CosmeticKind.trail), Cosmetics.defaultTrail),
-        auraId: Loadout.auraOf(equipped), // 펫과 같이 못 쓰는 오라는 빠진다
-        petId: Pets.worn(equipped)?.id ?? Pets.none,
+        auraId: Loadout.auraOf(equipped), // 예전 펫 슬롯이 남아 있으면 그 펫 오라
         gearByZone: {
           for (final zone in Gear.zones)
             zone: [
@@ -153,11 +146,10 @@ class Avatar {
       other.skinId == skinId &&
       other.trailId == trailId &&
       other.auraId == auraId &&
-      other.petId == petId &&
       _sameGear(other.gearByZone, gearByZone);
 
   @override
-  int get hashCode => Object.hash(characterId, skinId, trailId, auraId, petId, _wornCount);
+  int get hashCode => Object.hash(characterId, skinId, trailId, auraId, _wornCount);
 
   int get _wornCount => gearByZone.values.fold(0, (n, list) => n + list.length);
 
@@ -260,7 +252,6 @@ class _AvatarStageState extends State<AvatarStage> with SingleTickerProviderStat
     if (!widget.cosmetics) return body;
     return CosmeticStage(
       items: widget.avatar.trailAndAura,
-      petId: widget.avatar.petId,
       base: widget.avatar.color,
       charRadius: widget.size * 0.3, // ZonberPainter 가 쓰는 몸 반지름
       child: body,

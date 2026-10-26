@@ -9,12 +9,10 @@ import 'pets.dart';
 // ─────────────────────────────────────────────────────────────
 // 꾸미기 — 몸통 스킨(skin) · 이동 잔상(trail) · 캐릭터 오라(aura). 코인으로 사고 종류마다 하나씩 착용한다.
 // 스킨은 캐릭터와 상관없이 몸 전체를 덮는다(그림은 zonber_painter.dart 의 _paintSkin).
-// 존별 장비(날개·머리띠·장갑 등)는 gear.dart, 펫은 pets.dart. 전부 코드로 그린다(이미지 없음). docs/SHOP.md
+// 존별 장비(날개·머리띠·장갑 등)는 gear.dart. 전부 코드로 그린다 — 펫 오라 6종만 시안 아트(pets.dart). docs/SHOP.md
 //
-// 능력치(2026-10-12) — 기본(무료) 하나씩만 없고, 비쌀수록 높다. 어느 존에서나 쓰이게 종류마다 하나씩 맡는다:
-//   스킨 = 무적 +초(골키퍼는 막는 범위로 바뀐다 — GearBonus.adapt) · 잔상 = 속도 +% · 오라 = 회복 −초(골키퍼는 막는 범위)
-//   비싼 것은 코인 +% 를 같이 준다.
-// 주위를 도는 오라([Cosmetic.orbits])는 펫과 같이 쓸 수 없다(펫도 주위를 돈다).
+// 꾸미기는 외형이다(2026-10-26 전투 능력치 제거 — gear.dart 참고). 비싼 것 일부만 코인 +% 를 준다(GearBonus.coin).
+// 펫(2026-10-26)은 따로 데리고 다니지 않는다 — 주위를 도는 오라의 한 종류([Cosmetic.pet])다. 오라 칸에서 하나를 고른다.
 //
 // 그리기 함수는 게임(Player)과 상점 미리보기가 같이 쓴다 — 보이는 그대로 산다.
 // ─────────────────────────────────────────────────────────────
@@ -24,14 +22,17 @@ enum CosmeticKind { skin, trail, aura }
 class Cosmetic {
   final String id;
   final CosmeticKind kind;
-  /// 번역 키: cos_{id}
-  String get nameKey => 'cos_$id';
+  /// 번역 키: cos_{id} · 펫 오라는 예전 펫 이름 키(= id)
   final int price; // 0 = 기본(무료)
-  /// 능력치 — 존에 맞춰 바꿔 쓴다(GearBonus.adapt)
+  /// 보너스 — 코인 +% 뿐
   final GearBonus bonus;
-  /// 캐릭터 주위를 도는 오라 — 펫과 같이 쓸 수 없다
+  /// 캐릭터 주위를 도는 오라(꽃잎·궤도 위성·나비·별무리·펫)
   final bool orbits;
-  const Cosmetic(this.id, this.kind, this.price, {this.bonus = GearBonus.none, this.orbits = false});
+  /// 펫 오라 — 시안 아트 펫이 둘레를 돈다(pets.dart). id 는 예전 펫 id 그대로
+  final bool pet;
+  const Cosmetic(this.id, this.kind, this.price, {this.bonus = GearBonus.none, this.orbits = false, this.pet = false});
+
+  String get nameKey => pet ? id : 'cos_$id';
 }
 
 class Cosmetics {
@@ -40,53 +41,76 @@ class Cosmetics {
   static const String defaultSkin = 'skin_none';
 
   static const List<Cosmetic> all = [
-    // 몸통 스킨 — 무적 +초
+    // 몸통 스킨
     Cosmetic('skin_none', CosmeticKind.skin, 0),
-    Cosmetic('skin_cloud', CosmeticKind.skin, 350, bonus: GearBonus(iframe: 0.05)),
-    Cosmetic('skin_silver', CosmeticKind.skin, 400, bonus: GearBonus(iframe: 0.05, coin: 0.03)),
-    Cosmetic('skin_candy', CosmeticKind.skin, 450, bonus: GearBonus(iframe: 0.1)),
-    Cosmetic('skin_sunset', CosmeticKind.skin, 450, bonus: GearBonus(iframe: 0.1)),
-    Cosmetic('skin_ice', CosmeticKind.skin, 500, bonus: GearBonus(iframe: 0.1, coin: 0.03)),
-    Cosmetic('skin_ocean', CosmeticKind.skin, 550, bonus: GearBonus(iframe: 0.15)),
-    Cosmetic('skin_neon', CosmeticKind.skin, 600, bonus: GearBonus(iframe: 0.15, coin: 0.03)),
-    Cosmetic('skin_gold', CosmeticKind.skin, 650, bonus: GearBonus(iframe: 0.15, coin: 0.08)),
-    Cosmetic('skin_lava', CosmeticKind.skin, 700, bonus: GearBonus(iframe: 0.2)),
-    Cosmetic('skin_galaxy', CosmeticKind.skin, 750, bonus: GearBonus(iframe: 0.2, coin: 0.05)),
-    Cosmetic('skin_rainbow', CosmeticKind.skin, 900, bonus: GearBonus(iframe: 0.25, coin: 0.08)),
-    Cosmetic('skin_aurora', CosmeticKind.skin, 1000, bonus: GearBonus(iframe: 0.25, coin: 0.1)),
-    Cosmetic('skin_crystal', CosmeticKind.skin, 1200, bonus: GearBonus(iframe: 0.3, coin: 0.1)),
-    // 잔상 — 속도 +%
+    Cosmetic('skin_cloud', CosmeticKind.skin, 350),
+    Cosmetic('skin_silver', CosmeticKind.skin, 400, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('skin_candy', CosmeticKind.skin, 450),
+    Cosmetic('skin_sunset', CosmeticKind.skin, 450),
+    Cosmetic('skin_ice', CosmeticKind.skin, 500, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('skin_ocean', CosmeticKind.skin, 550),
+    Cosmetic('skin_neon', CosmeticKind.skin, 600, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('skin_gold', CosmeticKind.skin, 650, bonus: GearBonus(coin: 0.08)),
+    Cosmetic('skin_lava', CosmeticKind.skin, 700),
+    Cosmetic('skin_galaxy', CosmeticKind.skin, 750, bonus: GearBonus(coin: 0.05)),
+    Cosmetic('skin_rainbow', CosmeticKind.skin, 900, bonus: GearBonus(coin: 0.08)),
+    Cosmetic('skin_aurora', CosmeticKind.skin, 1000, bonus: GearBonus(coin: 0.1)),
+    Cosmetic('skin_crystal', CosmeticKind.skin, 1200, bonus: GearBonus(coin: 0.1)),
+    // 이동 잔상
     Cosmetic('trail_basic', CosmeticKind.trail, 0),
-    Cosmetic('trail_sparkle', CosmeticKind.trail, 200, bonus: GearBonus(speed: 0.01)),
-    Cosmetic('trail_bubble', CosmeticKind.trail, 250, bonus: GearBonus(speed: 0.01)),
-    Cosmetic('trail_note', CosmeticKind.trail, 250, bonus: GearBonus(speed: 0.01, coin: 0.02)),
-    Cosmetic('trail_heart', CosmeticKind.trail, 300, bonus: GearBonus(speed: 0.02)),
-    Cosmetic('trail_petal', CosmeticKind.trail, 300, bonus: GearBonus(speed: 0.02)),
-    Cosmetic('trail_snow', CosmeticKind.trail, 350, bonus: GearBonus(speed: 0.02, coin: 0.03)),
-    Cosmetic('trail_flame', CosmeticKind.trail, 350, bonus: GearBonus(speed: 0.03)),
-    Cosmetic('trail_bolt', CosmeticKind.trail, 450, bonus: GearBonus(speed: 0.03, coin: 0.03)),
-    Cosmetic('trail_rainbow', CosmeticKind.trail, 500, bonus: GearBonus(speed: 0.04)),
-    Cosmetic('trail_coin', CosmeticKind.trail, 600, bonus: GearBonus(speed: 0.03, coin: 0.12)),
-    Cosmetic('trail_comet', CosmeticKind.trail, 700, bonus: GearBonus(speed: 0.05)),
-    // 오라 — 회복 −초
+    Cosmetic('trail_sparkle', CosmeticKind.trail, 200),
+    Cosmetic('trail_bubble', CosmeticKind.trail, 250),
+    Cosmetic('trail_note', CosmeticKind.trail, 250, bonus: GearBonus(coin: 0.02)),
+    Cosmetic('trail_heart', CosmeticKind.trail, 300),
+    Cosmetic('trail_petal', CosmeticKind.trail, 300),
+    Cosmetic('trail_snow', CosmeticKind.trail, 350, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('trail_flame', CosmeticKind.trail, 350),
+    Cosmetic('trail_bolt', CosmeticKind.trail, 450, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('trail_rainbow', CosmeticKind.trail, 500),
+    Cosmetic('trail_coin', CosmeticKind.trail, 600, bonus: GearBonus(coin: 0.12)),
+    Cosmetic('trail_comet', CosmeticKind.trail, 700),
+    // 오라
     Cosmetic('aura_none', CosmeticKind.aura, 0),
-    Cosmetic('aura_ring', CosmeticKind.aura, 200, bonus: GearBonus(recovery: 0.5)),
-    Cosmetic('aura_petal', CosmeticKind.aura, 300, bonus: GearBonus(recovery: 0.5), orbits: true),
-    Cosmetic('aura_orbit', CosmeticKind.aura, 350, bonus: GearBonus(recovery: 1), orbits: true),
-    Cosmetic('aura_electric', CosmeticKind.aura, 450, bonus: GearBonus(recovery: 1, speed: 0.01)),
-    Cosmetic('aura_halo', CosmeticKind.aura, 500, bonus: GearBonus(recovery: 1.5)),
-    Cosmetic('aura_butterfly', CosmeticKind.aura, 550, bonus: GearBonus(recovery: 1.5), orbits: true),
-    Cosmetic('aura_flame', CosmeticKind.aura, 600, bonus: GearBonus(recovery: 2)),
-    Cosmetic('aura_crown', CosmeticKind.aura, 700, bonus: GearBonus(recovery: 2, coin: 0.05)),
-    Cosmetic('aura_star', CosmeticKind.aura, 800, bonus: GearBonus(recovery: 2.5), orbits: true),
-    Cosmetic('aura_frost', CosmeticKind.aura, 900, bonus: GearBonus(recovery: 2.5, iframe: 0.1)),
-    Cosmetic('aura_prism', CosmeticKind.aura, 1000, bonus: GearBonus(recovery: 3, coin: 0.05)),
+    Cosmetic('aura_ring', CosmeticKind.aura, 200),
+    Cosmetic('aura_petal', CosmeticKind.aura, 300, orbits: true),
+    Cosmetic('aura_orbit', CosmeticKind.aura, 350, orbits: true),
+    Cosmetic('aura_electric', CosmeticKind.aura, 450),
+    Cosmetic('aura_halo', CosmeticKind.aura, 500),
+    Cosmetic('aura_butterfly', CosmeticKind.aura, 550, orbits: true),
+    Cosmetic('aura_flame', CosmeticKind.aura, 600),
+    Cosmetic('aura_crown', CosmeticKind.aura, 700, bonus: GearBonus(coin: 0.05)),
+    Cosmetic('aura_star', CosmeticKind.aura, 800, orbits: true),
+    Cosmetic('aura_frost', CosmeticKind.aura, 900),
+    Cosmetic('aura_prism', CosmeticKind.aura, 1000, bonus: GearBonus(coin: 0.05)),
+    // 펫 오라(2026-10-26 펫을 오라로 합쳤다 — id·가격은 예전 펫 그대로라 산 사람은 그대로 가진다)
+    Cosmetic('pet_star', CosmeticKind.aura, 600, orbits: true, pet: true),
+    Cosmetic('pet_slime', CosmeticKind.aura, 800, orbits: true, pet: true),
+    Cosmetic('pet_ghost', CosmeticKind.aura, 1000, orbits: true, pet: true),
+    Cosmetic('pet_robot', CosmeticKind.aura, 1200, orbits: true, pet: true),
+    Cosmetic('pet_cat', CosmeticKind.aura, 1500, orbits: true, pet: true),
+    Cosmetic('pet_dragon', CosmeticKind.aura, 1800, orbits: true, pet: true),
   ];
 
-  /// 이 오라가 펫과 같이 쓸 수 없는 것(주위를 도는 오라)인가
+  /// 주위를 도는 오라인가
   static bool orbits(String auraId) => byId(auraId)?.orbits ?? false;
 
-  /// 지금 입은 꾸미기의 능력치 합계(존에 맞추기 전) — 게임(Player)과 코인 정산이 같이 쓴다(loadout.dart)
+  /// 지금 쓰는 오라 — 예전 착용 슬롯 'pet'(2026-10-26 전)이 남아 있으면 그 펫 오라가 이긴다
+  /// (예전엔 펫과 도는 오라를 같이 못 썼고, 펫은 늘 보였다). 남의 유저 문서(아직 옮기지 않은 것)도 이걸로 읽는다
+  static String auraFrom(String Function(String key, String fallback) equipped) {
+    final legacy = equipped(Pets.legacySlotKey, '');
+    if (byId(legacy)?.pet ?? false) return legacy;
+    return equipped(kindKey(CosmeticKind.aura), defaultAura);
+  }
+
+  /// 착용 목록의 예전 'pet' 슬롯을 오라로 옮긴다(제자리). 옮겼으면 true
+  static bool migrateEquipped(Map<String, String> equipped) {
+    if (!equipped.containsKey(Pets.legacySlotKey)) return false;
+    final pet = equipped.remove(Pets.legacySlotKey)!;
+    if (byId(pet)?.pet ?? false) equipped[kindKey(CosmeticKind.aura)] = pet;
+    return true;
+  }
+
+  /// 지금 입은 꾸미기의 코인 보너스 합계 — 코인 정산이 쓴다(loadout.dart)
   static GearBonus bonusOf(String Function(String key, String fallback) equipped) {
     var total = GearBonus.none;
     for (final k in CosmeticKind.values) {
@@ -285,6 +309,10 @@ void _heart(Canvas canvas, double r, Paint paint) {
 /// 캐릭터 둘레의 오라를 [center] 기준으로 그린다. [r] 캐릭터 반지름, [t] 경과 시간(초).
 /// [front] false = 캐릭터 뒤(먼저 그림), true = 앞(나중에 그림). 왕관·고리처럼 위에 얹히는 건 앞에.
 void paintAura(Canvas canvas, String auraId, Offset center, double r, double t, Color base, {required bool front}) {
+  if (Pets.byId(auraId) != null) {
+    paintPetAura(canvas, auraId, center, r, t, front: front); // 펫 오라(pets.dart)
+    return;
+  }
   switch (auraId) {
     case 'aura_ring':
       if (front) return;
@@ -605,12 +633,10 @@ class _PreviewPainter extends CustomPainter {
 /// [charRadius] 는 그릴 캐릭터의 몸 반지름(px) — 게임 기준 반지름 18에 맞춰 효과 크기를 정한다.
 class CosmeticStage extends StatefulWidget {
   final List<Cosmetic> items;
-  /// 같이 도는 펫(pets.dart) — 없으면 [Pets.none]
-  final String petId;
   final Color base;
   final double charRadius;
   final Widget child;
-  const CosmeticStage({super.key, required this.items, this.petId = Pets.none, required this.base, required this.charRadius, required this.child});
+  const CosmeticStage({super.key, required this.items, required this.base, required this.charRadius, required this.child});
 
   @override
   State<CosmeticStage> createState() => _CosmeticStageState();
@@ -635,9 +661,9 @@ class _CosmeticStageState extends State<CosmeticStage> with SingleTickerProvider
           return Stack(
             alignment: Alignment.center,
             children: [
-              Positioned.fill(child: CustomPaint(painter: _StagePainter(widget.items, widget.base, t, widget.charRadius, front: false, petId: widget.petId))),
+              Positioned.fill(child: CustomPaint(painter: _StagePainter(widget.items, widget.base, t, widget.charRadius, front: false))),
               child!,
-              Positioned.fill(child: CustomPaint(painter: _StagePainter(widget.items, widget.base, t, widget.charRadius, front: true, petId: widget.petId))),
+              Positioned.fill(child: CustomPaint(painter: _StagePainter(widget.items, widget.base, t, widget.charRadius, front: true))),
             ],
           );
         },
@@ -653,8 +679,7 @@ class _StagePainter extends CustomPainter {
   /// 캐릭터 몸 반지름(px)
   final double r;
   final bool front;
-  final String petId;
-  _StagePainter(this.items, this.base, this.t, this.r, {required this.front, this.petId = Pets.none});
+  _StagePainter(this.items, this.base, this.t, this.r, {required this.front});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -683,13 +708,6 @@ class _StagePainter extends CustomPainter {
             paintTrailParticle(canvas, item.id, p, seed, base, scale: r / 15);
             canvas.restore();
           }
-      }
-    }
-    // 펫 — 비스듬한 궤도로 캐릭터 둘레를 돈다(앞쪽 반은 캐릭터 앞에)
-    if (petId != Pets.none) {
-      final a = t * 1.5;
-      if ((sin(a) > 0) == front) {
-        paintPet(canvas, petId, center + Offset(cos(a) * r * 1.9, sin(a) * r * 0.75), r * 0.5, t, flip: sin(a) < 0);
       }
     }
   }

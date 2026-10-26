@@ -6,13 +6,12 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'badges.dart';
-import 'services/auth_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 월드별 진행 데이터 — 최고 기록 · 순위 캐시 (옛 명패는 뱃지로 옮겨졌다 — badges.dart)
 //
 // SharedPreferences(로컬) + Firestore users/{uid}(원격) 이중 저장.
-// 게스트도 로컬은 쌓인다(월드 해금에 필요). 원격은 로그인 유저만.
+// 게스트도 로컬(기기)에는 쌓인다 — 다음 날 돌아와도 어제 기록이 보이게(2026-10-26). 원격은 로그인 유저만.
 // ─────────────────────────────────────────────────────────────
 
 /// 존별 마지막으로 확인한 순위(순위 캐시)
@@ -40,7 +39,6 @@ class ProgressStore {
   }
 
   static Future<void> _writeJson(String key, Map<String, dynamic> value) async {
-    if (AuthService.isGuest) return; // 게스트 기록은 남기지 않는다
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(key, jsonEncode(value));
   }
@@ -114,11 +112,16 @@ class ProgressStore {
       final remoteBest = userDoc['bestTimes'];
       if (remoteBest is Map) {
         final best = await getBestTimes();
+        var localBetter = false; // 게스트로 이 기기에서 낸 기록이 더 좋으면 원격에도 올린다
+        best.forEach((k, t) {
+          if (t > ((remoteBest[k] as num?)?.toDouble() ?? 0)) localBetter = true;
+        });
         remoteBest.forEach((k, v) {
           final t = (v as num).toDouble();
           if (t > (best[k] ?? 0)) best[k] = t;
         });
         await _writeJson(_keyBestTimes, best);
+        if (localBetter) _syncRemote({'bestTimes': best});
       }
       // 옛 명패 → 랭킹 뱃지(명패는 2026-09-22 제거)
       await Badges.migratePlates(userDoc['plates']);

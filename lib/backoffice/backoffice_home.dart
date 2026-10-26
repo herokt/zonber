@@ -9,6 +9,7 @@ import 'promo_codes_page.dart';
 import 'promo_page.dart';
 import 'push_page.dart';
 import 'runs_page.dart';
+import 'season_page.dart';
 import 'user_detail_page.dart';
 import 'user_list_page.dart';
 
@@ -43,6 +44,7 @@ const _groups = <(String, List<_NavItem>)>[
       _NavItem(BoSection.codes, Icons.confirmation_number_outlined, Icons.confirmation_number_rounded, '이벤트 코드'),
       _NavItem(BoSection.push, Icons.notifications_none_rounded, Icons.notifications_rounded, '푸시'),
       _NavItem(BoSection.release, Icons.system_update_outlined, Icons.system_update_rounded, '앱 버전'),
+      _NavItem(BoSection.season, Icons.event_repeat_outlined, Icons.event_repeat_rounded, '시즌'),
     ]
   ),
   ('분석', [_NavItem(BoSection.economy, Icons.insights_outlined, Icons.insights_rounded, '경제·아이템')]),
@@ -61,6 +63,7 @@ class _BackofficeHomeState extends State<BackofficeHome> {
         BoSection.codes => const PromoCodesPage(),
         BoSection.push => const PushPage(),
         BoSection.release => const AppReleasePage(),
+        BoSection.season => const SeasonPage(),
         BoSection.economy => const EconomyPage(),
       };
 

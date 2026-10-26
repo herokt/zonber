@@ -39,15 +39,24 @@ void main() {
     });
     tearDown(() => AuthService.debugIsGuest = false);
 
-    test('판을 해도 미션·코인·기기 저장이 없다', () async {
+    test('판을 해도 미션·출석은 없고, 코인만 이 기기(coins_guest)에 쌓인다 — 로그인하면 잔액에 합친다(2026-10-26)', () async {
       await DailyRewards.recordRun(stage: 1, time: 40, addedTime: 40, addedStat: 3, continued: false);
       await CoinStore.add(50, source: 'test');
       expect((await DailyRewards.missions()).every((s) => s.progress == 0), isTrue);
-      expect(CoinStore.balance.value, 0);
+      expect(CoinStore.balance.value, 50);
       expect(await DailyRewards.claimAttendance(), 0);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('daily_progress'), isNull);
-      expect(prefs.getInt('coins'), isNull);
+      expect(prefs.getInt('coins'), isNull); // 계정 코인은 아니다
+      expect(prefs.getInt('coins_guest'), 50);
+      // 로그인 — 계정 잔액에 더하고 기기 몫은 지운다(한 번만)
+      AuthService.debugIsGuest = false;
+      await CoinStore.mergeFromRemote({'coins': 120});
+      expect(CoinStore.balance.value, 170);
+      expect(prefs.getInt('coins_guest'), isNull);
+      await CoinStore.mergeFromRemote({'coins': 170});
+      expect(CoinStore.balance.value, 170); // 두 번 합치지 않는다
+      await CoinStore.clearLocal();
     });
   });
 
@@ -120,41 +129,36 @@ void main() {
         }
       }
     });
-    test('무료 기본 장비는 능력치가 없다 · 유료/뱃지 장비만 있다', () {
+    test('무료 기본 장비는 보너스가 없다 · 보너스는 코인 +% 뿐이고 작다(15% 이하)', () {
       for (final g in Gear.all) {
         if (g.price == 0 && g.needsBadge == null) expect(g.bonus.isZero, isTrue, reason: g.id);
+        expect(g.bonus.coin, lessThanOrEqualTo(0.15), reason: g.id);
       }
     });
-    test('능력치는 작다(속도 7% · 회복 3초 · 무적 0.3초 · 범위 5 이하)', () {
-      for (final g in Gear.all) {
-        expect(g.bonus.speed, lessThanOrEqualTo(0.07), reason: g.id);
-        expect(g.bonus.recovery, lessThanOrEqualTo(3), reason: g.id);
-        expect(g.bonus.iframe, lessThanOrEqualTo(0.3), reason: g.id);
-        expect(g.bonus.reach, lessThanOrEqualTo(5), reason: g.id);
+    test('상점에는 판매 종료 장비가 안 보이고, 가진 사람에게만 보인다 · 부위마다 기본 + 코인 2~3개', () {
+      for (final w in WorldData.worlds) {
+        for (final s in Gear.slotsOf(w.id)) {
+          final shown = Gear.shopItemsOf(w.id, s, (_) => false);
+          expect(shown.where((g) => g.retired), isEmpty, reason: '${w.id} ${s.name}');
+          expect(shown.where((g) => g.price == 0 && g.needsBadge == null).length, 1, reason: '${w.id} ${s.name}');
+          final coin = shown.where((g) => g.price > 0).length;
+          expect(coin, inInclusiveRange(2, 3), reason: '${w.id} ${s.name}');
+        }
       }
+      final retired = Gear.all.firstWhere((g) => g.retired);
+      expect(Gear.shopItemsOf(retired.zone, retired.slot, (id) => id == retired.id), contains(retired));
+      // 가진 사람은 그대로 입는다
+      expect(Gear.wornId(retired.zone, retired.slot, (k, f) => k == Gear.slotKey(retired.zone, retired.slot) ? retired.id : f), retired.id);
     });
     test('안 입었거나 모르는 id 는 빈 부위', () {
       expect(Gear.wornId('cyber', GearSlot.back, (k, f) => f), Gear.none);
       expect(Gear.wornId('cyber', GearSlot.back, (k, f) => 'no_such_item'), Gear.none);
       expect(Gear.wornId('cyber', GearSlot.back, (k, f) => 'wings_star'), 'wings_star');
     });
-    test('능력치 라벨', () {
-      expect(const GearBonus(speed: 0.05).labels, [('bonus_speed', '5')]);
-      expect(const GearBonus(reach: 3).labels, [('bonus_reach', '3')]);
-      expect(const GearBonus(iframe: 0.05, recovery: 2.5).labels, [('bonus_recovery', '2.5'), ('bonus_iframe', '0.05')]);
-    });
-    test('존에 맞춘 능력치 — 골키퍼는 무적·회복이 막는 범위로, 피하기 존은 범위가 빠진다', () {
-      const b = GearBonus(energy: 1, speed: 0.02, recovery: 1, iframe: 0.1, reach: 2, coin: 0.05);
-      final k = b.adapt(keeper: true);
-      expect(k.energy, 0);
-      expect(k.iframe, 0);
-      expect(k.recovery, 0);
-      expect(k.reach, closeTo(2 + 0.1 * GearBonus.keeperReachPerIframe + 1 * GearBonus.keeperReachPerRecovery, 1e-9));
-      expect(k.speed, 0.02);
-      expect(k.coin, 0.05);
-      final d = b.adapt(keeper: false);
-      expect(d.reach, 0);
-      expect((d.energy, d.recovery, d.iframe), (1, 1.0, 0.1));
+    test('보너스 라벨', () {
+      expect(const GearBonus(coin: 0.05).labels, [('bonus_coin', '5')]);
+      expect(GearBonus.none.labels, isEmpty);
+      expect((const GearBonus(coin: 0.1) + const GearBonus(coin: 0.05)).coin, closeTo(0.15, 1e-9));
     });
   });
 
@@ -202,22 +206,18 @@ void main() {
 
   group('착용 한 벌(Loadout)', () {
     String Function(String, String) eq(Map<String, String> m) => (k, f) => m[k] ?? f;
-    test('장비 + 꾸미기를 합친다', () {
-      final e = eq({'gear_cyber_back': 'wings_star', 'skin': 'skin_cloud', 'trail': 'trail_sparkle', 'aura': 'aura_ring'});
+    test('장비 + 꾸미기의 코인 보너스를 합친다', () {
+      final e = eq({'gear_cyber_back': 'wings_comet', 'skin': 'skin_silver', 'trail': 'trail_note', 'aura': 'aura_crown'});
       final b = Loadout.bonusOf('cyber', e);
-      expect(b.speed, closeTo(0.02 + 0.01, 1e-9));
-      expect(b.iframe, closeTo(0.05, 1e-9));
-      expect(b.recovery, closeTo(0.5, 1e-9));
+      expect(b.coin, closeTo(0.1 + 0.03 + 0.02 + 0.05, 1e-9));
+      // 다른 존의 장비는 세지 않는다
+      expect(Loadout.bonusOf('keeper', e).coin, closeTo(0.03 + 0.02 + 0.05, 1e-9));
     });
-    test('펫을 데리고 있으면 도는 오라는 없는 셈', () {
-      final withPet = eq({'aura': 'aura_star', Pets.slotKey: 'pet_star'});
-      expect(Loadout.auraOf(withPet), Cosmetics.defaultAura);
-      expect(Loadout.bonusOf('cyber', withPet).recovery, 0);
-      // 돌지 않는 오라는 펫과 같이 쓴다
-      final ring = eq({'aura': 'aura_ring', Pets.slotKey: 'pet_star'});
-      expect(Loadout.auraOf(ring), 'aura_ring');
-      // 펫이 없으면 도는 오라 그대로
-      expect(Loadout.auraOf(eq({'aura': 'aura_star'})), 'aura_star');
+    test('예전 펫 슬롯이 남아 있으면 그 펫 오라가 이긴다(아직 안 옮긴 남의 문서)', () {
+      expect(Loadout.auraOf(eq({'aura': 'aura_star', Pets.legacySlotKey: 'pet_star'})), 'pet_star');
+      expect(Loadout.auraOf(eq({'aura': 'aura_ring', Pets.legacySlotKey: 'pet_cat'})), 'pet_cat');
+      expect(Loadout.auraOf(eq({'aura': 'aura_star', Pets.legacySlotKey: ''})), 'aura_star');
+      expect(Loadout.auraOf(eq({'aura': 'pet_dragon'})), 'pet_dragon');
     });
     test('아무것도 안 입으면 0', () {
       for (final w in WorldData.worlds) {
@@ -226,32 +226,44 @@ void main() {
     });
   });
 
-  group('펫', () {
-    test('id 는 겹치지 않고 이름 번역이 있다', () {
-      final ids = Pets.all.map((p) => p.id).toList();
-      expect(ids.toSet().length, ids.length);
-      for (final p in Pets.all) {
+  group('펫 오라(2026-10-26 펫을 오라로 합침)', () {
+    test('펫 6종이 도는 오라로 있다 — id·가격은 예전 그대로, 이름 번역·그림이 있다', () {
+      final pets = Cosmetics.ofKind(CosmeticKind.aura).where((c) => c.pet).toList();
+      expect(pets.map((c) => c.id), Pets.all.map((p) => p.id));
+      expect(pets.map((c) => c.price), [600, 800, 1000, 1200, 1500, 1800]);
+      for (final c in pets) {
+        expect(c.orbits, isTrue, reason: c.id);
+        expect(c.bonus.isZero, isTrue, reason: c.id);
         for (final lang in ['en', 'ko', 'zh', 'ja']) {
-          expect(appTranslations[lang]![p.nameKey], isNotNull, reason: '$lang ${p.id}');
+          expect(appTranslations[lang]![c.nameKey], isNotNull, reason: '$lang ${c.id}');
         }
       }
-    });
-    test('비쌀수록 세다 — 쉬는 시간 짧고 범위 넓다', () {
-      final list = [...Pets.all]..sort((a, b) => a.price.compareTo(b.price));
+      final list = [...Pets.all];
       for (var i = 1; i < list.length; i++) {
-        expect(list[i].power.cooldown, lessThan(list[i - 1].power.cooldown), reason: list[i].id);
-        expect(list[i].power.reach, greaterThanOrEqualTo(list[i - 1].power.reach), reason: list[i].id);
+        expect(list[i].orbitSpeed, greaterThan(list[i - 1].orbitSpeed), reason: list[i].id);
       }
+      // 도는 길(게임 몸 반지름 약 20.6 × 배수)은 캐릭터 히트박스(반 11) + 펫 몸보다 바깥
+      expect(20.6 * (Pets.orbitScale - Pets.bodyScale), greaterThan(11));
     });
-    test('쳐내는 범위가 캐릭터 몸(히트박스 반 11px)과 겹치지 않는다', () {
-      for (final p in Pets.all) {
-        expect(Pets.orbitRadius - p.power.reach, greaterThan(11), reason: p.id);
-      }
+    test('예전 착용 슬롯 pet → 오라로 옮긴다(펫이 이긴다) · 모르는 값이면 슬롯만 지운다', () {
+      final e = {'aura': 'aura_ring', 'pet': 'pet_cat', 'skin': 'skin_gold'};
+      expect(Cosmetics.migrateEquipped(e), isTrue);
+      expect(e, {'aura': 'pet_cat', 'skin': 'skin_gold'});
+      expect(Cosmetics.migrateEquipped(e), isFalse); // 두 번째는 할 일 없음
+      final none = {'aura': 'aura_star', 'pet': ''};
+      expect(Cosmetics.migrateEquipped(none), isTrue);
+      expect(none, {'aura': 'aura_star'});
     });
-    test('안 데리고 있거나 모르는 id 는 없음', () {
-      expect(Pets.worn((k, f) => f), isNull);
-      expect(Pets.worn((k, f) => 'no_such_pet'), isNull);
-      expect(Pets.worn((k, f) => k == Pets.slotKey ? 'pet_cat' : f)?.id, 'pet_cat');
+    test('기기에 남은 예전 착용도 읽을 때 옮긴다', () async {
+      SharedPreferences.setMockInitialValues({'equipped_items': ['aura:aura_star', 'pet:pet_slime']});
+      await CoinStore.clearLocal();
+      SharedPreferences.setMockInitialValues({'equipped_items': ['aura:aura_star', 'pet:pet_slime']});
+      await CoinStore.load();
+      expect(CoinStore.equipped('aura', ''), 'pet_slime');
+      expect(CoinStore.equipped('pet', 'none'), 'none');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('equipped_items'), ['aura:pet_slime']);
+      await CoinStore.clearLocal();
     });
   });
 
@@ -293,20 +305,10 @@ void main() {
         expect(Cosmetics.byId(Cosmetics.defaultOf(k))?.kind, k);
       }
     });
-    test('기본(무료)만 능력치가 없고 나머지는 다 있다', () {
+    test('기본(무료)은 보너스가 없고, 보너스는 코인 +% 뿐이다(12% 이하)', () {
       for (final c in Cosmetics.all) {
-        expect(c.bonus.isZero, c.price == 0, reason: c.id);
-      }
-    });
-    test('종류마다 가장 비싼 것이 가장 싼 유료보다 세다', () {
-      double main(Cosmetic c) => switch (c.kind) {
-            CosmeticKind.skin => c.bonus.iframe,
-            CosmeticKind.trail => c.bonus.speed,
-            CosmeticKind.aura => c.bonus.recovery,
-          };
-      for (final k in CosmeticKind.values) {
-        final paid = Cosmetics.ofKind(k).where((c) => c.price > 0).toList()..sort((a, b) => a.price.compareTo(b.price));
-        expect(main(paid.last), greaterThan(main(paid.first)), reason: k.name);
+        if (c.price == 0) expect(c.bonus.isZero, isTrue, reason: c.id);
+        expect(c.bonus.coin, lessThanOrEqualTo(0.12), reason: c.id);
       }
     });
   });
@@ -724,6 +726,18 @@ void main() {
       expect(Balance.levelAt(top * 5), Balance.maxLevel); // 그 뒤로는 그대로
     });
 
+    test('최고 레벨 뒤로는 30초마다 2%씩 아주 천천히, 최대 1.5배(2026-10-26)', () {
+      final top = (Balance.maxLevel - 1) * Balance.levelSeconds;
+      expect(Balance.lateGrowth(0), 1);
+      expect(Balance.lateGrowth(top), 1);
+      expect(Balance.lateGrowth(top + Balance.lateStepSeconds - 0.1), 1);
+      expect(Balance.lateGrowth(top + Balance.lateStepSeconds), closeTo(1 + Balance.lateStep, 1e-9));
+      expect(Balance.lateGrowth(top + Balance.lateStepSeconds * 10), closeTo(1 + Balance.lateStep * 10, 1e-9));
+      expect(Balance.lateGrowth(top + 3600), Balance.lateMax);
+      // 한 칸이 레벨 한 칸(갤럭시 초당 탄 약 +0.7)보다 훨씬 작다
+      expect(Balance.cyberRate(Balance.maxLevel) * Balance.lateStep, lessThan(Balance.cyberRate(2) - Balance.cyberRate(1)));
+    });
+
     test('레벨마다 같은 폭으로 조금씩 어려워진다(급한 계단 없음)', () {
       // 존별 "빈도"(초당 탄·투구·슛) — 매 레벨 오르고, 한 번에 전체 폭의 1/(최고-1) 만큼만
       final curves = <String, double Function(int)>{
@@ -790,9 +804,64 @@ void main() {
     });
   });
 
-  group('시즌', () {
-    test('현재 시즌 번호 = 마지막 시작', () {
-      expect(Season.current, Season.starts.length - 1);
+  group('시즌(functions/test/logic.test.js 와 같은 경우들)', () {
+    final first = DateTime.utc(2026, 11, 1);
+    test('연간 — 첫 시즌은 시즌 1 시작부터, 그 뒤는 1월 1일마다 · 프리시즌', () {
+      final c = SeasonConfig(firstStart: first);
+      final pre = c.seasonAt(DateTime.utc(2026, 10, 31, 23));
+      expect((pre.number, pre.id, pre.end), (0, 'S0', first));
+      expect(pre.isPreSeason, isTrue);
+      final s1 = c.seasonAt(DateTime.utc(2026, 12, 15));
+      expect((s1.number, s1.id, s1.start, s1.end), (1, '2026', first, DateTime.utc(2027, 1, 1)));
+      final s2 = c.seasonAt(DateTime.utc(2027, 6, 1));
+      expect((s2.number, s2.id, s2.start, s2.end), (2, '2027', DateTime.utc(2027, 1, 1), DateTime.utc(2028, 1, 1)));
+      expect(c.previous(s2)!.id, '2026');
+      expect(c.previous(s1)!.id, 'S0');
+      expect(c.previous(pre), isNull);
+      expect(c.next(s1).id, '2027');
+      expect(s1.label, '2026');
+    });
+    test('분기 · 월간 · N일 · 시간대(한국 자정)', () {
+      final q = SeasonConfig(mode: SeasonMode.quarter, firstStart: DateTime.utc(2026, 10, 1));
+      final q4 = q.seasonAt(DateTime.utc(2026, 11, 26));
+      expect((q4.number, q4.id, q4.start, q4.end), (1, '2026Q4', DateTime.utc(2026, 10, 1), DateTime.utc(2027, 1, 1)));
+      expect(q.seasonAt(DateTime.utc(2027, 4, 2)).id, '2027Q2');
+      expect(q.seasonAt(DateTime.utc(2027, 4, 2)).number, 3);
+      expect(q4.label, '2026 Q4');
+
+      final m = SeasonConfig(mode: SeasonMode.month, firstStart: DateTime.utc(2026, 10, 15));
+      final m1 = m.seasonAt(DateTime.utc(2026, 10, 20));
+      expect((m1.id, m1.start, m1.end), ('2026-10', DateTime.utc(2026, 10, 15), DateTime.utc(2026, 11, 1)));
+      expect(m.seasonAt(DateTime.utc(2026, 12, 31)).number, 3);
+      expect(m1.label, '2026.10');
+
+      final d = SeasonConfig(mode: SeasonMode.days, periodDays: 14, firstStart: first);
+      final d3 = d.seasonAt(first.add(const Duration(days: 29)));
+      expect((d3.number, d3.id, d3.start, d3.end), (3, 'S3', DateTime.utc(2026, 11, 29), DateTime.utc(2026, 12, 13)));
+
+      // 한국 자정(UTC+9) 경계 — 12월 31일 24:00 KST = 12월 31일 15:00 UTC
+      final k = SeasonConfig(firstStart: DateTime.utc(2026, 10, 31, 15), offsetHours: 9);
+      final k1 = k.seasonAt(DateTime.utc(2026, 12, 31, 14, 59));
+      expect(k1.id, '2026');
+      expect(k1.end, DateTime.utc(2026, 12, 31, 15));
+      expect(k.seasonAt(DateTime.utc(2026, 12, 31, 15)).id, '2027');
+    });
+    test('마감 전 푸시 순간 — pushDays 일 전 pushHour 시(시즌 시간대)', () {
+      final c = SeasonConfig(firstStart: first, offsetHours: 9, pushHour: 18);
+      final s = c.seasonAt(DateTime.utc(2026, 12, 1));
+      final m = c.pushMoments(s);
+      expect(m.map((x) => x.$1), [30, 10, 3]);
+      expect(m.first.$2, DateTime.utc(2026, 12, 2, 9)); // 2026-12-02 18:00 KST
+      expect(m.last.$2, DateTime.utc(2026, 12, 29, 9));
+    });
+    test('설정 문서 ↔ 모델 · 캐시(JSON)', () {
+      final c = SeasonConfig(mode: SeasonMode.quarter, firstStart: first, offsetHours: 9, pushDays: const [14, 1], pushHour: 20);
+      final back = SeasonConfig.fromMap(c.toCache());
+      expect((back.mode, back.firstStart, back.offsetHours, back.pushHour), (SeasonMode.quarter, first, 9, 20));
+      expect(back.pushDays, [14, 1]);
+      expect(SeasonConfig.fromMap(null).mode, SeasonMode.year);
+      expect(SeasonConfig.fromMap(const {'mode': 'nope', 'offsetHours': 99}).offsetHours, 14);
+      expect(Season.now.id, isNotEmpty);
     });
   });
 

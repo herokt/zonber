@@ -4,6 +4,7 @@ import '../avatar.dart';
 import '../character_data.dart';
 import '../coin_store.dart';
 import '../design_system.dart';
+import '../game_guide_sheet.dart';
 import '../inbox.dart';
 import '../language_manager.dart';
 import '../progress_store.dart';
@@ -225,6 +226,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
             ),
             const Spacer(),
+            // 게임 방법(2026-10-26 연결 — 그전엔 어디서도 열리지 않았다)
+            AppIconButton(
+              icon: Icons.help_outline_rounded,
+              onTap: () => GameGuideSheet.show(context),
+              label: lm.translate('guide_rules_title'),
+              background: Colors.transparent,
+              color: AppColors.textDim,
+            ),
             // 알림 — 안 읽은 게 있으면 점
             _inboxButton(lm),
             // 오늘의 미션 — 받을 보상이 있으면 점으로 알린다

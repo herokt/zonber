@@ -8,7 +8,6 @@ import 'coin_store.dart';
 import 'cosmetics.dart';
 import 'gear.dart';
 import 'gear_painter.dart';
-import 'loadout.dart';
 import 'pets.dart';
 import 'badges.dart';
 import 'audio_manager.dart';
@@ -302,7 +301,6 @@ class _ShopPageState extends State<ShopPage> {
         _BagCat('skin', Icons.palette_rounded, lm.translate('shop_sec_skin')),
         _BagCat('trail', Icons.air_rounded, lm.translate('shop_sec_trail')),
         _BagCat('aura', Icons.blur_on_rounded, lm.translate('shop_sec_aura')),
-        _BagCat('pet', Icons.pets_rounded, lm.translate('shop_sec_pet')),
       ];
 
   /// 오른쪽 줄 — 이 존에서 입는 장비 부위
@@ -421,7 +419,6 @@ class _ShopPageState extends State<ShopPage> {
       'skin' => _cosmeticItems(lm, CosmeticKind.skin),
       'trail' => _cosmeticItems(lm, CosmeticKind.trail),
       'aura' => _cosmeticItems(lm, CosmeticKind.aura),
-      'pet' => _petItems(lm),
       _ => _gearItems(lm, catId),
     };
     list.sort((a, b) {
@@ -491,7 +488,7 @@ class _ShopPageState extends State<ShopPage> {
           if (mounted) setState(() {});
         },
       ),
-      for (final g in Gear.itemsOf(zone, slot))
+      for (final g in Gear.shopItemsOf(zone, slot, CoinStore.owns))
         () {
           final plateLocked = g.needsBadge != null && !_badges.contains(g.needsBadge);
           final owned = _ownsGear(g);
@@ -547,9 +544,10 @@ class _ShopPageState extends State<ShopPage> {
             owned: owned,
             equipped: worn == c.id,
             previewing: (_tryOn[kindKey] ?? worn) == c.id && worn != c.id,
-            // 능력치 — 지금 보고 있는 존에 맞춘 값(골키퍼는 무적·회복이 막는 범위로 바뀐다)
-            bonus: _bonusText(lm, Loadout.cosmeticFor(_gearZone, c)),
-            art: kind == CosmeticKind.skin
+            bonus: _bonusText(lm, c.bonus),
+            art: c.pet
+                ? PetPreview(petId: c.id, size: 48) // 펫 오라 — 시안 아트 펫
+                : kind == CosmeticKind.skin
                 // 스킨 — 입은 모습 그대로(움직이며 반짝임·흐름이 보인다)
                 ? AvatarStage(avatar: Avatar(characterId: _previewCharId, skinId: c.id), size: 48, cosmetics: false)
                 : CosmeticPreview(
@@ -574,81 +572,15 @@ class _ShopPageState extends State<ShopPage> {
     ];
   }
 
-  /// 꾸미기 착용 — 주위를 도는 오라는 펫과 같이 쓸 수 없어 펫을 내려놓는다
+  /// 꾸미기 착용
   Future<void> _equipCosmetic(LanguageManager lm, Cosmetic c) async {
     final kindKey = Cosmetics.kindKey(c.kind);
     await CoinStore.equip(kindKey, c.id);
     _tryOn.remove(kindKey);
-    if (c.kind == CosmeticKind.aura && c.orbits && CoinStore.equipped(Pets.slotKey, Pets.none) != Pets.none) {
-      await CoinStore.equip(Pets.slotKey, Pets.none);
-      _tryOn.remove(Pets.slotKey);
-      _toast(lm.translate('pet_conflict_pet'));
-    }
     if (mounted) setState(() {});
   }
 
-  /// 펫 — 없음 · 6종. 가진 것은 고르면 바로 데리고 다닌다
-  List<_BagItem> _petItems(LanguageManager lm) {
-    final worn = CoinStore.equipped(Pets.slotKey, Pets.none);
-    final shown = _tryOn[Pets.slotKey] ?? worn;
-    return [
-      _BagItem(
-        id: Pets.none,
-        label: lm.translate('pet_none'),
-        price: -1, // 정렬에서 맨 앞
-        owned: true,
-        equipped: worn == Pets.none,
-        previewing: shown == Pets.none && worn != Pets.none,
-        art: Icon(Icons.do_not_disturb_alt_rounded, size: 28, color: AppColors.textDim.withValues(alpha: 0.6)),
-        accent: AppColors.coin,
-        onPick: () async {
-          _equipFx();
-          await _equipPet(lm, Pets.none);
-        },
-        equip: () => _equipPet(lm, Pets.none),
-      ),
-      for (final p in Pets.all)
-        () {
-          final owned = CoinStore.owns(p.id);
-          return _BagItem(
-            id: p.id,
-            label: lm.translate(p.nameKey),
-            price: p.price,
-            owned: owned,
-            equipped: worn == p.id,
-            previewing: shown == p.id && worn != p.id,
-            bonus: lm.translate('pet_power').replaceAll('{n}', p.power.cooldown.toStringAsFixed(p.power.cooldown % 1 == 0 ? 0 : 1)),
-            art: PetPreview(petId: p.id, size: 48),
-            accent: AppColors.coin,
-            onPick: () async {
-              _tryFx();
-              setState(() => _tryOn[Pets.slotKey] = p.id);
-              if (owned) {
-                _equipFx();
-                await _equipPet(lm, p.id);
-              }
-            },
-            buy: () => CoinStore.buy(p.id, p.price),
-            equip: () => _equipPet(lm, p.id),
-          );
-        }(),
-    ];
-  }
-
-  /// 펫 데리고 다니기 — 주위를 도는 오라와 같이 쓸 수 없어 오라를 벗긴다
-  Future<void> _equipPet(LanguageManager lm, String id) async {
-    await CoinStore.equip(Pets.slotKey, id);
-    _tryOn.remove(Pets.slotKey);
-    final auraKey = Cosmetics.kindKey(CosmeticKind.aura);
-    if (id != Pets.none && Cosmetics.orbits(CoinStore.equipped(auraKey, Cosmetics.defaultAura))) {
-      await CoinStore.equip(auraKey, Cosmetics.defaultAura);
-      _tryOn.remove(auraKey);
-      _toast(lm.translate('pet_conflict_aura'));
-    }
-    if (mounted) setState(() {});
-  }
-
-  /// 능력치 한 줄(초록 글씨) — 없으면 null
+  /// 코인 보너스 한 줄(초록 글씨) — 없으면 null
   String? _bonusText(LanguageManager lm, GearBonus b) =>
       b.isZero ? null : b.labels.map((l) => lm.translate(l.$1).replaceAll('{n}', l.$2)).join(' · ');
 
@@ -832,23 +764,11 @@ class _ShopPageState extends State<ShopPage> {
   /// 미리보기에 함께 그릴 꾸미기 — 잔상·오라(고른 게 있으면 그것, 아니면 착용 중인 것)
   /// 지금 미리 보고 있는 아바타 한 벌 — 착용 중인 것 위에 '입어 보는 중'을 얹는다(avatar.dart)
   Avatar get _previewAvatar {
-    var aura = _previewCos(CosmeticKind.aura);
-    var pet = _tryOn[Pets.slotKey] ?? CoinStore.equipped(Pets.slotKey, Pets.none);
-    // 펫과 도는 오라는 같이 못 쓴다 — 방금 고른 쪽을 보여 준다
-    if (pet != Pets.none && Cosmetics.orbits(aura)) {
-      final pickedAura = _tryOn.containsKey(Cosmetics.kindKey(CosmeticKind.aura)) && !_tryOn.containsKey(Pets.slotKey);
-      if (pickedAura) {
-        pet = Pets.none;
-      } else {
-        aura = Cosmetics.defaultAura;
-      }
-    }
     return Avatar(
       characterId: _previewCharId,
       skinId: _skinId,
       trailId: _previewCos(CosmeticKind.trail),
-      auraId: aura,
-      petId: pet,
+      auraId: _previewCos(CosmeticKind.aura),
       gearByZone: {_gearZone: _previewGear(_gearZone)},
     );
   }

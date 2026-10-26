@@ -81,7 +81,7 @@ class Player extends PositionComponent
     final ring = _hbHalf + (game.worldConfig.statKey == 'close_dodge' ? _closeDodgeRing : _grazeRing);
     _grazing.removeWhere((b) => !b.isMounted); // 피격·소멸된 탄은 카운트하지 않는다
     for (final c in game.mapArea.children) {
-      if (c is! Bullet || c.deflected) continue; // 펫이 쳐낸 공은 세지 않는다
+      if (c is! Bullet || c.deflected) continue; // 끝난 공(빗나감·세이브)은 세지 않는다
       final d = c.position.distanceTo(position);
       final r = ring + c.def.radius;
       if (d < r) {
@@ -102,27 +102,25 @@ class Player extends PositionComponent
     final profile = await UserProfileManager.getProfile();
     avatar = await Avatar.mine(profile['characterId'] ?? Avatar.defaultCharacterId);
     final stats = avatar.character.stats;
-    // 착용 능력치(loadout.dart — 존 장비 + 스킨·잔상·오라, 이 존에 맞춘 값) — 입은 그대로가 곧 보너스다
-    final zone = game.worldConfig.id;
-    final bonus = Loadout.bonusOf(zone, CoinStore.equipped);
+    // 장비·꾸미기·펫은 외형이다(2026-10-26) — 능력치는 모든 캐릭터가 같다(CharacterStats.standard)
 
     // 모든 캐릭터 동일한 시각 크기 및 히트박스
     const double visualSize = 42;
     const double hitboxSize = 22;
     size = Vector2(visualSize, visualSize);
 
-    // 스탯 적용 — 캐릭터 공통 기본값 + 장비 보너스
+    // 스탯 적용 — 캐릭터 공통 기본값
     _hbHalf = 11.0; // 고정 히트박스 22px의 절반
-    _speedMult = stats.speedMultiplier + bonus.speed;
-    _maxShields = stats.maxEnergy + bonus.energy;
-    _shieldCooldown = max(1.0, stats.energyCooldown - bonus.recovery);
-    _iframeDuration = stats.iframeDuration + bonus.iframe;
+    _speedMult = stats.speedMultiplier;
+    _maxShields = stats.maxEnergy;
+    _shieldCooldown = stats.energyCooldown;
+    _iframeDuration = stats.iframeDuration;
     _invincibleDuration = _iframeDuration;
     _energy = _maxShields.toDouble(); // 최대치로 시작
     if (keeperMode) {
       // Keeper: 목숨 = 허용 골 수(월드 lives), 회복 없음. 무적은 쓰이지 않는다.
       // 막는 범위는 몸 크기만큼 넉넉하게(36px) — 골문 폭 280 을 한 명이 지킨다
-      _hbHalf = Balance.keeperReach + bonus.reach;
+      _hbHalf = Balance.keeperReach;
       _maxShields = game.worldConfig.lives;
       _shieldCooldown = 0;
       _energy = _maxShields.toDouble();
@@ -430,7 +428,6 @@ class Player extends PositionComponent
         return;
       }
       if (game.storeShot) return; // 스토어 스크린샷 — 공이 지나간다
-      if (other.deflected) return; // 펫이 쳐낸 공 — 다치게 하지 않는다
       if (_isInvincible) {
         // 무적 중 — 총알만 제거
         other.removeFromParent();

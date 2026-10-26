@@ -4,8 +4,7 @@ import '../season.dart';
 import 'bo_common.dart';
 
 // ─────────────────────────────────────────────────────────────
-// 랭킹 관리 — maps/{stage}/records (현재 스테이지 3개만). 기간 필터는 게임(RankingSystem)과 같다:
-//   주 = 월요일 00:00, 월 = 1일, 올해 = 1월 1일 (현재 시즌 시작보다 앞이면 시즌 시작). 전체 = 기간 없음.
+// 랭킹 관리 — maps/{stage}/records (현재 스테이지 3개만). 기간은 게임과 같이 **이번 시즌**(season.dart · 백오피스 › 시즌) 또는 전체.
 // 기간 쿼리는 timestamp 범위로 읽어 와 생존 시간순 정렬을 화면에서 한다(게임과 같은 방식, 단일 필드 색인).
 // 의심 기록: 600초 초과, 다음 순위와 1.5배 이상 격차(상위 10위), 유저 문서 없음.
 // ─────────────────────────────────────────────────────────────
@@ -16,9 +15,9 @@ class RankingPage extends StatefulWidget {
   State<RankingPage> createState() => _RankingPageState();
 }
 
-enum _Period { week, month, year, all }
+enum _Period { season, all }
 
-const _periodNames = {_Period.week: '주간', _Period.month: '월간', _Period.year: '올해', _Period.all: '전체'};
+const _periodNames = {_Period.season: '이번 시즌', _Period.all: '전체'};
 
 class _RankingPageState extends State<RankingPage> with BoReloadable {
   static const int _scanLimit = 3000;
@@ -26,7 +25,7 @@ class _RankingPageState extends State<RankingPage> with BoReloadable {
   static const double _suspectTime = 600;
 
   String _mapId = kStages.first.id;
-  _Period _period = _Period.week;
+  _Period _period = _Period.season;
   bool _bestPerUser = true;
 
   bool _loading = true;
@@ -34,21 +33,7 @@ class _RankingPageState extends State<RankingPage> with BoReloadable {
   List<BoRec> _records = [];
   int _scanned = 0;
 
-  DateTime? _periodStart() {
-    final today = startOfToday();
-    final DateTime s;
-    switch (_period) {
-      case _Period.week:
-        s = today.subtract(Duration(days: today.weekday - 1));
-      case _Period.month:
-        s = DateTime(today.year, today.month, 1);
-      case _Period.year:
-        s = DateTime(today.year, 1, 1);
-      case _Period.all:
-        return null;
-    }
-    return s.isBefore(Season.currentStart) ? Season.currentStart : s;
-  }
+  DateTime? _periodStart() => _period == _Period.season ? Season.now.start.toLocal() : null;
 
   @override
   Future<void> reload() async {
@@ -239,7 +224,7 @@ class _RankingPageState extends State<RankingPage> with BoReloadable {
           BoTable.text(r.userId.isEmpty ? '-' : r.userId, style: Bo.mono, tooltip: r.userId),
           BoTable.text(fmtSec(r.time), style: Bo.cellStrong, color: r.time > _suspectTime ? Bo.red : null),
           BoTable.text(fmtDateTime(r.at), style: Bo.muted),
-          BoTable.text(r.data['season'] == null ? '-' : 'S${r.data['season']}', style: Bo.muted),
+          BoTable.text(r.data['season'] == null ? '-' : r.data['season'] is num ? 'S${r.data['season']}' : '${r.data['season']}', style: Bo.muted),
           flags.isEmpty
               ? const SizedBox()
               : Wrap(spacing: 4, children: [for (final f in flags) BoBadge(f.$1, color: f.$2, dense: true)]),

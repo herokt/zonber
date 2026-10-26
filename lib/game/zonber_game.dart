@@ -23,6 +23,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     this.initialSurvivalTime = 0.0,
     this.personalBest = 0.0,
     this.rival,
+    this.tutorial = false,
   }) : worldConfig = worldConfig ?? WorldData.defaultWorld {
     // TOP N 목표선은 서버에서 늦게 온다 — 상대 목표는 바로 보이게 먼저 둔다(main._loadTargets 가 합쳐서 다시 넣는다)
     final r = rival;
@@ -82,6 +83,18 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   bool get inIntro => introLeft > 0;
   /// Flutter 오버레이 문구: 'zone' | 'start' | null
   final ValueNotifier<String?> introNotifier = ValueNotifier(null);
+
+  // ── 첫 판 안내(튜토리얼, 2026-10-26) ──
+  /// 이 기기의 첫 판 — 시작 뒤 [tutorialSeconds] 동안 공·탄이 반만 나오고([spawnScale]) "끌어서 움직여요" 안내가 뜬다.
+  /// 안내는 손가락을 충분히 끌면 먼저 사라진다. 부활로 이어진 판에는 없다
+  final bool tutorial;
+  static const double tutorialSeconds = 10;
+  double tutorialLeft = 0;
+  double _tutorialDrag = 0;
+  /// 안내 문구 표시 여부(HUD)
+  final ValueNotifier<bool> tutorialNotifier = ValueNotifier(false);
+  /// 스포너가 곱하는 빈도 배율 — 튜토리얼 동안 0.5
+  double get spawnScale => tutorialLeft > 0 ? 0.5 : 1;
 
   // ── 타격감 연출 ──
   final Random _fxRng = Random();
@@ -323,6 +336,7 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
     if (worldConfig.court != null) mapArea.add(DodgeTeamZone()..priority = 2);
     // 새 판은 존 깜빡임부터, 부활로 이어지는 판은 START! 만
     introLeft = initialSurvivalTime > 0 ? introStart : introZone + introStart;
+    tutorialLeft = tutorial && initialTime == 0 ? tutorialSeconds : 0;
     // introNotifier 는 여기(onLoad — Flutter 가 화면을 짓는 중)서 바꾸지 않는다. 첫 update 에서 설정된다.
     // (빌드 도중 ValueNotifier 를 바꾸면 릴리스 웹에서 HUD 갱신이 멈췄다)
     mapArea.add(ZoneIntro()..priority = 16);
@@ -339,9 +353,6 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       ..anchor = Anchor.center
       ..priority = 10; // Ensure player is above trail (trail will be 0 or -1)
     mapArea.add(player);
-    // 펫 — 데리고 있으면 같이 나온다(lib/game/pet.dart)
-    final pet = Pets.worn(CoinStore.equipped);
-    if (pet != null) mapArea.add(PetHelper(pet));
 
     camera.stop();
     _fitView();
@@ -404,10 +415,15 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
       introLeft -= dt;
       final phase = introLeft > introStart ? 'zone' : (introLeft > 0 ? 'start' : null);
       if (introNotifier.value != phase) introNotifier.value = phase;
+      if (phase == null && tutorialLeft > 0 && _tutorialDrag < 200) tutorialNotifier.value = true;
       return;
     }
 
     if (!isGameOver) {
+      if (tutorialLeft > 0) {
+        tutorialLeft -= dt;
+        if (tutorialLeft <= 0 && tutorialNotifier.value) tutorialNotifier.value = false;
+      }
       survivalTime += dt;
       survivalTimeNotifier.value = survivalTime;
       if (_targets.isNotEmpty) _updateTarget();
@@ -429,6 +445,10 @@ class ZonberGame extends FlameGame with HasCollisionDetection, PanDetector {
   @override
   void onPanUpdate(DragUpdateInfo info) {
     _dragDeltaAccumulator += info.delta.global;
+    if (tutorialNotifier.value) {
+      _tutorialDrag += info.delta.global.length;
+      if (_tutorialDrag >= 200) tutorialNotifier.value = false; // 충분히 끌었다 — 안내는 그만
+    }
   }
 }
 

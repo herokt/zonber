@@ -14,6 +14,10 @@ class GameSettings extends ChangeNotifier {
   bool _reminderEnabled = true;
   bool _pushEnabled = true;
   bool _friendPushEnabled = true;
+  bool _firstRunDone = false;
+
+  /// 이 기기에서 한 판이라도 끝냈나 — 첫 판에만 튜토리얼 안내(ZonberGame.tutorial). 로그아웃에도 안 지운다
+  bool get firstRunDone => _firstRunDone;
 
   bool get soundEnabled => _soundEnabled;
   bool get vibrationEnabled => _vibrationEnabled;
@@ -39,6 +43,14 @@ class GameSettings extends ChangeNotifier {
     _reminderEnabled = prefs.getBool('reminder_enabled') ?? true;
     _pushEnabled = prefs.getBool('push_enabled') ?? true;
     _friendPushEnabled = prefs.getBool('friend_push_enabled') ?? true;
+    _firstRunDone = prefs.getBool('first_run_done') ?? false;
+  }
+
+  Future<void> markFirstRunDone() async {
+    if (_firstRunDone) return;
+    _firstRunDone = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('first_run_done', true);
   }
 
   /// 스토어 스크린샷 모드 — 소리·진동을 끄고 라이트 테마로(메모리만, 저장하지 않는다)

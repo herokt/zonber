@@ -52,8 +52,8 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 
 ### 게임 코드 위치 (2026-09-22 main.dart 를 part 파일로 나눔)
 - `lib/main.dart` — 앱 초기화 · `ZonberApp` 페이지 라우팅 · 판 종료 처리(`_handleGameOver`)
-- `lib/game/` (`part of '../main.dart'`) — `game_screen.dart`(HUD) · `zonber_game.dart`(ZonberGame·맵) · `player.dart` · `projectiles.dart`(Bullet·스포너·피구 팀) · `keeper.dart` · `dodgeball.dart` · `pet.dart`(펫 `PetHelper`)
-- 밸런스 수치 `lib/balance.dart` · 시즌 `lib/season.dart` · 일일 미션 `lib/daily_rewards.dart` · 판 기록 `lib/run_history.dart`(서버) · `lib/playtest_log.dart`(기기)
+- `lib/game/` (`part of '../main.dart'`) — `game_screen.dart`(HUD) · `zonber_game.dart`(ZonberGame·맵) · `player.dart` · `projectiles.dart`(Bullet·스포너·피구 팀) · `keeper.dart` · `dodgeball.dart`
+- 밸런스 수치 `lib/balance.dart` · 시즌 `lib/season.dart`(**랭킹 = 시즌 하나**, 주간·월간 없음 — 백오피스 › 시즌에서 연간·분기·월간·N일 선택, `config/season`. 끝나면 `hall_of_fame/{id}` 명예의 전당 · 마감 30·10·3일 전 자동 푸시 `functions/season.js`) · 일일 미션 `lib/daily_rewards.dart` · 판 기록 `lib/run_history.dart`(서버 — 백오피스 대시보드 "존별 끝난 레벨 분포"가 읽는다)
 - 테스트 `flutter test`(test/logic_test.dart) · 규칙 시험 `node scripts/test_rules.mjs`
 - 효과음 `assets/audio/*.wav` — `python scripts/make_sfx.py` 로 합성, 이름·연결은 `lib/audio_manager.dart`(Sfx) · 존별 배경음악 `bgm_{존 id}.mp3` — `python scripts/make_bgm.py` (공용 DSP `scripts/audio_dsp.py`) · 진동 `lib/haptics.dart`
 
@@ -61,14 +61,14 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 `main.dart`:
 - 앱 초기화 (Firebase, AdMob, GameSettings, AudioManager)
 - `ZonberApp` 위젯에서 `_currentPage` 상태로 페이지 라우팅
-- 페이지: Menu(=HomePage), Ranking, MyProfile(=ProfilePage) ← 하단 탭 3개 / Game, Result, Badges, Profile(최초 설정), Login, Shop, Statistics, Promo(이벤트 — 홈 이벤트 배너로 진입) (캐릭터 고르기 = 상점 캐릭터 탭, CharacterSelect 페이지는 2026-09-22 제거). 맵 에디터·커스텀 맵·Hall of Fame 은 2026-09-22 코드째 제거
+- 페이지: Menu(=HomePage), Ranking, MyProfile(=ProfilePage) ← 하단 탭 3개 / Game, Result, Badges, Profile(최초 설정), Login, Shop, Promo(이벤트 — 홈 이벤트 배너로 진입) (캐릭터 고르기 = 상점 캐릭터 탭, CharacterSelect 페이지는 2026-09-22 제거). 맵 에디터·커스텀 맵·Hall of Fame 은 2026-09-22 코드째 제거
 - 월드 상태: `_currentWorldId` · `_bestTimes` · `_rankCache`. 랭킹 mapId는 `_currentWorld.rankingMapId`
 
 ### 게임 코어 (Flame 엔진)
 `main.dart`의 `ZonberGame` 클래스:
 - 고정 맵 크기: 480x768 (32px 타일 기준 15x24 그리드)
 - World height: 800 (맵 하단 UI 영역 포함)
-- 컴포넌트: `Player`(근접 회피 카운트, `keeperMode`면 공에 닿으면 세이브·`concedeGoal()`로 실점), `Bullet`(`ProjectileDef` 기반: 크기·색·straight/curve/bounce, 큰 공은 바닥 그림자, keeper면 골대 진입 시 실점), `BulletSpawner`(ring, keeper는 골대 기준 스폰·조준 / thrower → `_DodgeballThrower`: 피구 턴제 투구·단계별 패턴, `Bullet.splitAfter`로 분열 / shooter → `_KeeperShooter` + `KeeperGoal`: 페널티킥형 골문·슈터 1→5명·바나나킥). 진입 예고 표시 없음, `PetHelper`(펫 — 거리 판정으로 쳐내기, `Bullet.petSwat`), `GoalZone`(keeper 골대), `MapArea`, `GridBackground`(스테이지 line 색 테두리 + `worlds/{id}_bg.png` 배경 슬롯)
+- 컴포넌트: `Player`(근접 회피 카운트, `keeperMode`면 공에 닿으면 세이브·`concedeGoal()`로 실점), `Bullet`(`ProjectileDef` 기반: 크기·색·straight/curve/bounce, 큰 공은 바닥 그림자, keeper면 골대 진입 시 실점), `BulletSpawner`(ring, keeper는 골대 기준 스폰·조준 / thrower → `_DodgeballThrower`: 피구 턴제 투구·단계별 패턴, `Bullet.splitAfter`로 분열 / shooter → `_KeeperShooter` + `KeeperGoal`: 페널티킥형 골문·슈터 1→5명·바나나킥). 진입 예고 표시 없음, `GoalZone`(keeper 골대), `MapArea`, `GridBackground`(스테이지 line 색 테두리 + `worlds/{id}_bg.png` 배경 슬롯)
 - 목표선: `_loadTargets()`가 올해 TOP 100 시간을 읽어 `game.setTargets()` → HUD가 다음 TOP N 까지 진행바 표시 (10분 캐시)
 - 터치 조작: 직접 드래그 (1:1 손가락 이동, 조이스틱 없음)
 - 충돌 시스템: Flame의 `HasCollisionDetection` + 탄환 터널링 방지 수동 처리
@@ -80,33 +80,31 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `world_config.dart` | **스테이지 3종, 항상 열림** (`WorldConfig`/`ProjectileDef`/`SpawnStrategy`/`WorldMode`) — 1 Cyber · 2 Dodgeball(sideline 스포너) · 3 Keeper(mode keeper: 골대 반지름·lives 5). 리더보드는 전부 신규 mapId. 기획 [docs/STAGES.md](docs/STAGES.md) |
 | `progress_store.dart` | 월드별 최고 기록·순위 캐시. SharedPreferences + Firestore `users/{uid}.bestTimes` (옛 `plates` 는 로그인 때 뱃지로 옮김) |
 | `pages/home_page.dart` | 홈 — 월드 캐러셀·캐릭터·START |
-| `pages/ranking_page.dart` | 랭킹 탭 — 월드 탭 × 기간 × 세계/국가, 포디움, 내 행 고정 |
+| `pages/ranking_page.dart` | 랭킹 탭 — 월드 탭 × 세계/국가/친구, 포디움, 내 행 고정. 기간은 **시즌 하나**(머리의 시즌 칩 = 이름 · 마감 D-day → `pages/hall_of_fame_page.dart` 명예의 전당) |
 | `pages/result_page.dart` | 결과 — 기록 제출, 순위 카드(사람 단위 — 랭킹 탭과 같은 목록), 새로 얻은 뱃지 |
 | `pages/profile_page.dart` | 프로필 탭 — 대표 뱃지·월드별 기록·캐릭터·설정·계정 (구 `MyProfilePage` 대체) |
-| `ranking_system.dart` | Firestore 리더보드: 기록 저장/조회, 국가별 랭킹, 3개 기간(주/월/올해). 랭킹·결과 화면 순위·목표선 모두 **사람 단위**(한 사람 = 가장 좋은 기록, `_bestPlayers` 30초 캐시, 순위는 나를 빼고 센다) |
+| `ranking_system.dart` | Firestore 리더보드: 기록 저장/조회, 국가별 랭킹, 기간은 **이번 시즌**(`Season.now` 시작~끝, 2026-10-26 주·월·올해 제거). 랭킹·결과 화면 순위·목표선 모두 **사람 단위**(한 사람 = 가장 좋은 기록, `_bestPlayers` 30초 캐시, 순위는 나를 빼고 센다) |
 | `achievement_manager.dart` | 9개 업적 (생존 티어, 국가/글로벌 랭킹); SharedPreferences + Firestore 이중 저장 |
-| `statistics_page.dart` | 유저 통계 + 획득 타이틀 (일간/주간/월간 랭커, 전설적 생존자) |
 | `translations.dart` | 200개+ 이중 언어 문자열 (EN/KO); `{placeholder}` 보간 지원 |
 | `language_manager.dart` | 언어 전환; SharedPreferences에서 읽음 |
 | `design_system.dart` | 디자인 시스템 v2 — 다크 무채색 + 월드 강조색 1개, Sora(Display)/Manrope(Body). `Neon*` 이름 유지 + `AppChip`/`AppSegmented`/`CountryChip`/`NamePlate`/`RankRow`/`AppBottomNav`. gold는 1위·뱃지 강조 전용 |
-| `loadout.dart` | **착용 능력치 단일 출처** — `Loadout.bonusOf(zone, equipped)` = 존 장비(`gear.dart`) + 꾸미기(스킨 무적·잔상 속도·오라 회복, `cosmetics.dart`)를 합쳐 `GearBonus.adapt` 로 그 존에 맞춘다(골키퍼는 무적·회복 → 막는 범위). 게임 `Player`·코인 정산·가방 표시가 모두 여기를 쓴다. 기본(무료) 아이템만 능력치 없음 |
-| `pets.dart` · `game/pet.dart` | **펫** 6종(2026-10-12) — 게임을 돕는 서브 캐릭터. 세 존 모두 캐릭터 둘레(36px, 얇은 원으로 표시)를 같은 빠르기로 돌며, 캐릭터 쪽으로 오던 탄·공을 **바깥쪽으로** 튕겨 낸다(`Bullet.petSwat`, 골키퍼는 골대 쪽 금지). 그림은 시안 아트(`PetArt`). 한 번 쳐내면 쉬는 시간(비쌀수록 짧다). 히트박스 없이 거리로만 판정(캐릭터 판정과 분리). **주위를 도는 오라(`Cosmetic.orbits`)와 같이 못 쓴다** — 가방이 하나를 벗긴다. 착용 슬롯 `pet`. 기획 [docs/SHOP.md](docs/SHOP.md) §펫 |
+| `loadout.dart` | **착용 보너스 단일 출처** — `Loadout.bonusOf(zone, equipped)` = 존 장비(`gear.dart`) + 꾸미기(`cosmetics.dart`)의 **코인 +%** 합계. **전투 능력치(속도·무적·회복·에너지·막는 범위)는 2026-10-26 전부 제거** — 장비·꾸미기·펫은 외형이고 랭킹은 순수 실력 경쟁. 코인 정산·가방 표시가 쓴다(게임 `Player` 는 더는 안 본다). 장비 카탈로그는 63 → 39종(`GearItem.retired` = 상점에서 숨김, 가진 사람만 봄) |
+| `pets.dart` | **펫 오라 그림**(2026-10-26 펫을 주위를 도는 오라로 합침 — `Cosmetic.pet`, 오라 칸에서 고른다. 펫 슬롯·탭·"도는 오라와 같이 못 쓴다" 규칙 없음). id·가격은 예전 펫 그대로라 산 기록이 이어지고, 예전 착용 슬롯 `pet` 은 읽을 때 오라로 옮긴다(`Cosmetics.migrateEquipped` · 남의 문서는 `auraFrom`). 그림은 시안 아트(`PetArt` · `paintPet`), `paintAura` → `paintPetAura`. 탄·공에 영향 없음. 기획 [docs/SHOP.md](docs/SHOP.md) §펫 오라 |
 | `game/sprites.dart` | **시안 아트**(2026-10-12, Gemini) — `GameSprites`: 운석 4종 · 피구공·축구공 · 피구 상대 선수 그림(`assets/images/sprites/`)을 기다리지 않고 읽고, 없으면 코드 드로잉. `ProjectileDef.sprite`/`tintSprite`. `--dart-define=ART=code` = 코드 드로잉만. 자르기 `python scripts/cut_sprites.py`(원본 `assets/images/gemini/`). [docs/RESOURCES.md](docs/RESOURCES.md) §시안 아트 |
-| `avatar.dart` | **아바타 단일 출처** — `Avatar`(캐릭터·스킨·잔상·오라·펫·존별 장비 한 벌) + `AvatarView`(동그란 아바타) + `AvatarStage`(큰 전신, 잔상·오라까지). 아바타를 그리는 곳은 전부 여기를 쓴다(홈·랭킹·가방·프로필·게임 `Player`) |
+| `avatar.dart` | **아바타 단일 출처** — `Avatar`(캐릭터·스킨·잔상·오라(펫 포함)·존별 장비 한 벌) + `AvatarView`(동그란 아바타) + `AvatarStage`(큰 전신, 잔상·오라까지). 아바타를 그리는 곳은 전부 여기를 쓴다(홈·랭킹·가방·프로필·게임 `Player`) |
 | `player_profile.dart` | **프로필 단일 출처** — `PlayerProfile`(닉네임·국가·아바타·가입일·최근 접속·뱃지·존별 기록·누적) + `PlayerProfileService.fetch(uid)`. 내 것과 남의 것이 같은 클래스 |
 | `pages/player_profile_view.dart` | 프로필 표시 부품 — `ProfileIdentityCard`/`StageRecordRow`/`ProfileMetaLine`/`ProfileBadgeStrip` + `showPlayerCard(uid)`(랭킹에서 이름을 누르면 뜨는 남의 프로필 창) |
 | `audio_manager.dart` | BGM/SFX 싱글톤 (flame_audio) |
 | `ad_manager.dart` / `ad_helper.dart` | AdMob 연동 (배너, 전면, 리워드); 광고 ID는 `kReleaseMode`로 자동 전환 |
 | `services/new_user_service.dart` | `NewUser` — 설치 시각(OS `installTime`)으로 **첫 24시간 전면 광고 없음** + `engaged_user`(기기당 한 번: 첫날 3판 · 24~48시간 복귀) — 유료 유입 테스트 [store/paid_ua_test.md](store/paid_ua_test.md) |
-| `iap_service.dart` | 인앱 결제 서비스 (in_app_purchase 패키지) — 광고 제거 IAP 예정, 아직 초기화하지 않음 |
-| `shop_page.dart` | 상점/IAP UI (캐릭터 스킨 등) |
+| `shop_page.dart` | 상점(가방) — 캐릭터·스킨·잔상·오라·펫·존별 장비. 인앱 결제는 없다(2026-10-26 `iap_service.dart`·`in_app_purchase` 제거 — 광고 제거 IAP 를 다시 할 땐 새로 넣는다) |
 | `game_settings.dart` | SharedPreferences 기반 설정 저장 |
 | `user_profile.dart` | 닉네임, 국가 국기, 프로필 관리 |
 | `character_data.dart` | 캐릭터 정의 8종 + `CharacterStats`(능력치는 전부 동일 — 캐릭터는 외형·표정만 다르다) |
-| `game_guide_sheet.dart` | 게임 방법 가이드 바텀시트 (아이템 탭은 파워업 제거와 함께 삭제) |
+| `game_guide_sheet.dart` | 게임 방법 바텀시트 — 홈 위 **?** 아이콘(2026-10-26 연결 — 그전엔 어디서도 열리지 않았다). 공통 3줄 + 존 3곳 규칙 |
 | `services/analytics_service.dart` | Firebase Analytics 래퍼. **이벤트 이름·파라미터는 이 파일에만** 둔다 (모바일 외 no-op) |
 | `services/share_service.dart` | **공유 단일 출처** — `ShareLinks.url(lang, src, code)`(공유용 페이지 `/get/{lang}/?src=&c=` 주소 — `c` = 내 친구 코드) + `ShareService.share`(OS 공유 창 · 안 되면 복사 · `share` 이벤트). 공유 문구에 스토어 주소를 직접 쓰지 않는다 |
-| `services/reminder_service.dart` | **주간 알림**(로컬 알림, 서버 없음) — 앱을 켜거나 돌아올 때마다 `reschedule()` 이 날짜를 박은 한 번짜리 알림을 7·14·21·28일 뒤로 다시 건다(반복 예약 periodicallyShow 는 켜자마자 뜨는 플러그인 버그가 있어 쓰지 않는다 — 한 달 넘게 안 오면 더 보내지 않는다). 켤 때 트레이의 지난 알림도 비운다(`clearShown`) → **일주일 동안 안 들어온 사람에게만** 간다. 권한은 첫 판 뒤 홈으로 나갈 때 한 번(`maybeAsk`, 리뷰 창과 겹치지 않게), 끄기는 프로필 › 설정 › 주간 알림. Android 는 desugaring·수신기·`ic_notification`(+ `res/raw/keep.xml`) 필요 |
+| `services/reminder_service.dart` | **주간 알림**(로컬 알림, 서버 없음) — 앱을 켜거나 돌아올 때마다 `reschedule()` 이 날짜를 박은 한 번짜리 알림을 7·14·21·28일 뒤로 다시 건다(반복 예약 periodicallyShow 는 켜자마자 뜨는 플러그인 버그가 있어 쓰지 않는다 — 한 달 넘게 안 오면 더 보내지 않는다). 켤 때 트레이의 지난 알림도 비운다(`clearShown`) → **일주일 동안 안 들어온 사람에게만** 간다. 권한은 첫 판 뒤 홈으로 나갈 때 한 번(`maybeAsk`, 리뷰 창과 겹치지 않게), 끄기는 프로필 › 설정 › **알림**(토글 하나가 주간 알림·이벤트 소식·친구 알림을 같이 켜고 끈다, 2026-10-26). Android 는 desugaring·수신기·`ic_notification`(+ `res/raw/keep.xml`) 필요 |
 | `push.dart` | **푸시 단일 출처** — 토픽(`lang_{ko|en|ja|zh}` + `member`/`guest` + 관리자 기기 `tester`) · 대상(`PushAudience`) · 발송 문서(`PushCampaign` = `push_campaigns/{id}`) · 템플릿 문구 8종(`PushTemplates`, 4개 언어). `functions/index.js` 와 약속이 같아야 한다. 운영법 [docs/PUSH.md](docs/PUSH.md) |
 | `services/push_service.dart` | 이벤트·소식 푸시(FCM) 받기 — `sync()` 가 언어·로그인·설정에 맞게 토픽 구독(앱 시작·복귀·언어 변경·로그인/로그아웃). 앱을 켜 둔 채 온 푸시는 띄우지 않는다(종 아이콘 점만). 기기 토큰은 저장하지 않는다. 끄기는 프로필 › 설정 › 이벤트·소식 알림 |
 | `app_release.dart` · `services/update_service.dart` | **앱 버전 · 업데이트 안내**(2026-10-12) — `AppVersion`(pubspec `이름+빌드` → "v2.1.0 (210)", 유저 문서 `appVersion`·`appBuild`) · `AppRelease`(Firestore `config/app_release` = 백오피스 › 앱 버전 에 적은 스토어 버전). 이 앱 빌드가 그보다 낮으면 홈에서 안내 창(나중에 → 3일), 필수 버전보다 낮으면 닫을 수 없다. 백오피스에는 버전 이름만 적고 빌드는 백오피스가 채운다(`PlatformRelease.buildFor`). 첫 홈 · 앱 복귀 때만(판 끝나고 돌아올 때는 안 띄움). [업데이트] = 스토어 페이지(`in_app_review openStoreListing`). 규칙·버전 규칙 [docs/RELEASE.md](docs/RELEASE.md) |
@@ -123,14 +121,15 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 ### 백오피스 (별도 관리자 앱)
 `lib/backoffice/`에 위치. 진입점: `lib/backoffice/main_backoffice.dart`.
 Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) — 주소 `https://stayzone-88364.web.app/secret_admin/`.
-배포는 `deploy_admin.bat` 하나로: 백오피스 웹 번들 + **Firestore 규칙·색인** + **서버 함수**(`functions/` — 푸시 발송 `sendPushCampaign` · 친구 `friends.js` · 탈퇴 정리, us-central1. `cd functions && npm test`)까지 같이 올린다.
+배포는 `deploy_admin.bat` 하나로: 백오피스 웹 번들 + **Firestore 규칙·색인** + **서버 함수**(`functions/` — 푸시 발송 `sendPushCampaign` · 친구 `friends.js` · 탈퇴 정리 · 시즌 `season.js`(매시간 — 마감 전 푸시·명예의 전당), us-central1. `cd functions && npm test`)까지 같이 올린다.
 규칙·색인을 빼먹으면 플레이 기록(`users/{uid}/runs` 쓰기 · collection group 읽기)이 조용히 막힌다.
 백오피스 카탈로그(`bo_catalog.dart`)는 캐릭터·장비·꾸미기 목록을 **게임 파일에서 그대로 읽는다** — 목록을 베껴 두지 않는다(아이템이 늘면 저절로 따라온다).
 - `dashboard_page.dart` — 실시간 유저/플레이 지표 및 스테이지 성과
-- `user_list_page.dart` — 유저 관리 UI — 왼쪽 칸으로 여러 명을 골라 **일괄 코인·아이템·변경권·국가·삭제**. 삭제는 서버 함수 `adminDeleteUsers`(로그인 계정·랭킹 기록·하위 문서·친구까지 — `functions/admin.js`, 관리자만). 위 전환 [유저 ID 없는 기록](`legacy_records_panel.dart`) = userId 없는 옛 기록 · 유저 문서 없는(탈퇴) 기록을 사람별로 묶어 **회원에 연결**(uid 붙이기 + 더 좋으면 프로필 최고 기록 올림) · **기록 삭제**
+- `user_list_page.dart` — 유저 관리 UI — 왼쪽 칸으로 여러 명을 골라 **일괄 코인·아이템·국가·삭제**. 삭제는 서버 함수 `adminDeleteUsers`(로그인 계정·랭킹 기록·하위 문서·친구까지 — `functions/admin.js`, 관리자만). 위 전환 [유저 ID 없는 기록](`legacy_records_panel.dart`) = userId 없는 옛 기록 · 유저 문서 없는(탈퇴) 기록을 사람별로 묶어 **회원에 연결**(uid 붙이기 + 더 좋으면 프로필 최고 기록 올림) · **기록 삭제**
 - `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
 - `promo_page.dart` · `promo_codes_page.dart` — 이벤트 · 이벤트 코드(만들기·검증·사용한 사람)
 - `push_page.dart` — 푸시 보내기(템플릿 · 4개 언어 문구 · 대상 · 미리보기 · 테스트 발송) + 보낸 기록
+- `season_page.dart` — **시즌**: 연간·분기·월간·N일 · 시즌 1 시작 · 경계 시간대 · 마감 전 자동 푸시(며칠 전·몇 시) · 미리보기(지금·다음 시즌, 푸시 시각) · 명예의 전당 목록
 - `app_release_page.dart` — **앱 버전**: 스토어에 나가 있는 버전 이름(Android·iOS 따로, 필수 버전 선택 — 빌드 칸 없음. 빌드는 이 백오피스와 같은 버전이면 그 빌드, 아니면 회원 기록에서 채운다 → 새 버전은 백오피스도 같이 배포) 저장 → 그보다 낮은 앱에 업데이트 안내. 유저 앱 버전 분포 · 안내 받을 사람 수. 유저 상세에도 앱 버전
 - 유저 상세 개요 탭 아래 **친구** 카드(`users/{uid}/friends`)
 - 이름표(캐릭터·장비·뱃지 한글명)는 `bo_catalog.dart`
@@ -142,7 +141,7 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 - **로딩은 전부 도는 스피너**(2026-10-12): `AppSpinner`(작은 링) · `AppLoading`(빈 칸 가운데) · `runBusy(context, () async {...})`(누른 동작 — 끝날 때까지 화면을 덮는 스피너). 새 화면에 `CircularProgressIndicator` 를 직접 쓰지 않는다
 
 ### 인증
-**게스트 = 로그인하지 않은 상태 · 게임 맛보기만(2026-09-22):** 앱 첫 실행은 `_ZonberAppState._enterAsGuest()`가 **로그인 없이**(익명 로그인도 하지 않는다) 바로 메뉴에 들어간다. 로그아웃도 게스트로 복귀한다. 게스트는 **기기·서버 어디에도 아무것도 저장하지 않는다** — 기록·코인·미션·뱃지·통계·프로필·플레이 수 모두. 화면(코인·상점·뱃지·미션·내 최고·통계)은 그대로 보이되 값은 초기값(0·—)이고, 구매·보상 받기는 로그인 안내(`guest_login_to_save`). 저장 차단은 각 store(`CoinStore`·`ProgressStore`·`DailyRewards`·`AchievementManager`·`BadgeStatsStore`·`UserProfileManager`·`PlaytestLog`)가 `AuthService.isGuest`로 직접 막고, `_handleGameOver`도 게스트는 결과만 보여 준다(방금 판 하나만 메모리 `_guestRun` 에 두었다가 로그인하면 `_claimGuestRun` 이 올린다). 게스트 진입 때 기기의 유저 데이터를 지우고(`_clearLocalData`), 예전 버전의 익명 세션은 시작 시 로그아웃시킨다. 로그인 세션은 Firebase 가 기기에 저장하므로 다음 실행에 자동 로그인된다. 규칙도 회원(`isMember`)만 쓰기 허용. 예전 게스트 데이터 정리 = `scripts/delete_guest_data.mjs`.
+**게스트 = 로그인하지 않은 상태 · 게임 맛보기만(2026-09-22):** 앱 첫 실행은 `_ZonberAppState._enterAsGuest()`가 **로그인 없이**(익명 로그인도 하지 않는다) 바로 메뉴에 들어간다. 로그아웃도 게스트로 복귀한다. 게스트는 **서버에는 아무것도 저장하지 않는다**. 기기에는 **존별 최고 기록과 판 코인만** 남긴다(2026-10-26 — 다음 날 돌아와도 어제 기록이 보이게. `ProgressStore` · `CoinStore` `coins_guest`). 로그인하면 최고 기록은 더 좋은 쪽으로 합치고 게스트 코인은 잔액에 더한다(`mergeFromRemote`). 미션·뱃지·통계·프로필·플레이 수는 여전히 없고, 구매·보상 받기는 로그인 안내(`guest_login_to_save`). 저장 차단은 각 store(`CoinStore`·`ProgressStore`·`DailyRewards`·`AchievementManager`·`BadgeStatsStore`·`UserProfileManager`·`PlaytestLog`)가 `AuthService.isGuest`로 직접 막고, `_handleGameOver`도 게스트는 결과만 보여 준다(방금 판 하나만 메모리 `_guestRun` 에 두었다가 로그인하면 `_claimGuestRun` 이 올린다). 로그아웃·가입 취소 때만 기기의 유저 데이터를 지우고(`_enterAsGuest(clear: true)` → `_clearLocalData` — 앱을 켤 때는 지우지 않아 게스트 기록이 남는다), 예전 버전의 익명 세션은 시작 시 로그아웃시킨다. 로그인 세션은 Firebase 가 기기에 저장하므로 다음 실행에 자동 로그인된다. 규칙도 회원(`isMember`)만 쓰기 허용. 예전 게스트 데이터 정리 = `scripts/delete_guest_data.mjs`.
 
 Firebase Auth 로그인 방식 (Google, Apple(iOS 전용 노출)):
 - `services/auth_service.dart`에서 Firebase Auth 호출 래핑
@@ -223,7 +222,6 @@ node scripts/compose_ios_shots.mjs     # App Store iPhone 6.9"·iPad 13" 10장 �
 3. `shop_page.dart` 캐릭터 탭에 표시되는지 확인 (캐릭터 고르기 = 상점)
 4. `backoffice/bo_catalog.dart` — `kCharNames`에 한글 이름 추가
 6. `translations.dart` — 이름/설명 키를 EN + KO 양쪽에 추가
-7. `shop_page.dart` + `iap_service.dart` — 유료 캐릭터인 경우 IAP 항목 추가 (현재 IAP 비활성)
 
 ### 파워업(아이템) 시스템
 2026-09에 **제거됨**. `powerup_system.dart`·`PowerUpManager`·`PowerUpComponent`·HUD 오버레이·가이드 아이템 탭·`powerup_*` 문자열이 모두 삭제됐다. 월드별 기믹은 [docs/GAME_TYPES_DESIGN.md](docs/GAME_TYPES_DESIGN.md) 설계를 따른다. 다시 넣지 말 것.
@@ -244,10 +242,10 @@ node scripts/compose_ios_shots.mjs     # App Store iPhone 6.9"·iPad 13" 10장 �
 ## 맵 / 스테이지 시스템
 
 스테이지는 `world_config.dart`의 월드 3종(cyber · dodgeball · keeper)이고, 리더보드 mapId 는 월드의 `rankingMapId`다.
-난이도는 **세 존 공통 레벨**(`balance.dart` — 15초마다 1, 최고 15에서 멈춤)로 정한다. 레벨마다 같은 폭으로 오르고, 존별 값(갤럭시 초당 탄 수·탄속, 피구·골키퍼 턴 간격·속도·패턴 단계)은 `Balance.byLevel`로 레벨 1 ↔ 최고 레벨 사이를 잇는다(2026-09-26, `game_config.dart` 삭제).
+난이도는 **세 존 공통 레벨**(`balance.dart` — 15초마다 1, 최고 15에서 멈춤)로 정한다. 최고 레벨 뒤로는 `Balance.lateGrowth` 가 30초마다 2%씩(최대 1.5배) 빈도·속도를 아주 천천히 올린다(2026-10-26 — 상위권이 집중력 싸움으로만 갈리지 않게). 레벨마다 같은 폭으로 오르고, 존별 값(갤럭시 초당 탄 수·탄속, 피구·골키퍼 턴 간격·속도·패턴 단계)은 `Balance.byLevel`로 레벨 1 ↔ 최고 레벨 사이를 잇는다(2026-09-26, `game_config.dart` 삭제).
 
 > 맵 에디터(UGC)·커스텀 맵(`editor_game.dart`·`map_service.dart`)은 2026-09-22 코드째 제거했다.
-> Firestore `custom_maps` 컬렉션 규칙은 `firestore.rules`에 그대로 남아 있다.
+> Firestore `custom_maps` 규칙도 2026-10-26 지웠다.
 
 ## 싱글톤 서비스
 
@@ -273,17 +271,17 @@ users/{uid}/codes/{CODE}    # 내가 쓴 코드(1인 1회 — 규칙이 promo_co
 friend_codes/{CODE}         # 친구 코드(회원마다 하나, 영문·숫자 4~5자) → {uid}. users/{uid}.friendCode 에도 적는다
 friend_invites/{uid}        # 친구 코드 입력 기록(계정당 한 번) {code, inviter, rewarded} — 코드 주인이 보상받으면 rewarded=true
 
-custom_maps/                # (옛 UGC — 앱에서 더는 쓰지 않음, 규칙만 남음)
-
 push_campaigns/             # 백오피스 푸시 발송 기록 — 만들면 서버 함수가 보낸다(status · results)
 friend_requests/            # 친구 요청 {from, to, status, expiresAt} — 쓰기는 서버 함수만
-push_state/                 # 친구 기록 알림 하루 횟수(서버만)
+push_state/                 # 친구 기록 알림 하루 횟수 · 시즌 마감 푸시 보낸 표시 season_{id}_{n}(서버만)
+config/season               # 시즌 설정 {mode, firstStart, offsetHours, periodDays, pushDays, pushHour} — 백오피스 › 시즌(공개 읽기)
+hall_of_fame/{시즌 id}       # 끝난 시즌의 존별 TOP 3(서버 함수가 쓴다, 공개 읽기)
 config/app_release          # 스토어에 나가 있는 버전 {android|ios: {version, build, minBuild, minVersion}} — 백오피스가 쓰고 앱이 읽는다(공개 읽기)
 news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공개 읽기) — users/{uid}/inbox(친구 알림) · users/{uid}/inbox_state/news(읽은 소식)
 # users/{uid}/friends/{친구uid} · users/{uid}/devices/{기기 id}(친구 알림 토큰, 본인만)
 ```
 
-랭킹 기록은 3개 기간 지원: `weekly`, `monthly`, `allTime` (현재 연도). 일일은 2026-09-18 제거.
+랭킹 기간은 **이번 시즌** 하나(2026-10-26 주간·월간·올해 제거 — `config/season` 설정, `hall_of_fame/{시즌 id}` 명예의 전당).
 국가 랭킹은 `flag` 필드로 필터링하며, 쿼리당 상위 30개를 가져오고 `users` 컬렉션에서 30개씩 배치로 유저 데이터를 보강함.
 
 ## 업적
@@ -301,7 +299,7 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 |----|------|
 | `sound_enabled` | BGM/SFX 토글 |
 | `vibration_enabled` | 햅틱 피드백 토글 |
-| `reminder_enabled` | 주간 알림 토글 (기본 켬) |
+| `reminder_enabled` | 주간 알림 (기본 켬) — 설정의 **알림** 토글 하나가 `push_enabled`·`friend_push_enabled` 와 같이 바꾼다 |
 | `reminder_asked` | 주간 알림 권한을 이미 물었나 (기기 설정 — 로그아웃에도 지우지 않음) |
 | `install_day_runs` · `engaged_logged` | 설치 첫 24시간 안에 끝낸 판 수 · `engaged_user` 를 남겼나 (기기 설정 — 로그아웃에도 지우지 않음, `NewUser`) |
 | `push_enabled` | 이벤트·소식 푸시 토글 (기본 켬) |
@@ -309,6 +307,9 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 | `friend_push_enabled` | 친구 알림 토글 (기본 켬 — 기기 문서 friend 값) |
 | `push_device_id` · `push_device_sig` | 친구 알림 기기 문서 id · 마지막으로 서버에 쓴 값 |
 | `drag_sensitivity` | 드래그 감도 (0.6 ~ 1.8, 기본 1.0) |
+| `first_run_done` | 이 기기에서 한 판이라도 끝냈나 — 첫 판에만 튜토리얼(`ZonberGame.tutorial`: 10초 동안 공 반만 + "끌어서 움직여요"). 로그아웃에도 안 지움 |
+| `nickname_changed_at` | 닉네임을 마지막으로 바꾼 때(ISO) — 처음은 바로, 그 뒤 30일에 한 번(변경권은 2026-10-26 제거) |
+| `coins_guest` | 게스트가 이 기기에서 모은 코인 — 로그인하면 잔액에 합치고 지운다 |
 | `user_achievements` | 획득 업적 키 배열 (캐릭터 해금 판정에도 사용) |
 | `user_nickname` | 플레이어 표시 이름 (최대 8자) |
 | `user_flag_code` | 국가 국기 이모지 |
@@ -337,7 +338,7 @@ news/                       # 보낸 이벤트·소식(앱 알림 페이지, 공
 
 ## 뱃지
 
-2026-09-22 명패·칭호를 뱃지로 바꿨다 — 정의·조건 `lib/badges.dart`, 저장 `lib/achievement_manager.dart`(users/{uid}.achievements). 기획 [docs/BADGES.md](docs/BADGES.md).
+2026-09-22 명패·칭호를 뱃지로 바꿨다(41종 — 2026-10-26 장기 경력 5종 제거) — 정의·조건 `lib/badges.dart`, 저장 `lib/achievement_manager.dart`(users/{uid}.achievements). 기획 [docs/BADGES.md](docs/BADGES.md).
 
 ## Analytics
 

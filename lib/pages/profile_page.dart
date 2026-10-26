@@ -28,7 +28,6 @@ class ProfilePage extends StatefulWidget {
   final VoidCallback onOpenShop;
   final Future<void> Function() onLogout;
   final VoidCallback onLogin;
-  final VoidCallback onStatistics;
 
   /// 친구 화면(docs/FRIENDS.md)
   final VoidCallback onFriends;
@@ -41,7 +40,6 @@ class ProfilePage extends StatefulWidget {
     required this.onOpenShop,
     required this.onLogout,
     required this.onLogin,
-    required this.onStatistics,
     required this.onFriends,
     required this.onBack,
     required this.bestTimes,
@@ -57,12 +55,9 @@ class _ProfilePageState extends State<ProfilePage> {
   /// 내 공개 프로필 한 벌 — 남의 프로필과 같은 클래스로 그린다(player_profile.dart)
   PlayerProfile _me = const PlayerProfile(uid: '');
   List<String> _achievementKeys = const [];
-  bool _firstEdit = true;
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
-  bool _reminderEnabled = true;
-  bool _pushEnabled = true;
-  bool _friendPushEnabled = true;
+  bool _notifEnabled = true; // 알림 하나 — 주간 알림 · 이벤트 소식 · 친구 알림을 같이
   bool _darkMode = false;
   bool _adPrivacyRequired = false;
   String _appVersion = '';
@@ -96,7 +91,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final profile = await UserProfileManager.getProfile();
     final stats = await UserProfileManager.getStatistics();
     final keys = await AchievementManager.getMine();
-    final firstEdit = await UserProfileManager.isFirstEditAvailable();
     final avatar = await Avatar.mine(profile['characterId'] ?? Avatar.defaultCharacterId);
     final adPrivacyRequired = await AdManager().isPrivacyOptionsRequired();
     final version = (await AppVersion.load()).label;
@@ -115,12 +109,9 @@ class _ProfilePageState extends State<ProfilePage> {
         totalGames: (stats['totalGamesPlayed'] as num?)?.toInt() ?? 0,
         totalPlayTime: (stats['totalPlayTime'] as num?)?.toDouble() ?? 0,
       );
-      _firstEdit = firstEdit;
       _soundEnabled = GameSettings().soundEnabled;
       _vibrationEnabled = GameSettings().vibrationEnabled;
-      _reminderEnabled = GameSettings().reminderEnabled;
-      _pushEnabled = GameSettings().pushEnabled;
-      _friendPushEnabled = GameSettings().friendPushEnabled;
+      _notifEnabled = GameSettings().reminderEnabled || GameSettings().pushEnabled || GameSettings().friendPushEnabled;
       _darkMode = GameSettings().darkMode;
       _adPrivacyRequired = adPrivacyRequired;
       _appVersion = version;
@@ -131,10 +122,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool get _isGuest => _user == null || _user!.isAnonymous;
 
-  // ── 닉네임 편집 (첫 1회 무료, 이후 티켓) ─────────────────────────
+  // ── 닉네임 편집 — 처음은 바로, 그 뒤로는 30일에 한 번(2026-10-26 변경권 제거) ─────────────
 
   Future<void> _editNickname() async {
     final lm = LanguageManager.of(context, listen: false);
+    final wait = await UserProfileManager.nicknameChangeWaitDays();
+    if (!mounted) return;
+    if (wait > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('nickname_wait').replaceAll('{d}', '$wait'))));
+      return;
+    }
     final controller = TextEditingController(text: _profile['nickname']);
     final result = await showNeonDialog<String>(
       context: context,
@@ -164,66 +161,14 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     if (result == null || result.isEmpty || result == _profile['nickname'] || !mounted) return;
 
-    // 변경권 쓰기 + 저장 — 끝날 때까지 스피너
-    final canEdit = await runBusy(context, () async {
-      bool ok = false;
-      if (_firstEdit) {
-        ok = true;
-        await UserProfileManager.useFirstEdit();
-      } else {
-        ok = await UserProfileManager.useNicknameTicket();
-      }
-      if (ok) {
-        await UserProfileManager.saveProfile(result, _profile['flag']!, _profile['countryName']!);
-        await _load();
-      }
-      return ok;
-    });
-    if (!mounted) return;
-    if (canEdit) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('nickname_changed'))));
-    } else {
-      showNeonDialog(
-        context: context,
-        title: lm.translate('no_ticket_title'),
-        message: lm.translate('ticket_required').replaceAll('{type}', lm.translate('ticket_nickname')),
-        actions: [
-          NeonButton(text: lm.translate('close'), isPrimary: false, isCompact: true, onPressed: () => Navigator.pop(context)),
-          NeonButton(
-            text: '${lm.translate('shop_buy')} (${formatCount(kTicketPrice)})',
-            isCompact: true,
-            color: AppColors.coin,
-            onPressed: () {
-              Navigator.pop(context);
-              _buyNicknameTicket(lm);
-            },
-          ),
-        ],
-      );
-    }
-  }
-
-  /// 닉네임 변경권 구매 — 가방에서 빠져서 여기서 바로 산다
-  Future<void> _buyNicknameTicket(LanguageManager lm) async {
-    if (AuthService.isGuest) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('guest_login_to_save'))));
-      }
-      return;
-    }
-    if (CoinStore.balance.value < kTicketPrice) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('shop_not_enough'))));
-      return;
-    }
-    if (!mounted) return;
-    // 코인 쓰기 + 변경권 +1 — 끝날 때까지 스피너
-    final bought = await runBusy(context, () async {
-      if (!await CoinStore.spend(kTicketPrice, item: 'name_ticket')) return false;
-      await UserProfileManager.setNicknameTickets(await UserProfileManager.getNicknameTickets() + 1);
+    // 저장 — 끝날 때까지 스피너
+    await runBusy(context, () async {
+      await UserProfileManager.saveProfile(result, _profile['flag']!, _profile['countryName']!);
+      await UserProfileManager.markNicknameChanged();
       await _load();
-      return true;
     });
-    if (bought && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('shop_bought'))));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lm.translate('nickname_changed'))));
   }
 
   // ── 로그아웃 / 계정 삭제 ─────────────────────────────────────────
@@ -415,40 +360,18 @@ class _ProfilePageState extends State<ProfilePage> {
                       await GameSettings().setVibration(v);
                     }),
                   ),
-                  // 주간 알림 — 켜는데 OS 권한을 끝내 못 받으면 스위치를 되돌리고 설정에서 허용하라고 알린다
+                  // 알림 하나(2026-10-26) — 주간 알림 · 이벤트 소식 · 친구 알림을 같이 켜고 끈다.
+                  // 켜는데 OS 권한을 끝내 못 받으면 스위치를 되돌리고 설정에서 허용하라고 알린다
                   _row(
-                    lm.translate('reminder_setting'),
-                    trailing: _switch(_reminderEnabled, (v) async {
+                    lm.translate('notif_setting'),
+                    trailing: _switch(_notifEnabled, (v) async {
                       final messenger = ScaffoldMessenger.of(context);
-                      setState(() => _reminderEnabled = v);
+                      setState(() => _notifEnabled = v);
                       final on = await ReminderService.setEnabled(v);
+                      await PushService.setEnabled(v && on);
+                      if (!_isGuest) await PushService.setFriendEnabled(v && on);
                       if (!mounted) return;
-                      setState(() => _reminderEnabled = on);
-                      if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
-                    }),
-                  ),
-                  // 친구 알림(요청·수락·친구가 내 기록을 넘음) — 회원만
-                  if (!_isGuest)
-                    _row(
-                      lm.translate('friend_push_setting'),
-                      trailing: _switch(_friendPushEnabled, (v) async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        setState(() => _friendPushEnabled = v);
-                        final on = await PushService.setFriendEnabled(v);
-                        if (!mounted) return;
-                        setState(() => _friendPushEnabled = on);
-                        if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
-                      }),
-                    ),
-                  // 이벤트·소식 푸시(백오피스에서 보내는 것) — 끄면 토픽 구독을 전부 푼다
-                  _row(
-                    lm.translate('push_setting'),
-                    trailing: _switch(_pushEnabled, (v) async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      setState(() => _pushEnabled = v);
-                      final on = await PushService.setEnabled(v);
-                      if (!mounted) return;
-                      setState(() => _pushEnabled = on);
+                      setState(() => _notifEnabled = v && on);
                       if (v && !on) messenger.showSnackBar(SnackBar(content: Text(lm.translate('reminder_denied'))));
                     }),
                   ),
@@ -458,11 +381,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       onTap: () => AdManager().showPrivacyOptions(),
                       trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 20),
                     ),
-                  _row(
-                    lm.translate('stats_title'),
-                    onTap: widget.onStatistics,
-                    trailing: Icon(Icons.chevron_right_rounded, color: AppColors.textDim, size: 20),
-                  ),
                   // 앱 버전 — v이름 (빌드). 백오피스에 적힌 스토어 버전보다 낮으면 "업데이트"(누르면 스토어)
                   ValueListenableBuilder(
                     valueListenable: UpdateService.state,

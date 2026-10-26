@@ -125,10 +125,7 @@ class Badges {
     // ── 경력(누적) ──
     BadgeDef('b_runs_10', BadgeCategory.career, 1, Icons.replay, (c) => c.stats.runs >= 10),
     BadgeDef('b_runs_100', BadgeCategory.career, 2, Icons.repeat, (c) => c.stats.runs >= 100),
-    BadgeDef('b_runs_500', BadgeCategory.career, 3, Icons.all_inclusive, (c) => c.stats.runs >= 500),
-    BadgeDef('b_runs_1000', BadgeCategory.career, 4, Icons.military_tech, (c) => c.stats.runs >= 1000),
     BadgeDef('b_time_1h', BadgeCategory.career, 2, Icons.schedule, (c) => c.stats.playTime >= 3600),
-    BadgeDef('b_time_10h', BadgeCategory.career, 3, Icons.hourglass_full, (c) => c.stats.playTime >= 36000),
     // ── 랭킹(어느 스테이지든, 기록을 낸 순간의 순위) — 옛 업적 키 포함 ──
     BadgeDef('b_nat_top10', BadgeCategory.ranking, 2, Icons.flag_outlined, (c) => _rankIn(c.countryRank, 10)),
     BadgeDef('ach_nat_champion', BadgeCategory.ranking, 3, Icons.flag, (c) => c.countryRank == 1),
@@ -143,9 +140,7 @@ class Badges {
     BadgeDef('b_chars_all', BadgeCategory.collection, 3, Icons.groups, (c) => c.ownedCharacters >= 6),
     // ── 출석 · 미션 ──
     BadgeDef('b_att_7', BadgeCategory.daily, 2, Icons.event_available, (c) => c.attendanceStreak >= 7),
-    BadgeDef('b_att_30', BadgeCategory.daily, 3, Icons.calendar_month, (c) => c.attendanceStreak >= 30),
     BadgeDef('b_mission_1', BadgeCategory.daily, 1, Icons.task_alt, (c) => c.stats.allClearDays >= 1),
-    BadgeDef('b_mission_10', BadgeCategory.daily, 2, Icons.fact_check, (c) => c.stats.allClearDays >= 10),
     // ── 특별 ──
     BadgeDef('b_comeback', BadgeCategory.special, 2, Icons.restart_alt, (c) => c.revive > 0 && c.newBest),
     BadgeDef('b_newbest_10', BadgeCategory.special, 2, Icons.trending_up, (c) => c.stats.newBests >= 10),

@@ -143,6 +143,7 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
         BoSection.codes => '이벤트 코드',
         BoSection.push => '푸시',
         BoSection.release => '앱 버전',
+        BoSection.season => '시즌',
         BoSection.economy => '경제·아이템',
       };
 
@@ -366,8 +367,6 @@ class _UserDetailPageState extends State<UserDetailPage> with BoReloadable {
         BoKv('캐릭터', child: Row(children: [CharDot(d['characterId'] as String?), const SizedBox(width: 6), Text(charName(d['characterId'] as String?), style: Bo.cell)])),
         BoKv('가입일', v: fmtDateTime(tsOf(d['createdAt']))),
         BoKv('최근 활동', v: '${fmtDateTime(tsOf(d['lastUpdated']))}  (${timeAgo(tsOf(d['lastUpdated']))})'),
-        BoKv('닉네임 변경권', v: '${intOf(d['nicknameTickets'])}장'),
-        BoKv('국가 변경권', v: '${intOf(d['countryTickets'])}장'),
         BoKv('광고 제거', v: d['adsRemoved'] == true ? '구매함' : '아니오'),
       ]),
     );
@@ -1006,8 +1005,6 @@ class EditUserDialog extends StatefulWidget {
 
 class _EditUserDialogState extends State<EditUserDialog> {
   late final TextEditingController _nick = TextEditingController(text: widget.data['nickname'] as String? ?? '');
-  late final TextEditingController _nickTicket = TextEditingController(text: '${intOf(widget.data['nicknameTickets'])}');
-  late final TextEditingController _countryTicket = TextEditingController(text: '${intOf(widget.data['countryTickets'])}');
   late final TextEditingController _coins = TextEditingController(text: '${intOf(widget.data['coins'])}');
   late String _flag = widget.data['flag'] as String? ?? '';
   late String _country = widget.data['countryName'] as String? ?? '';
@@ -1016,8 +1013,6 @@ class _EditUserDialogState extends State<EditUserDialog> {
   @override
   void dispose() {
     _nick.dispose();
-    _nickTicket.dispose();
-    _countryTicket.dispose();
     _coins.dispose();
     super.dispose();
   }
@@ -1025,15 +1020,10 @@ class _EditUserDialogState extends State<EditUserDialog> {
   Future<void> _save() async {
     final nick = _nick.text.trim();
     final coins = int.tryParse(_coins.text.trim());
-    final nt = int.tryParse(_nickTicket.text.trim());
-    final ct = int.tryParse(_countryTicket.text.trim());
     if (nick.isEmpty || nick.length > 40) return toast(context, '닉네임은 1~40자', error: true);
     if (coins == null || coins < 0 || coins > 10000000) return toast(context, '코인은 0 ~ 10,000,000', error: true);
-    if (nt == null || nt < 0 || nt > 999 || ct == null || ct < 0 || ct > 999) {
-      return toast(context, '변경권은 0 ~ 999', error: true);
-    }
     if (!await confirmCode(context, '정보 수정 확인',
-        '$nick (${widget.uid})\n\n코인 ${fmtNum(coins)} · 닉네임권 $nt · 국가권 $ct 로 저장합니다.',
+        '$nick (${widget.uid})\n\n코인 ${fmtNum(coins)} 로 저장합니다.',
         ok: '저장', okColor: Bo.accent)) {
       return;
     }
@@ -1044,8 +1034,6 @@ class _EditUserDialogState extends State<EditUserDialog> {
         'nickname': nick,
         'flag': _flag,
         'countryName': _country,
-        'nicknameTickets': nt,
-        'countryTickets': ct,
         'coins': coins,
       });
       if (mounted) Navigator.pop(context, true);
@@ -1095,12 +1083,6 @@ class _EditUserDialogState extends State<EditUserDialog> {
                   child: Text(_country.isEmpty ? '국가 선택' : '$_flag  $_country', style: Bo.body),
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(child: TextField(controller: _nickTicket, decoration: deco('닉네임 변경권'), keyboardType: TextInputType.number)),
-                const SizedBox(width: 12),
-                Expanded(child: TextField(controller: _countryTicket, decoration: deco('국가 변경권'), keyboardType: TextInputType.number)),
-              ]),
               const SizedBox(height: 12),
               TextField(controller: _coins, decoration: deco('코인'), keyboardType: TextInputType.number),
               const SizedBox(height: 10),

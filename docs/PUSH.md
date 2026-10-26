@@ -35,7 +35,9 @@
 4. 전체(또는 회원만·게스트만)로 보낸다 — 숫자 확인을 거친다. **보내면 되돌릴 수 없다**
 5. 오른쪽 기록에서 상태가 `보냄`, 언어별 결과가 `성공`인지 본다(몇 초 걸린다)
 
-**템플릿**(`lib/push.dart` `PushTemplates`): 새 이벤트 · 주간 선물 · 주간 랭킹 마감 · 복귀 유도 · 이벤트 코드 공개 · 업데이트 안내 · 게스트 로그인 유도 · 점검 안내.
+**템플릿**(`lib/push.dart` `PushTemplates`): 새 이벤트 · 주간 선물 · 시즌 마감 임박 · 복귀 유도 · 이벤트 코드 공개 · 업데이트 안내 · 게스트 로그인 유도 · 점검 안내.
+
+**자동 푸시(2026-10-26)**: 시즌 마감 30·10·3일 전(백오피스 › 시즌에서 날짜·시각을 바꾼다)에는 서버 함수 `seasonTick`(`functions/season.js`, 매시간)이 `push_campaigns` 문서를 `createdBy: 'system'` 으로 만들어 같은 길로 보낸다. 문구는 `functions/logic.js SEASON_TEXTS`(4개 언어, 30·10·3일은 따로). 보낸 기록은 백오피스 푸시 화면에 똑같이 남는다.
 템플릿을 늘리려면 이 목록에 한 줄(4개 언어) — 백오피스에 바로 나온다(백오피스 재배포 필요).
 
 **보내는 빈도**: 주 1~2회를 넘기지 않는다. 너무 자주 오면 알림을 끄거나 앱을 지운다.
@@ -58,6 +60,7 @@ lib/services/push_service.dart   앱 — 토픽 구독(sync) · 켜 둔 채 오�
 lib/services/reminder_service.dart  알림 권한 · news 채널(Android)
 lib/backoffice/push_page.dart    백오피스 화면
 functions/index.js               sendPushCampaign (push_campaigns 생성 트리거, us-central1)
+functions/season.js              seasonTick (매시간) — 시즌 마감 전 자동 푸시 · 끝난 시즌 명예의 전당
 firestore.rules                  push_campaigns — 관리자만 만들기(pending · 보낸 사람 = 본인 · ko/en 필수), 고치기 불가
 ```
 
