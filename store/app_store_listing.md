@@ -1,4 +1,4 @@
-# ZONBER — App Store 소개 문구 (2.1.0)
+# ZONBER — App Store 소개 문구 (2.2.0)
 
 App Store Connect › 앱 › 배포 탭 › 해당 언어에 붙여 넣으면 된다. 괄호 안은 글자 수 제한. 스크린샷은 `store/screenshots/{en,ko,ja,zh}/{iphone,ipad}/` (index.html 로 한눈에 보기) — 중국어는 간체(zh-Hans).
 
@@ -32,7 +32,7 @@ ZONBER: 탄막 피하기 생존게임
 • 프리킥 — 페널티 박스를 지키며 슛을 막으세요. 감아차기, 총알슛, 무회전까지 날아옵니다.
 
 ■ 세계와 겨루는 랭킹
-• 주간·월간·연간 랭킹, 세계와 나라별 순위
+• 시즌 랭킹 — 세계와 나라별 순위, 시즌이 끝나면 존별 TOP 3는 명예의 전당에
 • 다음 목표(TOP 100 → 30 → 10 → 1위)까지 남은 시간을 플레이 중에 바로 확인
 • 랭킹에서 다른 플레이어를 누르면 프로필과 기록을 볼 수 있습니다
 
@@ -42,7 +42,7 @@ ZONBER: 탄막 피하기 생존게임
 • 버틴 시간만큼 코인이 쌓입니다
 
 ■ 뱃지·미션
-• 뱃지 46종 — 생존, 기술, 랭킹, 수집, 출석까지
+• 뱃지 41종 — 생존, 기술, 랭킹, 수집, 출석까지
 • 매일 바뀌는 오늘의 미션과 출석 보상
 
 ■ 친구와 겨루기
@@ -51,8 +51,9 @@ ZONBER: 탄막 피하기 생존게임
 • 처음 오면 환영 선물(코인 300 + 구름 스킨), SNS 이벤트 코드로 추가 보상
 
 ■ 가볍게 시작
-• 로그인 없이 바로 플레이할 수 있습니다
-• 기록을 랭킹에 올리고 코인·뱃지를 모으려면 Google 또는 Apple로 로그인하세요
+• 로그인 없이 바로 플레이 — 첫 판엔 안내가 나오고, 최고 기록과 코인은 기기에 남습니다
+• 홈 위 ? 버튼에서 언제든 게임 방법을 볼 수 있습니다
+• 기록을 랭킹에 올리고 뱃지를 모으려면 Google 또는 Apple로 로그인하세요 — 기기에 남은 기록·코인도 합쳐 드려요
 • 한국어, English, 日本語, 中文 지원
 
 오늘 기록, 어제보다 1초만 더 버텨 보세요.
@@ -61,11 +62,14 @@ ZONBER: 탄막 피하기 생존게임
 서바이벌,하이퍼캐주얼,골키퍼,페널티킥,랭킹,아케이드,원터치,반응속도,회피,존버,캐주얼게임,슈팅,축구,총알피하기,똥피하기,시간때우기,한손게임,미니게임,킬링타임,피지컬
 
 ### 이번 버전의 새로운 기능 (4000자)
-ZONBER 2.1.2
-• 존 3곳 모두 새 배경음악
-• 탄·공이 빨라지는 폭을 줄였어요 — 중·후반이 조금 더 버틸 만해요
-• 로그인 없이 한 판을 끝내도, 바로 로그인하면 방금 기록이 랭킹에 올라가요
-• 모든 광고를 아이에게 맞는 광고로 — 맞춤 광고·추적 허용 창이 없어요
+ZONBER 2.2.0
+• 랭킹이 시즌제로 — 시즌이 끝나면 존별 TOP 3가 명예의 전당에 올라요
+• 장비·꾸미기는 외형만, 랭킹은 순수 실력 경쟁
+• 펫이 오라로 — 오라 칸에서 골라요
+• 첫 판 안내, 홈 ? 버튼으로 게임 방법
+• 로그인 없이도 최고 기록·코인이 기기에 남아요
+• 210초가 지나도 조금씩 더 어려워져요
+• 닉네임은 30일에 한 번 무료로 바꿀 수 있어요
 
 ---
 
@@ -90,7 +94,7 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • FreeKick — Guard the penalty box and stop the shots: curlers, rockets and knuckleballs.
 
 ■ BEAT THE WORLD
-• Weekly, monthly and yearly rankings — worldwide and by country
+• Season rankings — worldwide and by country. Each season's top 3 per zone enter the Hall of Fame
 • See how far you are from the next target (TOP 100 → 30 → 10 → #1) while you play
 • Tap any player in the rankings to see their profile and records
 
@@ -100,7 +104,7 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • Earn coins for every second you survive
 
 ■ BADGES & MISSIONS
-• 46 badges for survival, skill, rankings, collecting and check-ins
+• 41 badges for survival, skill, rankings, collecting and check-ins
 • New daily missions and check-in rewards every day
 
 ■ CHALLENGE YOUR FRIENDS
@@ -109,8 +113,9 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • Welcome gift for new players (300 coins + Cloud skin), plus bonus codes on our socials
 
 ■ JUMP RIGHT IN
-• Play instantly — no login needed
-• Sign in with Google or Apple to post your records and keep your coins and badges
+• Play instantly — no login needed. Your first run comes with tips, and your best times and coins stay on your device
+• Tap ? on the home screen any time to see how to play
+• Sign in with Google or Apple to post your records and earn badges — your on-device times and coins come with you
 • Available in English, 한국어, 日本語 and 中文
 
 Beat yesterday by just one more second.
@@ -119,11 +124,14 @@ Beat yesterday by just one more second.
 danmaku,shmup,dodgeball,goalkeeper,penalty,soccer,football,freekick,reflex,casual,avoid,ranking
 
 ### What's New (4000)
-ZONBER 2.1.2
-• New background music for all 3 zones
-• Bullets and balls speed up more gently — the mid and late game is a bit more forgiving
-• Finished a run without logging in? Log in right after and that run goes on the leaderboard
-• All ads are now kid-safe — no personalized ads and no tracking prompt
+ZONBER 2.2.0
+• Rankings now run by season — each season's top 3 per zone enter the Hall of Fame
+• Gear and cosmetics are looks only — rankings are pure skill
+• Pets are now auras — pick them in the aura slot
+• First-run tips, and How to Play from the ? on the home screen
+• Your best times and coins stay on your device even without logging in
+• After 210 seconds the game keeps getting a little harder
+• Change your nickname free once every 30 days
 
 ---
 
@@ -148,7 +156,7 @@ ZONBER: 弾幕よけサバイバル
 • フリーキック — ペナルティエリアを守ってシュートを止めろ。カーブ、ロケット、そして無回転。
 
 ■ 世界と競うランキング
-• 週間・月間・年間ランキング、世界と国別の順位
+• シーズンランキング — 世界と国別の順位。シーズン終了時、ゾーンごとのTOP 3は殿堂入り
 • 次の目標（TOP 100 → 30 → 10 → 1位）までの残り時間をプレイ中に確認
 • ランキングでプレイヤーをタップすると、プロフィールと記録が見られる
 
@@ -158,7 +166,7 @@ ZONBER: 弾幕よけサバイバル
 • 生き残った時間に応じてコインが貯まる
 
 ■ バッジとミッション
-• バッジ46種 — 生存、テクニック、ランキング、コレクション、出席まで
+• バッジ41種 — 生存、テクニック、ランキング、コレクション、出席まで
 • 毎日の「今日のミッション」と出席ボーナス
 
 ■ 友だちと勝負
@@ -167,8 +175,9 @@ ZONBER: 弾幕よけサバイバル
 • はじめての方に歓迎ギフト（コイン300 + くもスキン）、SNSのイベントコードでさらに報酬
 
 ■ 気軽にスタート
-• ログインなしですぐにプレイ
-• 記録をランキングに載せ、コインやバッジを貯めるにはGoogleまたはAppleでログイン
+• ログインなしですぐにプレイ — 最初の1回はガイド付き、最高記録とコインは端末に残る
+• ホームの？ボタンでいつでも遊び方を確認
+• 記録をランキングに載せ、バッジを集めるにはGoogleまたはAppleでログイン — 端末の記録とコインも引き継げる
 • English、한국어、日本語、中文に対応
 
 昨日より、あと1秒だけ長く。
@@ -177,11 +186,14 @@ ZONBER: 弾幕よけサバイバル
 弾幕,避けゲー,よける,カジュアル,ゴールキーパー,アーケード,反射神経,サッカー,ボール,フリーキック,暇つぶし,ハイパーカジュアル,シューティング,ランキング,片手,ミニゲーム,弾避け
 
 ### このバージョンの新機能 (4000)
-ZONBER 2.1.2
-• 3つのゾーンすべてに新しいBGM
-• 弾とボールの加速をゆるやかに — 中盤・終盤が少し粘りやすく
-• ログインせずに遊んでも、すぐログインすればその記録がランキングに
-• 広告はすべて子ども向けに — パーソナライズ広告・トラッキング許可の画面なし
+ZONBER 2.2.0
+• ランキングがシーズン制に — シーズン終了時、ゾーンごとのTOP 3が殿堂入り
+• 装備・着せ替えは見た目だけ、ランキングは純粋な腕くらべ
+• ペットはオーラに — オーラ枠から選べます
+• はじめてのプレイにガイド、ホームの？で遊び方
+• ログインしなくても最高記録とコインが端末に残ります
+• 210秒を過ぎても少しずつ難しくなります
+• ニックネームは30日に1回、無料で変更できます
 
 ---
 
@@ -206,7 +218,7 @@ ZONBER：躲弹幕生存挑战
 • 任意球 — 守住禁区，挡住射门：弧线球、火箭球，还有电梯球。
 
 ■ 挑战全世界
-• 周榜、月榜、年榜，全球与国家排名
+• 赛季排行——全球与国家排名，赛季结束时各区域前三名进入名人堂
 • 游戏中随时查看距离下一个目标（TOP 100 → 30 → 10 → 第1名）还差多少
 • 在排行榜中点击玩家，即可查看其资料与记录
 
@@ -216,7 +228,7 @@ ZONBER：躲弹幕生存挑战
 • 坚持越久，金币越多
 
 ■ 徽章与任务
-• 46枚徽章——生存、技巧、排名、收集、签到
+• 41枚徽章——生存、技巧、排名、收集、签到
 • 每日刷新的今日任务与签到奖励
 
 ■ 和好友一较高下
@@ -225,8 +237,9 @@ ZONBER：躲弹幕生存挑战
 • 新玩家欢迎礼（300 金币 + 云朵皮肤），社媒兑换码还有额外奖励
 
 ■ 轻松开始
-• 无需登录，立即开玩
-• 使用 Google 或 Apple 登录，即可上传排名记录并保存金币和徽章
+• 无需登录，立即开玩——首局有新手引导，最佳纪录和金币会保存在设备上
+• 随时点击主页的“？”按钮查看玩法
+• 使用 Google 或 Apple 登录，即可上传排名记录、收集徽章——设备上的纪录和金币也会一并合并
 • 支持 English、한국어、日本語、中文
 
 今天，比昨天多坚持一秒。
@@ -235,8 +248,11 @@ ZONBER：躲弹幕生存挑战
 弹幕,躲避,休闲,守门员,街机,反应,足球,球类,任意球,闪避,单指,小游戏,排行榜,射击,解压,打发时间,手速,反应力,躲球,单机,躲子弹,极限,硬核
 
 ### 此版本的新增内容 (4000)
-ZONBER 2.1.2
-• 3个区域全部换上新背景音乐
-• 子弹和球加速更平缓——中后期更容易坚持
-• 未登录玩完一局后立即登录，这局记录也会登上排行榜
-• 所有广告改为适合儿童的广告——无个性化广告，也不再弹出跟踪授权
+ZONBER 2.2.0
+• 排行榜改为赛季制——赛季结束时，各区域前三名进入名人堂
+• 装备和装扮只改外观，排行榜比的是纯实力
+• 宠物变为光环——在光环栏中选择
+• 首局新手引导，主页“？”按钮查看玩法
+• 无需登录，最佳纪录和金币也会保存在设备上
+• 坚持超过 210 秒后，难度仍会缓慢提升
+• 昵称每 30 天可免费修改一次

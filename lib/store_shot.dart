@@ -35,6 +35,9 @@ class StoreShot {
   static const List<String> _auras = ['aura_crown', 'aura_none', 'aura_star', 'aura_none', 'aura_halo', 'aura_none', 'aura_orbit'];
   static const List<String?> _badges = ['ach_legend', 'ach_master', null, 'ach_elite', null, 'ach_veteran', null];
 
+  /// 랭킹 머리 시즌 칩의 시각 — 시즌 1(기본 연간, 2026-11-01 시작) 안, 마감 몇 주 전
+  static final DateTime seasonNow = DateTime.utc(2027, 10, 4);
+
   /// 존별 1위 기록
   static double _topOf(String mapId) => switch (mapId) {
         'dodgeball' => 212.480,

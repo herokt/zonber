@@ -10,6 +10,17 @@
   Android·iOS 는 심사 시간이 달라 따로 올린다. 화면 아래 "유저 앱 버전"에서 안내를 받을 사람 수를 미리 본다.
   (lib/app_release.dart · lib/services/update_service.dart · Firestore `config/app_release` — 규칙 배포 필요: `deploy_admin.bat`)
 
+## 출시 기록
+
+### 2.2.0 (218) — 2026-10-27
+- 내용: 시즌제 랭킹(주·월·올해 제거) + 명예의 전당 · 장비·꾸미기는 외형만(코인 +% 만) · 펫 → 오라 · 첫 판 안내 · 홈 ? 게임 방법 · 게스트 최고 기록·코인 기기 저장 · 210초 뒤 완만한 난이도 상승 · 닉네임 30일에 한 번 무료 · 뱃지 41종
+- 체크: 번역 키 · `flutter test` 92 · `flutter analyze`(info 2 기존) · functions 9 · 규칙 시험 125 통과
+- **서버 먼저** 2026-10-26 `deploy_admin.bat` — 규칙·색인(`config/season` · `hall_of_fame`) · 함수(`seasonTick` 새로 만듦) · 백오피스 · 호스팅
+- **Android**: 프로덕션 100%(모든 국가) · 2026-10-27 검토 제출(게시 개요 13건 = 버전 + ko/en/ja/zh 자세한 설명 · 휴대전화 스크린샷 8장). Play Console 계정 = Chrome 의 mycrewdeveloper@ (개발자 계정 ToyDream)
+- **iOS**: App Store Connect 에 2.2.0 버전만 만들어 둠 — 4개 언어 설명 · 새로운 기능 · 스크린샷(iPhone 6.9" · iPad 13" 각 10장) 저장. **빌드 미첨부 · 심사 미제출**(맥에서 218 빌드를 올린 뒤 선택해 제출)
+- 스크린샷은 기기 없이 웹 빌드로 찍었다(`scripts/store_shots_web.mjs` — `store/play_store_listing.md` 머리). 시즌 칩은 `StoreShot.seasonNow`(시즌 1 안)
+- 심사 통과 뒤 할 일: 백오피스 › 앱 버전 에 Android 2.2.0 (iOS 는 출시 뒤 따로)
+
 > 2026-09-22 기준. 현재 버전 `1.3.6+136`(pubspec.yaml). 이번 업데이트(존 3종·존버 캐릭터·상점·일일 미션)는 **1.4.0** 으로 올려 내보낸다.
 
 ## 체크리스트

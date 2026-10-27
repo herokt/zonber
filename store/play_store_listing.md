@@ -1,4 +1,4 @@
-# ZONBER — Google Play 스토어 등록 정보 (2.1.0)
+# ZONBER — Google Play 스토어 등록 정보 (2.2.0)
 
 Play Console › 성장 › 스토어 등록정보 › 기본 스토어 등록정보(언어별 번역 추가)에 붙여 넣는다. 괄호 안은 글자 수 제한.
 App Store 문구(`app_store_listing.md`)를 Play 칸에 맞춰 옮긴 것 — Play 에는 부제·프로모션 텍스트·키워드 칸이 없고
@@ -17,15 +17,14 @@ Play 정책상 이름·간단한 설명에는 "무료·1위·할인·선물" 같
 | 휴대전화 스크린샷 | 2~8장 · 9:16 · 1080×1920 이상 권장(긴 변 ≤ 짧은 변 × 2) | `store/screenshots_play/{ko,en,ja,zh}/phone/` 8장 (`index.html` 로 한눈에 보기 · App Store 10장 중 뱃지·홈 뺌) |
 | 태블릿 스크린샷(선택) | 7·10인치 · 긴 변 ≤ 짧은 변 × 2 | iPad 이미지 `store/screenshots/{lang}/ipad/`(2064×2752)가 규격에 맞는다 |
 
-> 휴대전화 스크린샷은 실제 기기(Galaxy S24+)에서 **스크린샷 모드**로 찍어 합성한다(2026-09-30, 2.0.3 화면 — App Store 이미지와 같은 원본·문구).
-> 랭킹·세계 신기록은 가짜 기록(실제 유저 닉네임이 나오지 않게), 판은 공이 많은 순간에서 멈춘 모습이다.
+> 휴대전화 스크린샷은 **스크린샷 모드** 웹 빌드를 PC Chrome(헤드리스)에서 찍어 합성한다(2026-10-26, 2.2.0 화면 — 시즌 칩·오라·코인 +% 장비. 기기 없이).
+> 랭킹·세계 신기록은 가짜 기록(실제 유저 닉네임이 나오지 않게), 시즌 칩은 시즌 1 안(`StoreShot.seasonNow`), 판은 공이 많은 순간에서 멈춘 모습이다.
 > ```
-> flutter build apk --release --dart-define=STORE_SHOT=true   # 스크린샷 모드 (lib/store_shot.dart)
-> adb -s <기기> install -r build/app/outputs/flutter-apk/app-release.apk
-> bash scripts/store_shots.sh <기기>        # 언어 4 × 화면 6 캡처 → build/store_shots/
+> flutter build web --release --dart-define=STORE_SHOT=true --output build/web_storeshot
+> node scripts/store_shots_web.mjs          # 언어 4 × 화면 10 캡처 → build/store_shots/
 > node scripts/compose_store_shots.mjs      # 문구·틀 합성 → store/screenshots_play/
 > ```
-> 끝나면 보통 빌드를 다시 설치한다(스크린샷 모드 앱은 저절로 화면을 넘긴다). 문구·배경색은 `compose_store_shots.mjs` 안에 있다.
+> 기기로 찍을 때는 `scripts/store_shots.sh <기기>`(APK 를 STORE_SHOT 으로 빌드해 설치). 문구·배경색은 `scripts/store_shot_captions.mjs`.
 > 그래픽 이미지는 같은 원본(한국어 캡처)의 경기장만 잘라 만든다 — 캡처를 다시 하면 `make_feature_graphic.mjs` 도 다시 돌린다.
 
 ---
@@ -48,17 +47,17 @@ ZONBER: 탄막 피하기 생존게임
 • 프리킥 — 페널티 박스를 지키며 슛을 막으세요. 감아차기, 총알슛, 무회전까지 날아옵니다.
 
 ■ 세계와 겨루는 랭킹
-• 주간·월간·연간 랭킹, 세계와 나라별 순위
+• 시즌 랭킹 — 세계와 나라별 순위, 시즌이 끝나면 존별 TOP 3는 명예의 전당에
 • 다음 목표(TOP 100 → 30 → 10 → 1위)까지 남은 시간을 플레이 중에 바로 확인
 • 랭킹에서 다른 플레이어를 누르면 프로필과 기록을 볼 수 있습니다
 
 ■ 나만의 존버 꾸미기
-• 캐릭터 8종, 몸통 스킨 14종, 이동 잔상 12종, 오라 18종(둘레를 도는 펫 6종 포함)
+• 캐릭터 8종, 몸통 스킨 14종, 이동 잔상 12종, 오라 18종(둘레를 도는 펫 오라 6종 포함)
 • 존마다 다른 장비 39종 — 능력치 없이 외형만. 랭킹은 순수 실력 경쟁
 • 버틴 시간만큼 코인이 쌓입니다
 
 ■ 뱃지·미션
-• 뱃지 46종 — 생존, 기술, 랭킹, 수집, 출석까지
+• 뱃지 41종 — 생존, 기술, 랭킹, 수집, 출석까지
 • 매일 바뀌는 오늘의 미션과 출석 보상
 
 ■ 친구와 겨루기
@@ -67,20 +66,22 @@ ZONBER: 탄막 피하기 생존게임
 • 처음 오면 환영 선물(코인 300 + 구름 스킨), SNS 이벤트 코드로 추가 보상
 
 ■ 가볍게 시작
-• 로그인 없이 바로 플레이할 수 있습니다
-• 기록을 랭킹에 올리고 코인·뱃지를 모으려면 Google로 로그인하세요
+• 로그인 없이 바로 플레이 — 첫 판엔 안내가 나오고, 최고 기록과 코인은 기기에 남습니다
+• 홈 위 ? 버튼에서 언제든 게임 방법을 볼 수 있습니다
+• 기록을 랭킹에 올리고 뱃지를 모으려면 Google로 로그인하세요 — 기기에 남은 기록·코인도 합쳐 드려요
 • 한국어, English, 日本語, 中文 지원
 
 오늘 기록, 어제보다 1초만 더 버텨 보세요.
 
 ### 출시 노트 (500)
-ZONBER 2.1.0
-• 펫 6종 등장 — 캐릭터 둘레를 돌며 탄과 공을 바깥으로 쳐내 줘요
-• 갤럭시가 운석 지대로 — 크기가 다른 운석 4종
-• 피구·골키퍼 상대 팀과 공, 스테이지 배너를 새로 그렸어요
-• 장비·꾸미기 대부분에 능력치, 새 아이템 추가
-• 게임 오버 연출·로딩 화면이 부드러워졌어요
-• 새 버전이 나오면 앱에서 알려 드려요
+ZONBER 2.2.0
+• 랭킹이 시즌제로 — 시즌이 끝나면 존별 TOP 3가 명예의 전당에 올라요
+• 장비·꾸미기는 외형만, 랭킹은 순수 실력 경쟁
+• 펫이 오라로 — 오라 칸에서 골라요
+• 첫 판 안내, 홈 ? 버튼으로 게임 방법
+• 로그인 없이도 최고 기록·코인이 기기에 남아요
+• 210초가 지나도 조금씩 더 어려워져요
+• 닉네임은 30일에 한 번 무료로 바꿀 수 있어요
 
 ---
 
@@ -102,7 +103,7 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • FreeKick — Guard the penalty box and stop the shots: curlers, rockets and knuckleballs.
 
 ■ BEAT THE WORLD
-• Weekly, monthly and yearly rankings — worldwide and by country
+• Season rankings — worldwide and by country. Each season's top 3 per zone enter the Hall of Fame
 • See how far you are from the next target (TOP 100 → 30 → 10 → #1) while you play
 • Tap any player in the rankings to see their profile and records
 
@@ -112,7 +113,7 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • Earn coins for every second you survive
 
 ■ BADGES & MISSIONS
-• 46 badges for survival, skill, rankings, collecting and check-ins
+• 41 badges for survival, skill, rankings, collecting and check-ins
 • New daily missions and check-in rewards every day
 
 ■ CHALLENGE YOUR FRIENDS
@@ -121,20 +122,22 @@ Drag with one finger and your Zonber follows exactly. That's the whole control s
 • Welcome gift for new players (300 coins + Cloud skin), plus bonus codes on our socials
 
 ■ JUMP RIGHT IN
-• Play instantly — no login needed
-• Sign in with Google to post your records and keep your coins and badges
+• Play instantly — no login needed. Your first run comes with tips, and your best times and coins stay on your device
+• Tap ? on the home screen any time to see how to play
+• Sign in with Google to post your records and earn badges — your on-device times and coins come with you
 • Available in English, 한국어, 日本語 and 中文
 
 Beat yesterday by just one more second.
 
 ### Release notes (500)
-ZONBER 2.1.0
-• 6 pets that orbit you and knock bullets and balls away
-• Galaxy is now a meteor field — 4 meteor sizes
-• New art for rival teams, balls and stage banners
-• Most gear and cosmetics now have stats, plus new items
-• Smoother game-over and loading screens
-• The app tells you when a new version is out
+ZONBER 2.2.0
+• Rankings now run by season — each season's top 3 per zone enter the Hall of Fame
+• Gear and cosmetics are looks only — rankings are pure skill
+• Pets are now auras — pick them in the aura slot
+• First-run tips, and How to Play from the ? on the home screen
+• Your best times and coins stay on your device even without logging in
+• After 210 seconds the game keeps getting a little harder
+• Change your nickname free once every 30 days
 
 ---
 
@@ -156,7 +159,7 @@ ZONBER: 弾幕よけサバイバル
 • フリーキック — ペナルティエリアを守ってシュートを止めろ。カーブ、ロケット、そして無回転。
 
 ■ 世界と競うランキング
-• 週間・月間・年間ランキング、世界と国別の順位
+• シーズンランキング — 世界と国別の順位。シーズン終了時、ゾーンごとのTOP 3は殿堂入り
 • 次の目標（TOP 100 → 30 → 10 → 1位）までの残り時間をプレイ中に確認
 • ランキングでプレイヤーをタップすると、プロフィールと記録が見られる
 
@@ -166,7 +169,7 @@ ZONBER: 弾幕よけサバイバル
 • 生き残った時間に応じてコインが貯まる
 
 ■ バッジとミッション
-• バッジ46種 — 生存、テクニック、ランキング、コレクション、出席まで
+• バッジ41種 — 生存、テクニック、ランキング、コレクション、出席まで
 • 毎日の「今日のミッション」と出席ボーナス
 
 ■ 友だちと勝負
@@ -175,20 +178,22 @@ ZONBER: 弾幕よけサバイバル
 • はじめての方に歓迎ギフト（コイン300 + くもスキン）、SNSのイベントコードでさらに報酬
 
 ■ 気軽にスタート
-• ログインなしですぐにプレイ
-• 記録をランキングに載せ、コインやバッジを貯めるにはGoogleでログイン
+• ログインなしですぐにプレイ — 最初の1回はガイド付き、最高記録とコインは端末に残る
+• ホームの？ボタンでいつでも遊び方を確認
+• 記録をランキングに載せ、バッジを集めるにはGoogleでログイン — 端末の記録とコインも引き継げる
 • English、한국어、日本語、中文に対応
 
 昨日より、あと1秒だけ長く。
 
 ### リリースノート (500)
-ZONBER 2.1.0
-• ペット6種登場 — まわりを回って弾やボールを外へはじく
-• ギャラクシーが隕石ゾーンに — 大きさの違う隕石4種
-• 相手チーム・ボール・ステージバナーを描き直し
-• 装備・着せ替えの多くに能力値、新アイテム追加
-• ゲームオーバー演出とロード画面がなめらかに
-• 新バージョンが出たらアプリでお知らせ
+ZONBER 2.2.0
+• ランキングがシーズン制に — シーズン終了時、ゾーンごとのTOP 3が殿堂入り
+• 装備・着せ替えは見た目だけ、ランキングは純粋な腕くらべ
+• ペットはオーラに — オーラ枠から選べます
+• はじめてのプレイにガイド、ホームの？で遊び方
+• ログインしなくても最高記録とコインが端末に残ります
+• 210秒を過ぎても少しずつ難しくなります
+• ニックネームは30日に1回、無料で変更できます
 
 ---
 
@@ -210,7 +215,7 @@ ZONBER：躲弹幕生存挑战
 • 任意球 — 守住禁区，挡住射门：弧线球、火箭球，还有电梯球。
 
 ■ 挑战全世界
-• 周榜、月榜、年榜，全球与国家排名
+• 赛季排行——全球与国家排名，赛季结束时各区域前三名进入名人堂
 • 游戏中随时查看距离下一个目标（TOP 100 → 30 → 10 → 第1名）还差多少
 • 在排行榜中点击玩家，即可查看其资料与记录
 
@@ -220,7 +225,7 @@ ZONBER：躲弹幕生存挑战
 • 坚持越久，金币越多
 
 ■ 徽章与任务
-• 46枚徽章——生存、技巧、排名、收集、签到
+• 41枚徽章——生存、技巧、排名、收集、签到
 • 每日刷新的今日任务与签到奖励
 
 ■ 和好友一较高下
@@ -229,17 +234,19 @@ ZONBER：躲弹幕生存挑战
 • 新玩家欢迎礼（300 金币 + 云朵皮肤），社媒兑换码还有额外奖励
 
 ■ 轻松开始
-• 无需登录，立即开玩
-• 使用 Google 登录，即可上传排名记录并保存金币和徽章
+• 无需登录，立即开玩——首局有新手引导，最佳纪录和金币会保存在设备上
+• 随时点击主页的“？”按钮查看玩法
+• 使用 Google 登录，即可上传排名记录、收集徽章——设备上的纪录和金币也会一并合并
 • 支持 English、한국어、日本語、中文
 
 今天，比昨天多坚持一秒。
 
 ### 版本说明 (500)
-ZONBER 2.1.0
-• 6种宠物登场——围着你转圈，把子弹和球弹开
-• 银河变成陨石带——4种大小的陨石
-• 重新绘制对手队伍、球和关卡横幅
-• 大部分装备和装扮都有属性，新增道具
-• 游戏结束动画和加载画面更流畅
-• 有新版本时会在应用内提醒你
+ZONBER 2.2.0
+• 排行榜改为赛季制——赛季结束时，各区域前三名进入名人堂
+• 装备和装扮只改外观，排行榜比的是纯实力
+• 宠物变为光环——在光环栏中选择
+• 首局新手引导，主页“？”按钮查看玩法
+• 无需登录，最佳纪录和金币也会保存在设备上
+• 坚持超过 210 秒后，难度仍会缓慢提升
+• 昵称每 30 天可免费修改一次

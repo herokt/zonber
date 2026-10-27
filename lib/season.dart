@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'store_shot.dart';
 
 // ─────────────────────────────────────────────────────────────
 // 시즌 — 랭킹의 단위(2026-10-26 백오피스 설정으로). 주간·월간은 없다 — 랭킹은 **시즌 하나**뿐이다.
@@ -38,7 +39,7 @@ class SeasonInfo {
   const SeasonInfo({required this.number, required this.id, required this.start, required this.end, required this.mode});
 
   bool get isPreSeason => number == 0;
-  Duration get left => end.difference(DateTime.now().toUtc());
+  Duration get left => end.difference(Season.clock());
 
   /// 마감까지 남은 날(올림, 0 = 오늘)
   int get daysLeft {
@@ -234,11 +235,14 @@ class Season {
   static SeasonConfig config = SeasonConfig.defaults;
 
   /// 화면(랭킹 머리)이 구독한다 — 설정을 읽거나 시즌이 바뀌면 바뀐다
-  static final ValueNotifier<SeasonInfo> notifier = ValueNotifier(config.seasonAt(DateTime.now().toUtc()));
+  static final ValueNotifier<SeasonInfo> notifier = ValueNotifier(config.seasonAt(clock()));
 
   /// 지금 시즌 — 부를 때마다 계산한다(앱을 켜 둔 채 시즌이 넘어가도 맞게)
+  /// 지금 시각(UTC) — 스토어 스크린샷 모드는 시즌 1 한가운데로 고정한다(프리시즌 칩이 홍보 이미지에 나오지 않게)
+  static DateTime clock() => kStoreShot ? StoreShot.seasonNow : DateTime.now().toUtc();
+
   static SeasonInfo get now {
-    final s = config.seasonAt(DateTime.now().toUtc());
+    final s = config.seasonAt(clock());
     if (notifier.value != s) notifier.value = s;
     return s;
   }
@@ -252,7 +256,7 @@ class Season {
       final raw = prefs.getString(_cacheKey);
       if (raw != null) config = SeasonConfig.fromMap(Map<String, dynamic>.from(jsonDecode(raw)));
     } catch (_) {}
-    notifier.value = config.seasonAt(DateTime.now().toUtc());
+    notifier.value = config.seasonAt(clock());
     if (!_hasFirebase) return;
     try {
       final d = await FirebaseFirestore.instance
@@ -268,6 +272,6 @@ class Season {
     } catch (e) {
       debugPrint('Season load failed: $e');
     }
-    notifier.value = config.seasonAt(DateTime.now().toUtc());
+    notifier.value = config.seasonAt(clock());
   }
 }
