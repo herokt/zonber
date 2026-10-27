@@ -254,7 +254,7 @@ class _PushPageState extends State<PushPage> with BoReloadable {
             onPressed: problems.isEmpty && !_sending ? _send : null,
             style: _audience == PushAudience.testers ? null : FilledButton.styleFrom(backgroundColor: Bo.red),
             icon: _sending
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const BoSpinner(size: 14)
                 : const Icon(Icons.send_rounded, size: 16),
             label: Text(_audience == PushAudience.testers ? '테스트로 보내기' : '${kPushAudienceNames[_audience]}에게 보내기'),
           ),

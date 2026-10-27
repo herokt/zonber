@@ -191,7 +191,7 @@ class _SeasonPageState extends State<SeasonPage> with BoReloadable {
       child: _error != null
           ? Center(child: Text('불러오지 못했습니다: $_error', style: Bo.muted))
           : _loading
-              ? const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)))
+              ? const BoLoading()
               : ListView(
                   padding: const EdgeInsets.all(24),
                   children: [

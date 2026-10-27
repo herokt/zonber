@@ -50,10 +50,7 @@ class _RankingPageState extends State<RankingPage> with BoReloadable {
         docs = docs.where((d) => d.userId.isEmpty || seen.add(d.userId)).toList();
       }
       docs = docs.take(_show).toList();
-      await BoData.users().catchError((Object e) {
-        debugPrint('Ranking users: $e');
-        return <BoUser>[];
-      });
+      // 이름표 · "유저 문서 없음" 판정 — 보이는 기록의 사람만 한 건씩(users 전체는 읽지 않는다)
       await BoData.lookup(docs.map((d) => d.userId));
       if (mounted) {
         setState(() {
@@ -173,7 +170,7 @@ class _RankingPageState extends State<RankingPage> with BoReloadable {
                         ),
                         BoToggle(label: '유저당 최고 기록만', value: _bestPerUser, onChanged: (v) => _change(() => _bestPerUser = v)),
                       ],
-                      trailing: [if (_loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))],
+                      trailing: [if (_loading) const BoSpinner()],
                     ),
                     Expanded(child: _body()),
                   ],

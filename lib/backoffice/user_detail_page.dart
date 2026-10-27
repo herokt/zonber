@@ -924,7 +924,7 @@ class _RunsTabState extends State<_RunsTab> with AutomaticKeepAliveClientMixin, 
                       : BoTableFooter(
                           text: '${fmtNum(_runs.length)}판 표시${_hasMore ? '' : ' · 마지막'}',
                           actions: [
-                            if (_loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                            if (_loading) const BoSpinner(),
                             if (_hasMore && !_loading)
                               OutlinedButton.icon(
                                 onPressed: _more,
@@ -1271,8 +1271,8 @@ class _FriendsCardState extends State<_FriendsCard> {
 
   Future<void> _load() async {
     try {
-      await BoData.users(); // 이름표용 캐시
       final list = await BoData.src.userFriends(widget.uid);
+      await BoData.lookup(list.map((f) => f.uid)); // 이름표 — 친구만 한 건씩(users 전체는 읽지 않는다)
       if (mounted) setState(() => _friends = list);
     } catch (e) {
       if (mounted) setState(() => _error = e);

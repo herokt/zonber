@@ -10,8 +10,9 @@ import 'bo_catalog.dart';
 // 백오피스 데이터 계층 — 화면은 Firestore 를 직접 부르지 않고 BoData.src(BoSource) 를 쓴다.
 //  - 실제: FirestoreSource(bo_firestore.dart) — 기존 쿼리·관리 액션 그대로.
 //  - 미리보기: MockSource(bo_mock.dart) — --dart-define=BO_PREVIEW=true 일 때만. 로그인·Firebase 없이 화면 확인용.
-// users 전체는 한 번 읽어 캐시하고 여러 화면이 같이 쓴다. 전역 새로고침(BoData.refreshAll)은 epoch 를 올려
-// 열려 있는 화면이 모두 다시 읽게 한다.
+// users 전체는 무겁다 — 처음 화면(대시보드 요약 · 유저 목록 첫 화면)은 서버 집계(usersCount)와 최근 N명(latestUsers)만 읽고,
+// 전체(BoData.users)는 상세보기·검색·정렬처럼 꼭 필요할 때 한 번 읽어 캐시하고 여러 화면이 같이 쓴다.
+// 이름표는 BoData.lookup(없는 사람만 한 건씩). 전역 새로고침(BoData.refreshAll)은 epoch 를 올려 열려 있는 화면이 모두 다시 읽게 한다.
 // ─────────────────────────────────────────────────────────────
 
 /// 컴파일 시점 미리보기 플래그 — 켜면 Firebase·관리자 로그인 없이 가짜 데이터로 뜬다
@@ -137,6 +138,12 @@ abstract class BoSource {
 
   // ── 유저 ──
   Future<List<BoUser>> users();
+
+  /// 회원 수(서버 집계 — 문서를 읽지 않는다). [since] 가 있으면 그 뒤 가입(createdAt)만
+  Future<int?> usersCount({DateTime? since});
+
+  /// [field](createdAt · lastUpdated) 최근 순 [limit] 명 — users 전체를 읽지 않는 가벼운 목록
+  Future<List<BoUser>> latestUsers(String field, int limit);
   Future<Map<String, dynamic>?> user(String uid);
 
   /// users/{uid}/private/account 의 email — 없거나 못 읽으면 ''
@@ -268,7 +275,17 @@ class BoData {
     return f;
   }
 
+  /// 전체를 이미 읽었나 — 안 읽었으면 화면은 가벼운 목록부터 보여 준다
+  static bool get hasAllUsers => _users != null;
+
   static Map<String, dynamic>? cached(String uid) => _byId[uid];
+
+  /// 따로 읽은 유저(latestUsers 등)를 이름표 캐시에 넣는다
+  static void remember(Iterable<BoUser> list) {
+    for (final u in list) {
+      _byId[u.id] = u.data;
+    }
+  }
 
   /// 캐시에 없으면 한 건씩 읽는다(새로 가입한 유저 등)
   static Future<Map<String, Map<String, dynamic>?>> lookup(Iterable<String> uids) async {

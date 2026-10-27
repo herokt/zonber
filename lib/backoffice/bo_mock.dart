@@ -246,6 +246,21 @@ class MockSource implements BoSource {
   @override
   Future<List<BoUser>> users() => _later(() => List.of(_users));
 
+  @override
+  Future<int?> usersCount({DateTime? since}) => _later(() => since == null
+      ? _users.length
+      : _users.where((u) {
+          final c = tsOf(u.data['createdAt']);
+          return c != null && !c.isBefore(since);
+        }).length);
+
+  @override
+  Future<List<BoUser>> latestUsers(String field, int limit) => _later(() {
+        final l = _users.where((u) => tsOf(u.data[field]) != null).toList()
+          ..sort((a, b) => tsOf(b.data[field])!.compareTo(tsOf(a.data[field])!));
+        return l.take(limit).toList();
+      });
+
   BoUser? _find(String uid) {
     for (final u in _users) {
       if (u.id == uid) return u;

@@ -6,7 +6,8 @@ import 'runs_table.dart';
 // ─────────────────────────────────────────────────────────────
 // 플레이 기록 — 전체 회원의 runs(collection group) 최신순.
 // 서버 쿼리는 기간(timestamp)만 걸고 스테이지는 화면에서 거른다(복합 색인을 만들지 않으려고).
-// 그래서 한 페이지(200판)에 조건에 맞는 판이 적을 수 있다 → "더 보기"로 더 읽는다.
+// 그래서 한 페이지(100판)에 조건에 맞는 판이 적을 수 있다 → "더 보기"로 더 읽는다.
+// 이름표는 BoData.lookup(그 페이지의 사람만 한 건씩) — users 전체는 읽지 않는다.
 // 기간 전체 판 수는 서버 집계(count)로 따로 보여 준다.
 // ─────────────────────────────────────────────────────────────
 class RunsPage extends StatefulWidget {
@@ -27,7 +28,7 @@ const String kNoRunsHint = '회원(로그인) 상태로 플레이한 판만 user
 const _rangeNames = {_Range.today: '오늘', _Range.d7: '7일', _Range.d30: '30일'};
 
 class _RunsPageState extends State<RunsPage> with BoReloadable {
-  static const int _page = 200;
+  static const int _page = 100;
 
   _Range _range = _Range.d7;
   String _stage = ''; // '' = 전체
@@ -149,7 +150,7 @@ class _RunsPageState extends State<RunsPage> with BoReloadable {
                                     : '기간 안의 판을 모두 불러왔습니다 (${fmtNum(_runs.length)}판)',
                                 actions: [
                                   if (_loading)
-                                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    const BoSpinner(),
                                   if (_hasMore && !_loading)
                                     OutlinedButton.icon(
                                       onPressed: _more,

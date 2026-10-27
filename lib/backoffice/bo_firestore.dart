@@ -40,6 +40,23 @@ class FirestoreSource implements BoSource {
   }
 
   @override
+  Future<int?> usersCount({DateTime? since}) async {
+    final q = since == null ? _users : _users.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(since));
+    return (await q.count().get()).count;
+  }
+
+  @override
+  Future<List<BoUser>> latestUsers(String field, int limit) async {
+    // 범위 조건은 시각(Timestamp) 값만 고르려고 — 단일 필드 색인으로 된다
+    final snap = await _users
+        .where(field, isLessThanOrEqualTo: Timestamp.fromDate(DateTime.now().add(const Duration(days: 1))))
+        .orderBy(field, descending: true)
+        .limit(limit)
+        .get();
+    return [for (final d in snap.docs) BoUser(d.id, d.data())];
+  }
+
+  @override
   Future<Map<String, dynamic>?> user(String uid) async => (await _users.doc(uid).get()).data();
 
   @override

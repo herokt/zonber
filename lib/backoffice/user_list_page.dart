@@ -8,7 +8,8 @@ import 'legacy_records_panel.dart';
 import 'user_detail_page.dart' show GrantItemDialog;
 
 // ─────────────────────────────────────────────────────────────
-// 유저 목록 — users 전체를 한 번 읽어(BoData 캐시) 검색·필터·정렬·페이지는 화면에서 한다. 기본 필터 = 회원.
+// 유저 목록 — 처음엔 **가벼운 목록**(2026-10-27): 최근 활동 순 50명(latestUsers) + 회원 수(서버 집계)만 읽는다.
+// 검색·국가·정렬·[전체 불러오기] 를 쓰면 그때 users 전체를 한 번 읽어(BoData 캐시) 검색·필터·정렬·페이지는 화면에서 한다.
 // 이메일 검색은 옛 문서의 users.email 만 대상(새 문서는 private/account 에 있어 목록에서 읽지 않는다).
 // 왼쪽 칸으로 여러 명을 골라 한꺼번에: 코인 지급·회수 · 아이템 지급 · 변경권 지급 · 국가 바꾸기 · 계정 삭제(서버 함수 adminDeleteUsers).
 // [유저 ID 없는 기록] 으로 바꾸면 랭킹 기록만 있고 회원이 아닌 사람(옛 기록 · 탈퇴)을 사람별로 보고 회원에 연결하거나 지운다
@@ -29,6 +30,11 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
   List<BoUser> _all = [];
   bool _loading = true;
   Object? _error;
+
+  /// users 전체를 읽었나(또는 읽는 중) — false 면 [_recent] 만 보여 준다
+  bool _full = BoData.hasAllUsers;
+  List<BoUser> _recent = [];
+  int? _total;
 
   String _country = ''; // '' = 전체
   int _sortCol = 10; // 최근 활동
@@ -71,14 +77,33 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
       _error = null;
     });
     try {
-      final u = await BoData.users();
-      if (mounted) setState(() => _all = u);
+      if (_full) {
+        final u = await BoData.users();
+        if (mounted) setState(() => _all = u);
+      } else {
+        final r = await Future.wait<Object?>([BoData.src.latestUsers('lastUpdated', _pageSize), BoData.src.usersCount()]);
+        final recent = r[0] as List<BoUser>;
+        BoData.remember(recent);
+        if (mounted) {
+          setState(() {
+            _recent = recent;
+            _total = r[1] as int?;
+          });
+        }
+      }
     } catch (e) {
       debugPrint('UserList: $e');
       if (mounted) setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// 검색·국가·정렬·페이지에 필요할 때 — users 전체를 읽는다(한 번 읽으면 캐시)
+  void _loadAll() {
+    if (_full) return;
+    setState(() => _full = true);
+    reload();
   }
 
   num _sortKey(Map<String, dynamic> d) => switch (_sortCol) {
@@ -90,7 +115,11 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
         _ => tsOf(d['lastUpdated'])?.millisecondsSinceEpoch ?? 0,
       };
 
+  List<BoUser> get _source => _full ? _all : _recent;
+
   List<BoUser> get _filtered {
+    // 가벼운 목록은 서버가 준 순서(최근 활동) 그대로
+    if (!_full) return _recent;
     final q = _search.text.trim().toLowerCase();
     final list = _all.where((u) {
       final d = u.data;
@@ -134,9 +163,11 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
       topBar: BoTopBar(
         title: '유저',
         breadcrumb: const ['운영'],
-        subtitle: _loading && _all.isEmpty
+        subtitle: _loading && _source.isEmpty
             ? '불러오는 중…'
-            : '회원 ${fmtNum(_all.length)}명',
+            : _full
+                ? '회원 ${fmtNum(_all.length)}명'
+                : '회원 ${_total == null ? '-' : fmtNum(_total)}명 · 최근 활동 ${fmtNum(_recent.length)}명만 표시',
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -154,16 +185,32 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
                   BoSearchField(
                     controller: _search,
                     hint: '닉네임 · UID · 이메일 검색',
-                    onChanged: (_) => _set(() {}),
+                    onChanged: (v) {
+                      if (v.trim().isNotEmpty) _loadAll();
+                      _set(() {});
+                    },
                   ),
-                  BoDropdown<String>(
-                    label: '국가',
-                    value: _country,
-                    items: _countries,
-                    onChanged: (v) => _set(() => _country = v),
-                  ),
+                  if (_full)
+                    BoDropdown<String>(
+                      label: '국가',
+                      value: _country,
+                      items: _countries,
+                      onChanged: (v) => _set(() => _country = v),
+                    )
+                  else
+                    Tooltip(
+                      message: '검색·국가·정렬·페이지는 회원 전체를 읽어야 합니다',
+                      child: OutlinedButton.icon(
+                        onPressed: _loadAll,
+                        icon: const Icon(Icons.unfold_more_rounded, size: 16),
+                        label: Text('전체 불러오기${_total == null ? '' : ' (${fmtNum(_total)}명)'}'),
+                      ),
+                    ),
                 ],
-                trailing: [Text('${fmtNum(rows.length)}명', style: Bo.muted)],
+                trailing: [
+                  if (_loading && _source.isNotEmpty) const BoSpinner(),
+                  Text(_full ? '${fmtNum(rows.length)}명' : '최근 활동 ${fmtNum(rows.length)}명', style: Bo.muted),
+                ],
               ),
               _bulkBar(view),
               Expanded(child: _body(view, rows.length, page, start)),
@@ -182,25 +229,30 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
       );
 
   Widget _body(List<BoUser> view, int total, int page, int start) {
-    if (_loading && _all.isEmpty) return const BoLoading();
-    if (_error != null) return BoError(error: _error!, onRetry: () => BoData.refreshAll());
+    if (_loading && _source.isEmpty) return const BoLoading();
+    if (_error != null) return BoError(error: _error!, onRetry: reload);
     return BoTable(
       columns: _cols,
       scroll: true,
       rowCount: view.length,
-      sortColumn: _sortCol,
+      sortColumn: _full ? _sortCol : null,
       sortAsc: _asc,
-      onSort: (c) => _set(() {
-        if (_sortCol == c) {
-          _asc = !_asc;
-        } else {
-          _sortCol = c;
-          _asc = false;
-        }
-      }),
+      onSort: (c) {
+        _loadAll();
+        _set(() {
+          if (_sortCol == c) {
+            _asc = !_asc;
+          } else {
+            _sortCol = c;
+            _asc = false;
+          }
+        });
+      },
       onRowTap: (i) => BoNav.openUser(view[i].id),
       empty: const BoEmpty('조건에 맞는 유저가 없습니다', icon: Icons.person_search_outlined),
-      footer: BoPager(total: total, page: page, pageSize: _pageSize, unit: '명', onPage: (p) => setState(() => _page = p)),
+      footer: _full
+          ? BoPager(total: total, page: page, pageSize: _pageSize, unit: '명', onPage: (p) => setState(() => _page = p))
+          : null,
       cells: (i) {
         final u = view[i];
         final d = u.data;
@@ -231,7 +283,7 @@ class _UserListPageState extends State<UserListPage> with BoReloadable {
 
   // ── 일괄 작업 ──
 
-  List<BoUser> get _picked => [for (final u in _all) if (_selected.contains(u.id)) u];
+  List<BoUser> get _picked => [for (final u in _source) if (_selected.contains(u.id)) u];
 
   /// 고른 사람 한 줄(확인창) — 5명까지 이름, 나머지는 수
   String _whoLine() {

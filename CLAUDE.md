@@ -53,7 +53,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 ### 게임 코드 위치 (2026-09-22 main.dart 를 part 파일로 나눔)
 - `lib/main.dart` — 앱 초기화 · `ZonberApp` 페이지 라우팅 · 판 종료 처리(`_handleGameOver`)
 - `lib/game/` (`part of '../main.dart'`) — `game_screen.dart`(HUD) · `zonber_game.dart`(ZonberGame·맵) · `player.dart` · `projectiles.dart`(Bullet·스포너·피구 팀) · `keeper.dart` · `dodgeball.dart`
-- 밸런스 수치 `lib/balance.dart` · 시즌 `lib/season.dart`(**랭킹 = 시즌 하나**, 주간·월간 없음 — 백오피스 › 시즌에서 연간·분기·월간·N일 선택, `config/season`. 끝나면 `hall_of_fame/{id}` 명예의 전당 · 마감 30·10·3일 전 자동 푸시 `functions/season.js`) · 일일 미션 `lib/daily_rewards.dart` · 판 기록 `lib/run_history.dart`(서버 — 백오피스 대시보드 "존별 끝난 레벨 분포"가 읽는다)
+- 밸런스 수치 `lib/balance.dart` · 시즌 `lib/season.dart`(**랭킹 = 시즌 하나**, 주간·월간 없음 — 백오피스 › 시즌에서 연간·분기·월간·N일 선택, `config/season`. 끝나면 `hall_of_fame/{id}` 명예의 전당 · 마감 30·10·3일 전 자동 푸시 `functions/season.js`) · 일일 미션 `lib/daily_rewards.dart` · 판 기록 `lib/run_history.dart`(서버 — 백오피스 대시보드 [상세보기] 의 "존별 끝난 레벨 분포"가 읽는다)
 - 테스트 `flutter test`(test/logic_test.dart) · 규칙 시험 `node scripts/test_rules.mjs`
 - 효과음 `assets/audio/*.wav` — `python scripts/make_sfx.py` 로 합성, 이름·연결은 `lib/audio_manager.dart`(Sfx) · 존별 배경음악 `bgm_{존 id}.mp3` — `python scripts/make_bgm.py` (공용 DSP `scripts/audio_dsp.py`) · 진동 `lib/haptics.dart`
 
@@ -124,9 +124,10 @@ Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) �
 배포는 `deploy_admin.bat` 하나로: 백오피스 웹 번들 + **Firestore 규칙·색인** + **서버 함수**(`functions/` — 푸시 발송 `sendPushCampaign` · 친구 `friends.js` · 탈퇴 정리 · 시즌 `season.js`(매시간 — 마감 전 푸시·명예의 전당), us-central1. `cd functions && npm test`)까지 같이 올린다.
 규칙·색인을 빼먹으면 플레이 기록(`users/{uid}/runs` 쓰기 · collection group 읽기)이 조용히 막힌다.
 백오피스 카탈로그(`bo_catalog.dart`)는 캐릭터·장비·꾸미기 목록을 **게임 파일에서 그대로 읽는다** — 목록을 베껴 두지 않는다(아이템이 늘면 저절로 따라온다).
-- `dashboard_page.dart` — 실시간 유저/플레이 지표 및 스테이지 성과
-- `user_list_page.dart` — 유저 관리 UI — 왼쪽 칸으로 여러 명을 골라 **일괄 코인·아이템·국가·삭제**. 삭제는 서버 함수 `adminDeleteUsers`(로그인 계정·랭킹 기록·하위 문서·친구까지 — `functions/admin.js`, 관리자만). 위 전환 [유저 ID 없는 기록](`legacy_records_panel.dart`) = userId 없는 옛 기록 · 유저 문서 없는(탈퇴) 기록을 사람별로 묶어 **회원에 연결**(uid 붙이기 + 더 좋으면 프로필 최고 기록 올림) · **기록 삭제**
-- `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세 · 판 기록 · 랭킹 · 경제
+**처음엔 요약, 자세한 건 눌러서**(2026-10-27): 화면을 열 때 users 전체·긴 기간 runs 를 읽지 않는다. 숫자는 서버 집계(`usersCount` · `runsCount` — count, 문서를 읽지 않음), 목록은 최근 N개(`latestUsers` · `latestRuns`), 이름표는 `BoData.lookup`(보이는 사람만 한 건씩). users 전체(`BoData.users()`, 캐시)는 대시보드 [상세보기] · 유저 검색·정렬 · 경제 · 앱 버전 · 유저 ID 없는 기록처럼 꼭 필요한 곳에서만. 로딩 표시는 `BoLoading`/`BoSpinner`(= 디자인 시스템 `AppSpinner`) · 오래 걸리는 동작은 `runBusy`.
+- `dashboard_page.dart` — **요약**: 전체 회원 · 신규 가입(오늘·7일) · 오늘/7일 판 수 + 신규 가입자 최근 8명 + 최근 플레이 10판. **[상세보기]** 를 눌러야 회원 전체 + 7일 판(최대 5,000)을 읽어 DAU/WAU · 일별 플레이 · 스테이지별 비교 · 존별 끝난 레벨 분포 · 신규 가입 추이 · 캐릭터 사용 · 보유 코인을 보여 준다(접으면 사라짐)
+- `user_list_page.dart` — 유저 관리 UI — 처음엔 최근 활동 50명 + 회원 수(집계)만, 검색·정렬·[전체 불러오기] 때 회원 전체를 읽어 화면에서 거른다. 왼쪽 칸으로 여러 명을 골라 **일괄 코인·아이템·국가·삭제**. 삭제는 서버 함수 `adminDeleteUsers`(로그인 계정·랭킹 기록·하위 문서·친구까지 — `functions/admin.js`, 관리자만). 위 전환 [유저 ID 없는 기록](`legacy_records_panel.dart`) = userId 없는 옛 기록 · 유저 문서 없는(탈퇴) 기록을 사람별로 묶어 **회원에 연결**(uid 붙이기 + 더 좋으면 프로필 최고 기록 올림) · **기록 삭제**
+- `user_detail_page.dart` · `runs_page.dart` · `ranking_page.dart` · `economy_page.dart` — 유저 상세(탭은 열 때 읽는다) · 판 기록(100판씩 더 보기) · 랭킹 · 경제(회원 전체 분석)
 - `promo_page.dart` · `promo_codes_page.dart` — 이벤트 · 이벤트 코드(만들기·검증·사용한 사람)
 - `push_page.dart` — 푸시 보내기(템플릿 · 4개 언어 문구 · 대상 · 미리보기 · 테스트 발송) + 보낸 기록
 - `season_page.dart` — **시즌**: 연간·분기·월간·N일 · 시즌 1 시작 · 경계 시간대 · 마감 전 자동 푸시(며칠 전·몇 시) · 미리보기(지금·다음 시즌, 푸시 시각) · 명예의 전당 목록

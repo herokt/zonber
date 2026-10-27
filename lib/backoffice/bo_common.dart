@@ -9,11 +9,13 @@ import 'package:country_flags/country_flags.dart';
 
 import '../avatar.dart';
 import '../badges.dart';
+import '../design_system.dart' show AppSpinner;
 import '../flag_util.dart';
 import 'bo_catalog.dart';
 import 'bo_data.dart';
 
 export '../badges.dart' show BadgeDef, BadgeCategory, Badges;
+export '../design_system.dart' show AppSpinner, runBusy;
 export 'bo_catalog.dart';
 export 'bo_data.dart';
 
@@ -1249,6 +1251,7 @@ class BoError extends StatelessWidget {
   }
 }
 
+/// 빈 칸 가운데 스피너 — 디자인 시스템 AppSpinner(백오피스 강조색)
 class BoLoading extends StatelessWidget {
   final double padding;
   const BoLoading({super.key, this.padding = 32});
@@ -1256,8 +1259,17 @@ class BoLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: EdgeInsets.all(padding),
-        child: const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))),
+        child: Center(child: AppSpinner(color: Bo.accent)),
       );
+}
+
+/// 작은 스피너(버튼·툴바 옆)
+class BoSpinner extends StatelessWidget {
+  final double size;
+  const BoSpinner({super.key, this.size = 16});
+
+  @override
+  Widget build(BuildContext context) => AppSpinner(size: size, stroke: 2, color: Bo.accent);
 }
 
 // ─────────────────────────────────────────────────────────────
