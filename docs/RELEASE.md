@@ -17,7 +17,7 @@
 - 체크: 번역 키 · `flutter test` 92 · `flutter analyze`(info 2 기존) · functions 9 · 규칙 시험 125 통과
 - **서버 먼저** 2026-10-26 `deploy_admin.bat` — 규칙·색인(`config/season` · `hall_of_fame`) · 함수(`seasonTick` 새로 만듦) · 백오피스 · 호스팅
 - **Android**: 프로덕션 100%(모든 국가) · 2026-10-27 검토 제출(게시 개요 13건 = 버전 + ko/en/ja/zh 자세한 설명 · 휴대전화 스크린샷 8장). Play Console 계정 = Chrome 의 mycrewdeveloper@ (개발자 계정 ToyDream)
-- **iOS**: App Store Connect 에 2.2.0 버전만 만들어 둠 — 4개 언어 설명 · 새로운 기능 · 스크린샷(iPhone 6.9" · iPad 13" 각 10장) 저장. **빌드 미첨부 · 심사 미제출**(맥에서 218 빌드를 올린 뒤 선택해 제출)
+- **iOS**: 2.2.0 (218) 2026-10-27 심사 제출 — 4개 언어 설명 · 새로운 기능 · 스크린샷(iPhone 6.9" · iPad 13" 각 10장), 승인 후 자동 출시. 제출 때 연령 등급 설문에 새 필수 질문(소셜 미디어 · 13세 미만 소셜 미디어 비활성화)이 생겨 둘 다 "아니요"로 답함(피드·게시물·채팅 없음, 등급 4+ 그대로)
 - 스크린샷은 기기 없이 웹 빌드로 찍었다(`scripts/store_shots_web.mjs` — `store/play_store_listing.md` 머리). 시즌 칩은 `StoreShot.seasonNow`(시즌 1 안)
 - 심사 통과 뒤 할 일: 백오피스 › 앱 버전 에 Android 2.2.0 (iOS 는 출시 뒤 따로)
 
