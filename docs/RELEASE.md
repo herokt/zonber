@@ -12,6 +12,14 @@
 
 ## 출시 기록
 
+### 2.3.0 (219) — 2026-10-28
+- 내용: 명예의 전당 트로피 홀(`pages/hall_of_fame_page.dart`, Gemini 트로피) · 가방(상점) 다시 짬 · 홈 캐러셀 양쪽 무한 · 랭킹 좌우 스와이프로 존 전환 · 장비 코인 +% 가격 구간 규칙
+- 체크: 번역 키 539 네 언어 · `flutter test` 92 · `flutter analyze lib test`(info 2 기존)
+- 빌드: `flutter build appbundle --release` — Claude 의 Bash 샌드박스에서는 Gradle 데몬이 "Unable to establish loopback connection" 으로 실패한다 → 샌드박스 없이(PowerShell) 돌리면 된다. 결과 88MB, 복사본 `build/zonber-2.3.0-219.aab`
+- **Android**: 2026-10-28 같은 번들로 **비공개 테스트 - Alpha**(테스터 미지정 경고) + **프로덕션 100%** 두 건을 게시 개요에서 검토 제출. 출시 노트 ko/en/ja/zh 4개 언어. 브라우저 도구는 10MB 넘는 파일을 못 올려 AAB 는 Play Console 에 사람이 끌어다 놓았다(Play API 서비스 계정은 없음)
+- **iOS**: 아직(2.2.0(218) 심사 중)
+- 심사 통과 뒤 할 일: 백오피스 › 앱 버전 에 Android 2.3.0
+
 ### 2.2.0 (218) — 2026-10-27
 - 내용: 시즌제 랭킹(주·월·올해 제거) + 명예의 전당 · 장비·꾸미기는 외형만(코인 +% 만) · 펫 → 오라 · 첫 판 안내 · 홈 ? 게임 방법 · 게스트 최고 기록·코인 기기 저장 · 210초 뒤 완만한 난이도 상승 · 닉네임 30일에 한 번 무료 · 뱃지 41종
 - 체크: 번역 키 · `flutter test` 92 · `flutter analyze`(info 2 기존) · functions 9 · 규칙 시험 125 통과

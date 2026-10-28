@@ -79,8 +79,9 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 |------|------|
 | `world_config.dart` | **스테이지 3종, 항상 열림** (`WorldConfig`/`ProjectileDef`/`SpawnStrategy`/`WorldMode`) — 1 Cyber · 2 Dodgeball(sideline 스포너) · 3 Keeper(mode keeper: 골대 반지름·lives 5). 리더보드는 전부 신규 mapId. 기획 [docs/STAGES.md](docs/STAGES.md) |
 | `progress_store.dart` | 월드별 최고 기록·순위 캐시. SharedPreferences + Firestore `users/{uid}.bestTimes` (옛 `plates` 는 로그인 때 뱃지로 옮김) |
-| `pages/home_page.dart` | 홈 — 월드 캐러셀·캐릭터·START |
-| `pages/ranking_page.dart` | 랭킹 탭 — 월드 탭 × 세계/국가/친구, 포디움, 내 행 고정. 기간은 **시즌 하나**(머리의 시즌 칩 = 이름 · 마감 D-day → `pages/hall_of_fame_page.dart` 명예의 전당) |
+| `pages/home_page.dart` | 홈 — 월드 캐러셀·캐릭터·START. 캐러셀은 **양쪽으로 끝없이 돈다**(2026-10-28 — 페이지를 존 수 × 400 으로 이어 붙이고 존 = 페이지 % 존 수, 탭·점은 가까운 쪽으로) |
+| `pages/ranking_page.dart` | 랭킹 탭 — 월드 탭 × 세계/국가/친구, 포디움, 내 행 고정. 목록을 **좌우로 쓸면 존이 바뀐다**(끝에서는 처음으로, 2026-10-28 `_swipe`). 기간은 **시즌 하나**(머리의 시즌 칩 = 이름 · 마감 D-day → `pages/hall_of_fame_page.dart` 명예의 전당) |
+| `pages/hall_of_fame_page.dart` | **명예의 전당**(2026-10-28 트로피 홀로 다시 그림 — [docs/UI_DESIGN.md](docs/UI_DESIGN.md) §4.9) — `hall_of_fame/{시즌 id}`(끝난 시즌의 존별 TOP 3, 서버 함수가 쓴다)를 시즌별 칩 · 존 상패 3장으로. 머리는 트로피(`assets/images/hall/trophy.png` 슬롯, 없으면 코드 드로잉) + 도는 빛줄기 + 금가루, 1위는 금 메달리온(`AvatarStage` 전신 + 3.6초마다 빛 쓸기, 기록 Display 28 gold), 2·3위는 은·동 줄. 끝난 시즌이 없으면 빈 포디움. 움직임은 `disableAnimations` 면 멈춤. 문구 `hall_*` 4개 언어 · 스크린샷 모드 가짜 시즌 `StoreShot.hallOfFame()` |
 | `pages/result_page.dart` | 결과 — 기록 제출, 순위 카드(사람 단위 — 랭킹 탭과 같은 목록), 새로 얻은 뱃지 |
 | `pages/profile_page.dart` | 프로필 탭 — 대표 뱃지·월드별 기록·캐릭터·설정·계정 (구 `MyProfilePage` 대체) |
 | `ranking_system.dart` | Firestore 리더보드: 기록 저장/조회, 국가별 랭킹, 기간은 **이번 시즌**(`Season.now` 시작~끝, 2026-10-26 주·월·올해 제거). 랭킹·결과 화면 순위·목표선 모두 **사람 단위**(한 사람 = 가장 좋은 기록, `_bestPlayers` 30초 캐시, 순위는 나를 빼고 센다) |
@@ -88,7 +89,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `translations.dart` | 200개+ 이중 언어 문자열 (EN/KO); `{placeholder}` 보간 지원 |
 | `language_manager.dart` | 언어 전환; SharedPreferences에서 읽음 |
 | `design_system.dart` | 디자인 시스템 v2 — 다크 무채색 + 월드 강조색 1개, Sora(Display)/Manrope(Body). `Neon*` 이름 유지 + `AppChip`/`AppSegmented`/`CountryChip`/`NamePlate`/`RankRow`/`AppBottomNav`. gold는 1위·뱃지 강조 전용 |
-| `loadout.dart` | **착용 보너스 단일 출처** — `Loadout.bonusOf(zone, equipped)` = 존 장비(`gear.dart`) + 꾸미기(`cosmetics.dart`)의 **코인 +%** 합계. **전투 능력치(속도·무적·회복·에너지·막는 범위)는 2026-10-26 전부 제거** — 장비·꾸미기·펫은 외형이고 랭킹은 순수 실력 경쟁. 코인 정산·가방 표시가 쓴다(게임 `Player` 는 더는 안 본다). 장비 카탈로그는 63 → 39종(`GearItem.retired` = 상점에서 숨김, 가진 사람만 봄) |
+| `loadout.dart` | **착용 보너스 단일 출처** — `Loadout.bonusOf(zone, equipped)` = 존 장비(`gear.dart`) + 꾸미기(`cosmetics.dart`)의 **코인 +%** 합계. **전투 능력치(속도·무적·회복·에너지·막는 범위)는 2026-10-26 전부 제거** — 장비·꾸미기·펫은 외형이고 랭킹은 순수 실력 경쟁. 코인 +% 는 **가격 구간 규칙 하나**(`GearBonus.forPrice` — 600↑ +5% · 1000↑ +10% · 뱃지 보상 +10%, 2026-10-28, 목록에 수치를 따로 적지 않는다). 코인 정산·가방 표시가 쓴다(게임 `Player` 는 더는 안 본다). 장비 카탈로그는 63 → 39종(`GearItem.retired` = 상점에서 숨김, 가진 사람만 봄) |
 | `pets.dart` | **펫 오라 그림**(2026-10-26 펫을 주위를 도는 오라로 합침 — `Cosmetic.pet`, 오라 칸에서 고른다. 펫 슬롯·탭·"도는 오라와 같이 못 쓴다" 규칙 없음). id·가격은 예전 펫 그대로라 산 기록이 이어지고, 예전 착용 슬롯 `pet` 은 읽을 때 오라로 옮긴다(`Cosmetics.migrateEquipped` · 남의 문서는 `auraFrom`). 그림은 시안 아트(`PetArt` · `paintPet`), `paintAura` → `paintPetAura`. 탄·공에 영향 없음. 기획 [docs/SHOP.md](docs/SHOP.md) §펫 오라 |
 | `game/sprites.dart` | **시안 아트**(2026-10-12, Gemini) — `GameSprites`: 운석 4종 · 피구공·축구공 · 피구 상대 선수 그림(`assets/images/sprites/`)을 기다리지 않고 읽고, 없으면 코드 드로잉. `ProjectileDef.sprite`/`tintSprite`. `--dart-define=ART=code` = 코드 드로잉만. 자르기 `python scripts/cut_sprites.py`(원본 `assets/images/gemini/`). [docs/RESOURCES.md](docs/RESOURCES.md) §시안 아트 |
 | `avatar.dart` | **아바타 단일 출처** — `Avatar`(캐릭터·스킨·잔상·오라(펫 포함)·존별 장비 한 벌) + `AvatarView`(동그란 아바타) + `AvatarStage`(큰 전신, 잔상·오라까지). 아바타를 그리는 곳은 전부 여기를 쓴다(홈·랭킹·가방·프로필·게임 `Player`) |
@@ -97,7 +98,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 | `audio_manager.dart` | BGM/SFX 싱글톤 (flame_audio) |
 | `ad_manager.dart` / `ad_helper.dart` | AdMob 연동 (배너, 전면, 리워드); 광고 ID는 `kReleaseMode`로 자동 전환 |
 | `services/new_user_service.dart` | `NewUser` — 설치 시각(OS `installTime`)으로 **첫 24시간 전면 광고 없음** + `engaged_user`(기기당 한 번: 첫날 3판 · 24~48시간 복귀) — 유료 유입 테스트 [store/paid_ua_test.md](store/paid_ua_test.md) |
-| `shop_page.dart` | 상점(가방) — 캐릭터·스킨·잔상·오라·펫·존별 장비. 인앱 결제는 없다(2026-10-26 `iap_service.dart`·`in_app_purchase` 제거 — 광고 제거 IAP 를 다시 할 땐 새로 넣는다) |
+| `shop_page.dart` | 상점(가방, 2026-10-28 다시 짬 — [docs/SHOP.md](docs/SHOP.md) §상점 화면) — 위에서 아래로 **미리보기 · 탭 한 줄(캐릭터·스킨·잔상·오라·장비) · 3열 그리드(싼 것부터 자리 고정)**, 장비 탭에만 존 고르기, 안 가진 것을 누르면 아래 **구매 바 하나**. 카드 상태는 장착 중(존 색 + 체크)·입어 보는 중(흰 테두리 + 눈) 둘뿐. 홈에서 고른 존을 `zoneId` 로 받는다. 인앱 결제는 없다(2026-10-26 `iap_service.dart`·`in_app_purchase` 제거 — 광고 제거 IAP 를 다시 할 땐 새로 넣는다) |
 | `game_settings.dart` | SharedPreferences 기반 설정 저장 |
 | `user_profile.dart` | 닉네임, 국가 국기, 프로필 관리 |
 | `character_data.dart` | 캐릭터 정의 8종 + `CharacterStats`(능력치는 전부 동일 — 캐릭터는 외형·표정만 다르다) |
@@ -177,6 +178,8 @@ python scripts/make_stage_bg.py
 
 # 시안 아트 — Gemini 시트(assets/images/gemini/src_*.png) → assets/images/sprites/ (배경·워터마크 지우기)
 python scripts/cut_sprites.py
+# 명예의 전당 트로피 — assets/images/gemini/src_hall_trophy.png(한 장) → assets/images/hall/trophy.png
+python scripts/cut_hall.py
 # 갤럭시 배경 — 원본에서 별만 옮겨 깔끔한 그라데이션으로(assets/images/worlds/cyber_bg.png)
 python scripts/clean_cyber_bg.py
 

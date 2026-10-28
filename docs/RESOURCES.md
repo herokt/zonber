@@ -100,6 +100,16 @@
 - 읽기는 게임을 기다리게 하지 않는다(`lib/game/sprites.dart` — 못 읽은 동안은 코드 드로잉).
 - 다음 후보: 골대 · 캐릭터(2차 — CHARACTER_CONCEPT.md).
 
+### 명예의 전당 트로피 (2026-10-28)
+
+| 그림 | 파일 | 어디서 |
+|---|---|---|
+| 금 트로피(두 손잡이 · 별 문장 · 2단 받침, 셀셰이딩) | `assets/images/hall/trophy.png` (512px 투명) | 명예의 전당 머리(`lib/pages/hall_of_fame_page.dart` `_Trophy`). 없으면 코드 드로잉 금잔 |
+
+- 원본 `assets/images/gemini/src_hall_trophy.png`(2048px, 초록 배경 한 장 — 2×2 시트가 아니다). 자르기는 `python scripts/cut_hall.py`(크로마키 + 가장자리 색 되살리기 + 가장 큰 덩어리만 → 우하단 워터마크가 같이 지워진다).
+- 프롬프트: "one glossy golden championship trophy cup with two curved handles and a small five-pointed star emblem … clean cel-shaded mobile game icon style … perfectly flat solid pure green (#00FF00) background, no cast shadow, no text, no watermark".
+- pubspec 에 `assets/images/hall/` 폴더가 등록돼 있다.
+
 ## 배너 v3 (2026-10-12) — 존 카드 히어로
 
 - 예전 v2(네온 구슬 캐릭터·빨간 피구공·원형 골대)가 지금 게임과 달라서 다시 뽑았다. 세 장 모두 지금 게임의 민트 캐릭터 · 빨간 상대 팀 · 운석 · 공 그대로.

@@ -1,53 +1,72 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
+import 'achievement_manager.dart';
+import 'audio_manager.dart';
 import 'avatar.dart';
+import 'badges.dart';
 import 'character_data.dart';
 import 'coin_store.dart';
 import 'cosmetics.dart';
+import 'design_system.dart';
 import 'gear.dart';
 import 'gear_painter.dart';
-import 'pets.dart';
-import 'badges.dart';
-import 'audio_manager.dart';
 import 'haptics.dart';
-import 'achievement_manager.dart';
-import 'design_system.dart';
 import 'language_manager.dart';
+import 'pets.dart';
+import 'services/auth_service.dart';
 import 'user_profile.dart';
 import 'world_config.dart';
-import 'services/auth_service.dart';
 
-/// 내 가방 — 가진 것을 입어 보고 바로 장착한다. 아직 없는 것은 미리보기만 되고, 코인으로 산다. (docs/SHOP.md)
-///   캐릭터 · 존별 장비(머리·손·발·등) · 꾸미기(스킨·잔상·오라) · 펫 · 변경권
+/// 내 가방 — 가진 것을 입어 보고 바로 장착한다. 아직 없는 것은 미리보기만 되고, 코인으로 산다. (docs/SHOP.md §상점 화면)
+///
+/// 2026-10-28 구조를 다시 짰다 — **위에서 아래로 셋뿐**:
+///   1. 미리보기(내 아바타 — 지금 존 바닥 위)
+///   2. 탭 한 줄: 캐릭터 · 스킨 · 잔상 · 오라 · 장비 (장비 탭에만 존 고르기가 있다 — 장비만 존마다 다르다)
+///   3. 그 탭의 그리드(싼 것부터, 자리가 바뀌지 않는다) — 가진 것을 누르면 바로 장착, 없는 것을 누르면 입어 보기 + 아래 구매 바
+/// 카드 상태는 둘만 표시한다 — **장착 중**(존 색 테두리 + 체크) · **입어 보는 중**(흰 테두리 + 눈). 가격은 안 가진 것에만.
 /// 장착한 모습이 곧 내 아바타다 — 게임·랭킹·프로필이 같은 모습을 쓴다.
 /// (클래스 이름 ShopPage 는 예전 이름 그대로다 — 부르는 곳이 많아 화면 이름만 바꿨다)
 class ShopPage extends StatefulWidget {
   final VoidCallback onBack;
-  final Future<void> Function()? onPurchaseReset;
+
   /// 하단 탭으로 열리면 false — 상단 뒤로 가기 버튼을 숨긴다
   final bool showBack;
 
-  const ShopPage({
-    super.key,
-    required this.onBack,
-    this.onPurchaseReset,
-    this.showBack = true,
-  });
+  /// 미리보기와 장비 탭이 처음 보여 줄 존 — 홈에서 고른 존을 넘긴다(없으면 첫 존)
+  final String? zoneId;
+
+  const ShopPage({super.key, required this.onBack, this.showBack = true, this.zoneId});
 
   @override
   State<ShopPage> createState() => _ShopPageState();
 }
 
-class _ShopPageState extends State<ShopPage> {
+/// 가방 탭 — 캐릭터 · 꾸미기 3종 · 존 장비
+enum _Tab { character, skin, trail, aura, gear }
 
-  String _selectedCharId = 'neon_green';
+class _ShopPageState extends State<ShopPage> {
+  String _selectedCharId = Avatar.defaultCharacterId;
   bool _busy = false;
+
   /// 처음 들어와 서버와 맞추는 중 — 잔액 옆에 작은 스피너
   bool _syncing = true;
-  /// 존별 명패 — 황금 복장 해금 조건
+
+  /// 내 뱃지 — 뱃지 보상 장비·뱃지 해금 캐릭터 판정
   Set<String> _badges = {};
+
+  _Tab _tab = _Tab.character;
+
+  /// 미리보기·장비 탭의 존
+  late String _zone = WorldData.getWorld(widget.zoneId ?? WorldData.defaultWorld.id).id;
+
+  /// 입어 보는 중인 것 — 슬롯 키(장비 `gear_{존}_{부위}` · 꾸미기 `skin`/`trail`/`aura`) → 아이템 id. 탭을 바꾸면 비운다
+  final Map<String, String> _tryOn = {};
+
+  /// 입어 보는 중인 캐릭터(아직 내 것이 아닌)
+  String? _tryCharId;
+
+  /// 아래 구매 바에 올라온 것 — 마지막으로 누른 **안 가진** 물건
+  _BagItem? _picked;
 
   @override
   void initState() {
@@ -62,21 +81,81 @@ class _ShopPageState extends State<ShopPage> {
     final profile = await UserProfileManager.getProfile();
     final badges = (await AchievementManager.getMine()).toSet();
     // 코인 해금을 켜기 전부터 쓰던 캐릭터는 보유로 인정
-    final cur = CharacterData.getCharacter(profile['characterId'] ?? 'neon_green');
+    final cur = CharacterData.getCharacter(profile['characterId'] ?? Avatar.defaultCharacterId);
     if (cur.price > 0 && !CoinStore.owns('char_${cur.id}')) await CoinStore.grant('char_${cur.id}');
     if (!mounted) return;
     setState(() {
       _badges = badges;
-      _selectedCharId = profile['characterId'] ?? 'neon_green';
+      _selectedCharId = profile['characterId'] ?? Avatar.defaultCharacterId;
       _syncing = false;
     });
   }
 
+  // ── 보유 판정 ──
+  /// 캐릭터 — 기본 · 코인 구매 · 해금 뱃지(character_data.dart unlockKey) 중 하나
   bool _ownsChar(Character c) =>
-      c.price == 0 || CharacterData.allUnlocked || CoinStore.owns('char_${c.id}');
+      c.price == 0 ||
+      CharacterData.allUnlocked ||
+      CoinStore.owns('char_${c.id}') ||
+      (c.unlockKey != null && _badges.contains(c.unlockKey));
+
+  bool _badgeLocked(GearItem g) => g.needsBadge != null && !_badges.contains(g.needsBadge);
+
+  bool _ownsGear(GearItem g) => !_badgeLocked(g) && (g.price == 0 || CoinStore.owns(g.id));
+
+  bool _ownsCosmetic(Cosmetic c) => c.price == 0 || CoinStore.owns(c.id);
+
+  // ── 효과음 ──
+  /// 착용 — "뽁" + 약한 진동
+  void _equipFx() {
+    AudioManager().playSfx(Sfx.equip, volume: 0.7);
+    Haptics.light();
+  }
+
+  /// 입어 보기 — 작은 "뽁"
+  void _tryFx() {
+    AudioManager().playSfx(Sfx.equip, volume: 0.35, minGapMs: 80);
+    Haptics.tick();
+  }
+
+  // ── 동작 ──
+  void _selectTab(_Tab t) {
+    if (t == _tab) return;
+    _tryFx();
+    setState(() {
+      _tab = t;
+      _clearTry();
+    });
+  }
+
+  /// 입어 보던 것을 전부 내려놓는다(탭을 바꾸거나 장착했을 때)
+  void _clearTry() {
+    _tryOn.clear();
+    _tryCharId = null;
+    _picked = null;
+  }
+
+  /// 카드를 눌렀을 때 — 가진 것은 **바로 장착**, 없는 것은 **입어 보기**(미리보기에 입혀지고 아래 구매 바가 뜬다)
+  Future<void> _pick(_BagItem item) async {
+    if (item.owned) {
+      _equipFx();
+      await item.equip();
+      if (!mounted) return;
+      setState(_clearTry);
+      return;
+    }
+    _tryFx();
+    setState(() {
+      if (item.slotKey == null) {
+        _tryCharId = item.id;
+      } else {
+        _tryOn[item.slotKey!] = item.id;
+      }
+      _picked = item;
+    });
+  }
 
   Future<void> _useChar(Character c) async {
-    _equipFx();
     setState(() => _selectedCharId = c.id);
     final profile = await UserProfileManager.getProfile();
     await UserProfileManager.saveProfile(
@@ -87,33 +166,22 @@ class _ShopPageState extends State<ShopPage> {
     );
   }
 
-  /// 구매 확인 → 코인 차감. 성공하면 true
-  /// 착용 — "뽁" + 약한 진동
-  void _equipFx() {
-    AudioManager().playSfx(Sfx.equip, volume: 0.7);
-    Haptics.light();
-  }
-
-  /// 미리 입기 — 작은 "뽁"
-  void _tryFx() {
-    AudioManager().playSfx(Sfx.equip, volume: 0.35, minGapMs: 80);
-    Haptics.tick();
-  }
-
   /// 구매 뒤 — 수집 뱃지 검사
   Future<void> _checkCollectionBadges() async {
     final owned = CoinStore.ownedIds;
     await Badges.evaluate(BadgeContext(
       stats: await BadgeStatsStore.load(),
       ownedItems: owned.where((id) => !id.startsWith('char_')).length,
-      ownedCharacters: CharacterData.availableCharacters.where((ch) => ch.price == 0 || owned.contains('char_${ch.id}')).length,
+      ownedCharacters:
+          CharacterData.availableCharacters.where((ch) => ch.price == 0 || owned.contains('char_${ch.id}')).length,
     ));
   }
 
+  /// 구매 확인 → 코인 차감. 성공하면 true
   Future<bool> _confirmBuy(String itemName, int price, Future<bool> Function() buy) async {
     final lm = LanguageManager.of(context, listen: false);
     if (AuthService.isGuest) {
-      _toast(lm.translate('guest_login_to_save')); // 게스트는 사지 않는다(코인 0 · 저장 없음)
+      _toast(lm.translate('guest_login_to_save')); // 게스트는 사지 않는다(코인은 기기에만 · 저장 없음)
       return false;
     }
     if (CoinStore.balance.value < price) {
@@ -144,52 +212,56 @@ class _ShopPageState extends State<ShopPage> {
     return done;
   }
 
+  /// 구매 바의 [구매] — 사면 그대로 장착된다
+  Future<void> _buyPicked() async {
+    final item = _picked;
+    final buy = item?.buy;
+    if (item == null || buy == null) return;
+    final bought = await _confirmBuy(item.label, item.price, buy);
+    if (!bought || !mounted) return;
+    _equipFx();
+    await item.equip();
+    if (mounted) setState(_clearTry);
+  }
+
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // 내 가방 — 위에서 아래로 [ZONE 필터] → [카테고리 · 미리보기 · 카테고리] → [카테고리별 가로 목록을 세로로 이어 붙인 스크롤].
-  //   · 보유한 것을 누르면 **바로 장착**되고, 그게 곧 내 아바타가 된다.
-  //   · 아직 없는 것을 누르면 **미리보기만** 된다(사면 그 자리에서 장착).
-  //   · 장착 중 = 주황, 미리보기 = 초록.
-  // ─────────────────────────────────────────────────────────────
-
-  /// 장착 중 표시 색
-  Color get _equippedColor => AppColors.coin;
-
-  /// 미리보기(고른 것) 표시 색
-  Color get _previewColor => AppColors.up;
-
-  /// 지금 보고 있는 칸 — 'char' · 'gear_head' 같은 장비 부위 · 'skin'/'trail'/'aura' · 'extra'
-  String _cat = 'char';
-
-  /// 미리 골라 본 캐릭터(아직 쓰기 전)
-  String? _tryCharId;
-
+  // ── 지금 보이는 한 벌 ──
   String get _previewCharId => _tryCharId ?? _selectedCharId;
 
-  /// 아래 목록(카테고리마다 한 칸, 위아래로 스크롤)
-  final ScrollController _listScroll = ScrollController();
+  String _cosId(CosmeticKind kind) =>
+      _tryOn[Cosmetics.kindKey(kind)] ?? CoinStore.equipped(Cosmetics.kindKey(kind), Cosmetics.defaultOf(kind));
 
-  /// 카테고리 버튼을 눌러 그 칸으로 움직이는 중 — 이동 중에는 스크롤 위치로 선택을 바꾸지 않는다
-  bool _jumping = false;
+  String get _skinId => _cosId(CosmeticKind.skin);
 
-  @override
-  void dispose() {
-    _listScroll.dispose();
-    super.dispose();
-  }
+  String _wornGear(GearSlot slot) => Gear.wornId(_zone, slot, CoinStore.equipped);
 
+  /// 미리보기에 보이는 장비 — 입어 보는 게 있으면 그것, 아니면 장착 중인 것
+  String _previewGear(GearSlot slot) => _tryOn[Gear.slotKey(_zone, slot)] ?? _wornGear(slot);
+
+  /// 지금 미리 보고 있는 아바타 한 벌 — 착용 중인 것 위에 '입어 보는 중'을 얹는다(avatar.dart)
+  Avatar get _previewAvatar => Avatar(
+        characterId: _previewCharId,
+        skinId: _skinId,
+        trailId: _cosId(CosmeticKind.trail),
+        auraId: _cosId(CosmeticKind.aura),
+        gearByZone: {
+          _zone: [
+            for (final slot in Gear.slotsOf(_zone))
+              if (_previewGear(slot) != Gear.none) _previewGear(slot),
+          ],
+        },
+      );
+
+  Color get _accent => WorldData.getWorld(_zone).accent;
+
+  // ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final lm = LanguageManager.of(context);
-    final left = _leftCats(lm);
-    final right = _rightCats(lm);
-    final cats = [...left, ...right];
-    if (!cats.any((c) => c.id == _cat)) _cat = cats.first.id;
-    _cats = cats;
     return NeonScaffold(
       title: lm.translate('nav_bag'),
       showBackButton: widget.showBack,
@@ -203,57 +275,23 @@ class _ShopPageState extends State<ShopPage> {
         ),
       ],
       body: ValueListenableBuilder<int>(
-        valueListenable: CoinStore.balance, // 잔액이 바뀌면 "살 수 있음" 표시도 다시 그린다
+        valueListenable: CoinStore.balance, // 잔액이 바뀌면 "살 수 있음" 색도 다시 그린다
         builder: (context, _, _) => LayoutBuilder(
           builder: (context, box) {
-            // 미리보기 높이 — 기기 높이에 맞춰(작은 폰은 줄여서 아래 목록 칸이 하나는 다 보이게, 큰 폰은 키운다)
-            final previewH = (box.maxHeight * 0.34).clamp(_previewMin, _previewMax).toDouble();
+            // 미리보기 높이 — 기기 높이에 맞춰(작은 폰은 줄여 그리드가 두 줄은 보이게)
+            final previewH = (box.maxHeight * 0.30).clamp(168.0, 230.0);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── 존 — 늘 맨 위. 장비는 존마다 다르다 ──
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-                  child: StageFilter(selectedId: _gearZone, onChanged: (id) => setState(() => _gearZone = id)),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  child: _preview(lm, previewH),
                 ),
-                // ── 카테고리(왼쪽) · 미리보기 · 카테고리(오른쪽) — 셋 다 같은 높이 ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SizedBox(
-                    height: previewH,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _catColumn(left),
-                        const SizedBox(width: 8),
-                        Expanded(child: _previewBox(lm, previewH)),
-                        const SizedBox(width: 8),
-                        _catColumn(right),
-                      ],
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 10),
+                _tabs(lm),
                 const SizedBox(height: 8),
-                // ── 카테고리마다 한 칸(이름·보유 수 + 좌우로 넘기는 목록)을 위아래로 이어 붙인다 ──
-                // 고른 칸만 보여 주던 때는 큰 폰에서 아래가 텅 비었다. 버튼을 누르면 그 칸으로 스크롤한다
-                Expanded(
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: _onListScroll,
-                    child: ListView.builder(
-                      controller: _listScroll,
-                      padding: const EdgeInsets.only(bottom: 8),
-                      itemExtent: _sectionExtent,
-                      itemCount: cats.length,
-                      itemBuilder: (context, i) => Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _listHead(lm, cats[i]),
-                          SizedBox(height: _stripHeight, child: _itemStrip(lm, cats[i])),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                Expanded(child: _list(lm)),
+                _buyBar(lm),
               ],
             );
           },
@@ -262,368 +300,257 @@ class _ShopPageState extends State<ShopPage> {
     );
   }
 
-  /// 지금 목록에 놓인 칸들(순서 = 왼쪽 버튼들 → 오른쪽 버튼들)
-  List<_BagCat> _cats = const [];
-
-  /// 목록 한 칸 높이 — 머리(34 + 아래 6) + 좌우 목록
-  static const double _headHeight = 40;
-  static const double _stripHeight = 176;
-  static const double _sectionExtent = _headHeight + _stripHeight;
-
-  /// 카테고리 버튼 → 그 칸이 목록 맨 위에 오게 스크롤(끝 칸들은 목록 끝까지만)
-  void _jumpTo(String id) {
-    final i = _cats.indexWhere((c) => c.id == id);
-    setState(() => _cat = id);
-    if (i < 0 || !_listScroll.hasClients) return;
-    final pos = _listScroll.position;
-    final target = min(i * _sectionExtent, pos.maxScrollExtent);
-    _jumping = true;
-    _listScroll
-        .animateTo(target, duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic)
-        .whenComplete(() => _jumping = false);
-  }
-
-  /// 손으로 스크롤하면 맨 위에 걸린 칸의 버튼이 켜진다. 끝까지 내리면 마지막 칸
-  bool _onListScroll(ScrollNotification n) {
-    if (_jumping || n.depth != 0 || n is! ScrollUpdateNotification || _cats.isEmpty) return false;
-    final m = n.metrics;
-    int i = ((m.pixels + _sectionExtent * 0.5) / _sectionExtent).floor();
-    if (m.maxScrollExtent > 0 && m.pixels >= m.maxScrollExtent - 1) i = _cats.length - 1;
-    i = i.clamp(0, _cats.length - 1);
-    if (_cats[i].id != _cat) setState(() => _cat = _cats[i].id);
-    return false;
-  }
-
-  // ── 카테고리 ──
-  /// 왼쪽 줄 — 나(캐릭터)와 몸에 두르는 것
-  List<_BagCat> _leftCats(LanguageManager lm) => [
-        _BagCat('char', Icons.face_retouching_natural_rounded, lm.translate('shop_tab_characters')),
-        _BagCat('skin', Icons.palette_rounded, lm.translate('shop_sec_skin')),
-        _BagCat('trail', Icons.air_rounded, lm.translate('shop_sec_trail')),
-        _BagCat('aura', Icons.blur_on_rounded, lm.translate('shop_sec_aura')),
-      ];
-
-  /// 오른쪽 줄 — 이 존에서 입는 장비 부위
-  List<_BagCat> _rightCats(LanguageManager lm) => [
-        for (final slot in Gear.slotsOf(_gearZone))
-          _BagCat('gear_${slot.name}', slotIcon(slot), lm.translate(Gear.slotLabelKey(slot))),
-      ];
-
-  /// 미리보기 높이 범위 — 좌우 아이콘 줄도 이 높이에 맞춰 고르게 놓인다(버튼 5개 42×5 + 틈이 들어가는 최소)
-  static const double _previewMin = 222, _previewMax = 260;
-
-  Widget _catColumn(List<_BagCat> cats) => Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [for (final c in cats) _catButton(c)],
-      );
-
-  Widget _catButton(_BagCat c) {
-    final on = _cat == c.id;
-    // 이 칸에 아직 안 본 것(미보유)이 있으면 점으로 알린다
-    return Tooltip(
-      message: c.label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          _tryFx();
-          _jumpTo(c.id);
-        },
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: on ? AppColors.primary : AppColors.surface,
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: on ? AppColors.primary : AppColors.line),
-          ),
-          child: Icon(c.icon, size: 20, color: on ? AppColors.on(AppColors.primary) : AppColors.textDim),
-        ),
-      ),
-    );
-  }
-
-  /// 목록 머리 — 칸 이름 · 보유 수 · (미보유를 고르고 있으면) 구매 버튼
-  Widget _listHead(LanguageManager lm, _BagCat cat) {
-    final items = _itemsFor(lm, cat.id);
-    final mine = items.where((i) => i.owned).length;
-    final picked = items.where((i) => i.previewing && !i.owned).firstOrNull;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 20, 6),
-      // 구매 버튼이 생겼다 사라져도 아래 목록이 밀리지 않게 높이를 잡아 둔다
-      child: SizedBox(
-        height: 34,
-        child: Row(
-        children: [
-          Text(cat.label, style: AppTextStyles.label()),
-          const SizedBox(width: 8),
-          Text('$mine / ${items.length}', style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w700)),
-          const Spacer(),
-          // 미리 보는 중인 물건이 아직 내 것이 아니면 여기서 산다 — 사면 바로 장착된다
-          if (picked != null)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _buyAndEquip(lm, picked),
-              child: Container(
-                height: 30,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: CoinStore.balance.value >= picked.price ? AppColors.coin : AppColors.surface2,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CoinIcon(size: 14),
-                    const SizedBox(width: 5),
-                    Text(formatCount(picked.price),
-                        style: AppTextStyles.display(12,
-                            color: CoinStore.balance.value >= picked.price ? AppColors.on(AppColors.coin) : AppColors.textDim)),
-                    const SizedBox(width: 6),
-                    Text(lm.translate('shop_buy'),
-                        style: AppTextStyles.text(12,
-                            color: CoinStore.balance.value >= picked.price ? AppColors.on(AppColors.coin) : AppColors.textDim,
-                            weight: FontWeight.w800)),
-                  ],
-                ),
-              ),
+  // ── 1. 미리보기 — 지금 존의 바닥 위에 선 내 아바타. 장착한 것 + 입어 보는 것이 그대로 보인다 ──
+  Widget _preview(LanguageManager lm, double height) {
+    final world = WorldData.getWorld(_zone);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        height: height,
+        color: world.floor,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset('assets/images/worlds/${_zone}_bg.png',
+                  fit: BoxFit.cover, alignment: Alignment.bottomCenter, errorBuilder: (_, _, _) => const SizedBox()),
             ),
+            Positioned.fill(child: ColoredBox(color: world.floor.withValues(alpha: 0.35))),
+            Center(child: AvatarStage(avatar: _previewAvatar, zone: _zone, size: height * 0.69)),
+            // 왼쪽 아래 — 캐릭터 이름 · 오른쪽 아래 — 어느 존의 장비를 입고 있는지
+            Positioned(left: 10, bottom: 8, child: _pill(lm.translate('char_$_previewCharId'))),
+            Positioned(right: 10, bottom: 8, child: _pill('ZONE ${world.difficulty}')),
           ],
         ),
       ),
     );
   }
 
-  Widget _itemStrip(LanguageManager lm, _BagCat cat) {
-    final items = _itemsFor(lm, cat.id);
-    if (items.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-        child: Text(lm.translate('shop_owned_empty'),
-            textAlign: TextAlign.center, style: AppTextStyles.text(12, color: AppColors.textDim)),
+  Widget _pill(String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: AppTextStyles.text(11, color: Colors.white, weight: FontWeight.w800)),
       );
-    }
-    return ListView.separated(
+
+  // ── 2. 탭 한 줄 — 글자로. 긴 언어도 잘리지 않게 옆으로 넘긴다 ──
+  Widget _tabs(LanguageManager lm) {
+    final labels = {
+      _Tab.character: lm.translate('shop_tab_characters'),
+      _Tab.skin: lm.translate('shop_tab_skin'),
+      _Tab.trail: lm.translate('shop_tab_trail'),
+      _Tab.aura: lm.translate('shop_tab_aura'),
+      _Tab.gear: lm.translate('shop_tab_gear'),
+    };
+    return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 10),
-      itemBuilder: (context, i) => SizedBox(width: 104, child: _itemTile(items[i])),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          for (final t in _Tab.values) ...[
+            if (t != _Tab.values.first) const SizedBox(width: 6),
+            _tabChip(labels[t]!, t == _tab, () => _selectTab(t)),
+          ],
+        ],
+      ),
     );
   }
 
-  /// 칸 [catId] 의 물건들 — **가진 것이 앞**, 그다음은 싼 것부터
-  List<_BagItem> _itemsFor(LanguageManager lm, String catId) {
-    final list = switch (catId) {
-      'char' => _charItems(lm),
-      'skin' => _cosmeticItems(lm, CosmeticKind.skin),
-      'trail' => _cosmeticItems(lm, CosmeticKind.trail),
-      'aura' => _cosmeticItems(lm, CosmeticKind.aura),
-      _ => _gearItems(lm, catId),
+  Widget _tabChip(String label, bool on, VoidCallback onTap) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? _accent : AppColors.surface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: on ? _accent : AppColors.line),
+          ),
+          child: Text(label,
+              style: AppTextStyles.text(12.5, color: on ? AppColors.on(_accent) : AppColors.textDim, weight: FontWeight.w800)),
+        ),
+      );
+
+  // ── 3. 그리드 — 탭 하나에 한 칸(장비는 부위마다 한 칸) ──
+  Widget _list(LanguageManager lm) {
+    final sections = switch (_tab) {
+      _Tab.character => [_Section(lm.translate('shop_tab_characters'), _charItems(lm))],
+      _Tab.skin => [_Section(lm.translate('shop_tab_skin'), _cosmeticItems(lm, CosmeticKind.skin))],
+      _Tab.trail => [_Section(lm.translate('shop_tab_trail'), _cosmeticItems(lm, CosmeticKind.trail))],
+      _Tab.aura => [_Section(lm.translate('shop_tab_aura'), _cosmeticItems(lm, CosmeticKind.aura))],
+      _Tab.gear => [
+          for (final slot in Gear.slotsOf(_zone)) _Section(lm.translate(Gear.slotLabelKey(slot)), _gearItems(lm, slot)),
+        ],
     };
-    list.sort((a, b) {
-      if (a.owned != b.owned) return a.owned ? -1 : 1;
-      return a.price.compareTo(b.price);
-    });
-    return list;
+    return CustomScrollView(
+      key: ValueKey('${_tab.name}_$_zone'), // 탭·존을 바꾸면 맨 위부터
+      slivers: [
+        // 장비만 존마다 다르다 — 장비 탭에서만 존을 고른다
+        if (_tab == _Tab.gear)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 12),
+            sliver: SliverToBoxAdapter(
+              child: StageFilter(
+                selectedId: _zone,
+                onChanged: (id) => setState(() {
+                  _zone = id;
+                  _clearTry();
+                }),
+              ),
+            ),
+          ),
+        for (final s in sections) ...[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 2, 24, 8),
+            sliver: SliverToBoxAdapter(child: _sectionHead(s)),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.78,
+              ),
+              delegate: SliverChildBuilderDelegate((context, i) => _tile(lm, s.items[i]), childCount: s.items.length),
+            ),
+          ),
+        ],
+        // 규칙 두 줄 — 외형뿐이라는 것 · 코인 보너스는 가격으로 정해진다는 것
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(lm.translate('shop_style_note'), style: AppTextStyles.text(11, color: AppColors.textDim)),
+                const SizedBox(height: 3),
+                Text(lm.translate('shop_bonus_rule'), style: AppTextStyles.text(11, color: AppColors.textDim)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  List<_BagItem> _charItems(LanguageManager lm) => [
+  /// 칸 머리 — 이름 · 가진 수 / 전체(기본·벗기는 세지 않는다)
+  Widget _sectionHead(_Section s) {
+    final counted = s.items.where((i) => i.price > 0 || i.badgeKey != null).toList();
+    final mine = counted.where((i) => i.owned).length;
+    return Row(
+      children: [
+        Text(s.label, style: AppTextStyles.label()),
+        const SizedBox(width: 8),
+        Text('$mine / ${counted.length}', style: AppTextStyles.text(11, color: AppColors.textDim, weight: FontWeight.w700)),
+      ],
+    );
+  }
+
+  // ── 물건 목록 — 싼 것부터(기본 → 코인 → 뱃지 보상은 값이 0 이라 앞에 온다). 사도 자리가 바뀌지 않는다 ──
+  List<_BagItem> _sorted(List<_BagItem> list) => list..sort((a, b) => a.price.compareTo(b.price));
+
+  List<_BagItem> _charItems(LanguageManager lm) => _sorted([
         for (final c in CharacterData.availableCharacters)
           _BagItem(
             id: c.id,
             label: lm.translate('char_${c.id}'),
             price: c.price,
             owned: _ownsChar(c),
+            badgeKey: c.unlockKey,
             equipped: c.id == _selectedCharId,
-            previewing: _previewCharId == c.id && c.id != _selectedCharId,
-            art: AvatarView.character(c.id, size: 52),
-            accent: c.color,
-            onPick: () async {
-              _tryFx();
-              setState(() => _tryCharId = c.id);
-              // 가진 캐릭터는 고르는 즉시 내 아바타가 된다
-              if (_ownsChar(c)) {
-                await _useChar(c);
-                if (mounted) setState(() => _tryCharId = null);
-              }
-            },
+            previewing: _tryCharId == c.id && c.id != _selectedCharId,
+            art: AvatarView.character(c.id, size: 52, skin: _skinId),
             buy: () => CoinStore.buy('char_${c.id}', c.price),
-            equip: () async {
-              await _useChar(c);
-              if (mounted) setState(() => _tryCharId = null);
-            },
+            equip: () => _useChar(c),
           ),
-      ];
+      ]);
 
-  List<_BagItem> _gearItems(LanguageManager lm, String catId) {
-    final slotName = catId.substring('gear_'.length);
-    final slot = GearSlot.values.firstWhere((s) => s.name == slotName, orElse: () => GearSlot.head);
-    final zone = _gearZone;
-    final slotKey = Gear.slotKey(zone, slot);
+  List<_BagItem> _gearItems(LanguageManager lm, GearSlot slot) {
+    final slotKey = Gear.slotKey(_zone, slot);
     final base = CharacterData.getCharacter(_previewCharId).color;
-    final accent = WorldData.getWorld(zone).accent;
-    return [
+    final worn = _wornGear(slot);
+    final preview = _previewGear(slot);
+    return _sorted([
       // 벗기 — 늘 맨 앞(가진 것으로 친다)
       _BagItem(
         id: Gear.none,
         label: lm.translate('gear_none'),
-        price: -1, // 정렬에서 맨 앞
+        price: -1,
         owned: true,
-        equipped: _wornId(zone, slot) == Gear.none,
-        previewing: _previewId(zone, slot) == Gear.none && _wornId(zone, slot) != Gear.none,
+        slotKey: slotKey,
+        equipped: worn == Gear.none,
+        previewing: preview == Gear.none && worn != Gear.none,
         art: Icon(Icons.do_not_disturb_alt_rounded, size: 28, color: AppColors.textDim.withValues(alpha: 0.6)),
-        accent: accent,
-        onPick: () async {
-          _equipFx();
-          await CoinStore.equip(slotKey, Gear.none);
-          _tryOn.remove(slotKey);
-          if (mounted) setState(() {});
-        },
-        buy: null,
-        // '없음' 의 착용 = 그 부위를 벗는다
-        equip: () async {
-          await CoinStore.equip(slotKey, Gear.none);
-          _tryOn.remove(slotKey);
-          if (mounted) setState(() {});
-        },
+        equip: () => CoinStore.equip(slotKey, Gear.none),
       ),
-      for (final g in Gear.shopItemsOf(zone, slot, CoinStore.owns))
-        () {
-          final plateLocked = g.needsBadge != null && !_badges.contains(g.needsBadge);
-          final owned = _ownsGear(g);
-          return _BagItem(
-            id: g.id,
-            label: lm.translate(g.nameKey),
-            price: g.price,
-            owned: owned,
-            badgeLocked: plateLocked,
-            equipped: _wornId(zone, slot) == g.id,
-            previewing: _previewId(zone, slot) == g.id && _wornId(zone, slot) != g.id,
-            bonus: _bonusText(lm, g.bonus),
-            art: CustomPaint(painter: GearIconPainter(g.id, base)),
-            accent: accent,
-            onPick: () async {
-              _tryFx();
-              setState(() => _tryOn[slotKey] = g.id);
-              if (owned) {
-                _equipFx();
-                await CoinStore.equip(slotKey, g.id);
-                _tryOn.remove(slotKey);
-                if (mounted) setState(() {});
-              } else if (plateLocked) {
-                _toast(lm
-                    .translate('shop_need_badge_msg')
-                    .replaceAll('{badge}', lm.translate(g.needsBadge!))
-                    .replaceAll('{desc}', lm.translate('${g.needsBadge!}_desc')));
-              }
-            },
-            buy: plateLocked ? null : () => CoinStore.buy(g.id, g.price),
-            equip: () async {
-              await CoinStore.equip(slotKey, g.id);
-              _tryOn.remove(slotKey);
-              if (mounted) setState(() {});
-            },
-          );
-        }(),
-    ];
+      for (final g in Gear.shopItemsOf(_zone, slot, CoinStore.owns))
+        _BagItem(
+          id: g.id,
+          label: lm.translate(g.nameKey),
+          price: g.price,
+          owned: _ownsGear(g),
+          badgeKey: g.needsBadge,
+          badgeLocked: _badgeLocked(g),
+          slotKey: slotKey,
+          equipped: worn == g.id,
+          previewing: preview == g.id && worn != g.id,
+          bonus: g.bonus,
+          art: CustomPaint(painter: GearIconPainter(g.id, base)),
+          buy: _badgeLocked(g) ? null : () => CoinStore.buy(g.id, g.price),
+          equip: () => CoinStore.equip(slotKey, g.id),
+        ),
+    ]);
   }
 
   List<_BagItem> _cosmeticItems(LanguageManager lm, CosmeticKind kind) {
     final kindKey = Cosmetics.kindKey(kind);
     final base = CharacterData.getCharacter(_previewCharId).color;
     final worn = CoinStore.equipped(kindKey, Cosmetics.defaultOf(kind));
-    return [
+    final preview = _cosId(kind);
+    return _sorted([
       for (final c in Cosmetics.ofKind(kind))
-        () {
-          final owned = _ownsCosmetic(c);
-          return _BagItem(
-            id: c.id,
-            label: lm.translate(c.nameKey),
-            price: c.price,
-            owned: owned,
-            equipped: worn == c.id,
-            previewing: (_tryOn[kindKey] ?? worn) == c.id && worn != c.id,
-            bonus: _bonusText(lm, c.bonus),
-            art: c.pet
-                ? PetPreview(petId: c.id, size: 48) // 펫 오라 — 시안 아트 펫
-                : kind == CosmeticKind.skin
-                // 스킨 — 입은 모습 그대로(움직이며 반짝임·흐름이 보인다)
-                ? AvatarStage(avatar: Avatar(characterId: _previewCharId, skinId: c.id), size: 48, cosmetics: false)
-                : CosmeticPreview(
-                    item: c,
-                    base: base,
-                    size: 48,
-                    character: AvatarView.character(_previewCharId, size: 24, skin: _skinId),
-                  ),
-            accent: AppColors.coin,
-            onPick: () async {
-              _tryFx();
-              setState(() => _tryOn[kindKey] = c.id);
-              if (owned) {
-                _equipFx();
-                await _equipCosmetic(lm, c);
-              }
-            },
-            buy: () => CoinStore.buy(c.id, c.price),
-            equip: () => _equipCosmetic(lm, c),
-          );
-        }(),
-    ];
-  }
-
-  /// 꾸미기 착용
-  Future<void> _equipCosmetic(LanguageManager lm, Cosmetic c) async {
-    final kindKey = Cosmetics.kindKey(c.kind);
-    await CoinStore.equip(kindKey, c.id);
-    _tryOn.remove(kindKey);
-    if (mounted) setState(() {});
-  }
-
-  /// 코인 보너스 한 줄(초록 글씨) — 없으면 null
-  String? _bonusText(LanguageManager lm, GearBonus b) =>
-      b.isZero ? null : b.labels.map((l) => lm.translate(l.$1).replaceAll('{n}', l.$2)).join(' · ');
-
-  bool _ownsGear(GearItem g) {
-    final plateLocked = g.needsBadge != null && !_badges.contains(g.needsBadge);
-    return !plateLocked && (g.price == 0 || CoinStore.owns(g.id));
-  }
-
-  bool _ownsCosmetic(Cosmetic c) => c.price == 0 || CoinStore.owns(c.id);
-
-  /// 미리 보던 물건을 산다 — 사면 그대로 장착된다
-  Future<void> _buyAndEquip(LanguageManager lm, _BagItem item) async {
-    final buy = item.buy;
-    if (buy == null) return;
-    final bought = await _confirmBuy(item.label, item.price, buy);
-    if (!bought) return;
-    _equipFx();
-    await item.equip?.call();
-    if (mounted) setState(() {});
-  }
-
-  /// 한 줄짜리 글 — [h] 높이를 지키면서, 넘치면 글자 크기를 줄여 전부 보여 준다
-  Widget _fitLine(double h, String text, TextStyle style) => SizedBox(
-        height: h,
-        width: double.infinity,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(text, maxLines: 1, style: style),
+        _BagItem(
+          id: c.id,
+          label: lm.translate(c.nameKey),
+          price: c.price,
+          owned: _ownsCosmetic(c),
+          slotKey: kindKey,
+          equipped: worn == c.id,
+          previewing: preview == c.id && worn != c.id,
+          bonus: c.bonus,
+          art: c.pet
+              ? PetPreview(petId: c.id, size: 48) // 펫 오라 — 시안 아트 펫
+              : kind == CosmeticKind.skin
+                  // 스킨 — 입은 모습 그대로(움직이며 반짝임·흐름이 보인다)
+                  ? AvatarStage(avatar: Avatar(characterId: _previewCharId, skinId: c.id), size: 48, cosmetics: false)
+                  : CosmeticPreview(
+                      item: c,
+                      base: base,
+                      size: 48,
+                      character: AvatarView.character(_previewCharId, size: 24, skin: _skinId),
+                    ),
+          buy: () => CoinStore.buy(c.id, c.price),
+          equip: () => CoinStore.equip(kindKey, c.id),
         ),
-      );
+    ]);
+  }
 
   // ── 카드 한 장 ──
-  /// 장착 중이면 주황, 미리 보는 중이면 초록. 아직 없는 것은 흐리게 + 가격.
-  Widget _itemTile(_BagItem item) {
-    final ring = item.equipped ? _equippedColor : (item.previewing ? _previewColor : AppColors.line);
+  /// 장착 중 = 존 색 테두리 + 체크 · 입어 보는 중 = 흰 테두리 + 눈 · 안 가진 것 = 흐린 그림 + 가격(뱃지 보상은 뱃지 표시)
+  Widget _tile(LanguageManager lm, _BagItem item) {
+    final accent = _accent;
+    final ring = item.equipped ? accent : (item.previewing ? AppColors.text : AppColors.line);
     final marked = item.equipped || item.previewing;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: item.onPick,
+      onTap: () => _pick(item),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+        padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
         decoration: BoxDecoration(
-          color: item.equipped ? _equippedColor.withValues(alpha: 0.10) : AppColors.surface,
+          color: item.equipped ? accent.withValues(alpha: 0.10) : AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: ring, width: marked ? 2 : 1),
         ),
@@ -635,14 +562,23 @@ class _ShopPageState extends State<ShopPage> {
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.all(8),
-                      child: Opacity(opacity: item.owned ? 1 : 0.55, child: item.art),
+                      padding: const EdgeInsets.all(6),
+                      child: Opacity(opacity: item.owned ? 1 : 0.6, child: item.art), // 그림은 칸을 꽉 채운다(CustomPaint 는 크기를 받아야 그린다)
                     ),
                   ),
-                  if (item.badgeLocked)
-                    Positioned(left: 4, top: 4, child: Icon(Icons.lock_rounded, size: 14, color: AppColors.gold))
-                  else if (!item.owned)
-                    Positioned(left: 4, top: 4, child: Icon(Icons.lock_rounded, size: 14, color: AppColors.textDim)),
+                  // 왼쪽 위 — 코인 보너스(가격 구간 규칙)
+                  if (!item.bonus.isZero)
+                    Positioned(
+                      left: 4,
+                      top: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(color: AppColors.up, borderRadius: BorderRadius.circular(999)),
+                        child: Text('+${(item.bonus.coin * 100).round()}%',
+                            style: AppTextStyles.display(9, color: AppColors.on(AppColors.up))),
+                      ),
+                    ),
+                  // 오른쪽 위 — 상태
                   if (item.equipped)
                     Positioned(
                       right: 4,
@@ -650,184 +586,194 @@ class _ShopPageState extends State<ShopPage> {
                       child: Container(
                         width: 18,
                         height: 18,
-                        decoration: BoxDecoration(color: _equippedColor, shape: BoxShape.circle),
-                        child: Icon(Icons.check_rounded, size: 13, color: AppColors.on(_equippedColor)),
+                        decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                        child: Icon(Icons.check_rounded, size: 13, color: AppColors.on(accent)),
                       ),
                     )
                   else if (item.previewing)
-                    Positioned(right: 4, top: 4, child: Icon(Icons.visibility_rounded, size: 16, color: _previewColor)),
+                    Positioned(right: 4, top: 4, child: Icon(Icons.visibility_rounded, size: 16, color: AppColors.text)),
                 ],
               ),
             ),
-            const SizedBox(height: 6),
-            // 이름·능력치 — 길면 글자를 줄여서 한 줄에 다 보여 준다(자르지 않는다).
-            // 높이는 고정이라 카드마다 그림 칸이 흔들리지 않는다. 능력치가 없으면 빈 줄로 자리만 잡는다
-            _fitLine(16, item.label, AppTextStyles.text(11.5, weight: FontWeight.w800)),
-            _fitLine(14, item.bonus ?? ' ', AppTextStyles.text(10, color: AppColors.up, weight: FontWeight.w800)),
             const SizedBox(height: 5),
-            // 아래 줄 — 낀 것은 [착용 중], 없는 것은 가격(가진 것은 카드를 누르면 바로 낀다)
-            _itemAction(item),
+            // 이름 — 길면 글자를 줄여서 한 줄에 다 보여 준다(자르지 않는다)
+            _fitLine(15, item.label, AppTextStyles.text(11.5, weight: FontWeight.w800)),
+            const SizedBox(height: 3),
+            _tileFoot(lm, item, accent),
           ],
         ),
       ),
     );
   }
 
-  /// 카드 아래 줄 — 높이를 22 로 고정해서 어떤 상태든 카드 크기가 같다
-  Widget _itemAction(_BagItem item) {
-    final lm = LanguageManager.of(context, listen: false);
-    if (!item.owned) {
-      return SizedBox(
-        height: 22,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CoinIcon(size: 13),
-            const SizedBox(width: 4),
-            Text(formatCount(item.price),
-                style: AppTextStyles.display(12,
-                    color: CoinStore.balance.value >= item.price ? AppColors.coin : AppColors.textDim)),
-          ],
-        ),
+  /// 카드 아래 줄(높이 18 고정) — 안 가진 것은 가격(뱃지 보상은 뱃지) · 장착 중은 '착용 중' · 가진 것은 빈 줄
+  Widget _tileFoot(LanguageManager lm, _BagItem item, Color accent) {
+    Widget child;
+    if (item.badgeLocked) {
+      child = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.military_tech_rounded, size: 13, color: AppColors.gold),
+          const SizedBox(width: 3),
+          Text(lm.translate('shop_need_badge'), style: AppTextStyles.text(10.5, color: AppColors.gold, weight: FontWeight.w800)),
+        ],
       );
-    }
-    if (item.equipped) {
-      return SizedBox(
-        height: 22,
-        child: Center(
-          child: Text(lm.translate('shop_equipped'),
-              maxLines: 1, style: AppTextStyles.text(10.5, color: _equippedColor, weight: FontWeight.w800)),
-        ),
+    } else if (!item.owned) {
+      final can = CoinStore.balance.value >= item.price;
+      child = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CoinIcon(size: 12),
+          const SizedBox(width: 4),
+          Text(formatCount(item.price), style: AppTextStyles.display(12, color: can ? AppColors.coin : AppColors.textDim)),
+        ],
       );
+    } else if (item.equipped) {
+      child = Text(lm.translate('shop_equipped'),
+          maxLines: 1, style: AppTextStyles.text(10.5, color: accent, weight: FontWeight.w800));
+    } else {
+      child = const SizedBox();
     }
-    // 가졌지만 안 낀 것 — 카드를 누르면 바로 착용되므로 따로 버튼을 두지 않는다
-    return const SizedBox(height: 22);
+    return SizedBox(height: 18, child: Center(child: child));
   }
 
-  // ── 미리보기 ──
-  /// 지금 존의 바닥 위에 선 내 아바타 — 장착한 것 + 미리 고른 것이 그대로 보인다
-  Widget _previewBox(LanguageManager lm, double height) {
-    final zone = _gearZone;
-    final world = WorldData.getWorld(zone);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        height: height,
-        color: world.floor,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Image.asset('assets/images/worlds/${zone}_bg.png',
-                  fit: BoxFit.cover, alignment: Alignment.bottomCenter, errorBuilder: (_, _, _) => const SizedBox()),
-            ),
-            Positioned.fill(child: ColoredBox(color: world.floor.withValues(alpha: 0.35))),
-            // 캐릭터 — 항상 가운데. 잔상·오라도 지금 고른 것으로 함께 보인다
-            Center(child: AvatarStage(avatar: _previewAvatar, zone: zone, size: height * 0.69)),
-            // 지금 캐릭터 이름
-            Positioned(
-              left: 10,
-              bottom: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(999)),
-                child: Text(lm.translate('char_$_previewCharId'),
-                    style: AppTextStyles.text(11, color: Colors.white, weight: FontWeight.w800)),
-              ),
-            ),
-            // 부위 램프 — 입었으면 켜지고, 비었으면 꺼진다
-            Positioned(
-              right: 8,
-              bottom: 8,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final slot in Gear.slotsOf(zone))
-                    Padding(
-                      padding: const EdgeInsets.only(left: 5),
-                      child: _SlotLamp(
-                        slot: slot,
-                        itemId: _previewId(zone, slot),
-                        trying: _previewId(zone, slot) != _wornId(zone, slot),
-                        accent: world.accent,
-                        base: _previewAvatar.color,
-                      ),
-                    ),
+  /// 한 줄짜리 글 — [h] 높이를 지키면서, 넘치면 글자 크기를 줄여 전부 보여 준다
+  Widget _fitLine(double h, String text, TextStyle style) => SizedBox(
+        height: h,
+        width: double.infinity,
+        child: FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1, style: style)),
+      );
+
+  // ── 구매 바 — 안 가진 것을 누르면 아래에 뜬다. 구매는 늘 여기 한 곳 ──
+  Widget _buyBar(LanguageManager lm) {
+    final item = _picked;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: item == null ? const SizedBox(width: double.infinity) : _buyBarBody(lm, item),
+    );
+  }
+
+  Widget _buyBarBody(LanguageManager lm, _BagItem item) {
+    final can = CoinStore.balance.value >= item.price;
+    // 둘째 줄 — 뱃지 보상이면 어떤 뱃지가 필요한지, 뱃지로도 열리는 캐릭터면 그 안내, 아니면 코인 보너스
+    final String? sub;
+    final Color subColor;
+    if (item.badgeLocked) {
+      final b = item.badgeKey!;
+      sub = lm.translate('shop_need_badge_msg').replaceAll('{badge}', lm.translate(b)).replaceAll('{desc}', lm.translate('${b}_desc'));
+      subColor = AppColors.gold;
+    } else if (item.badgeKey != null) {
+      sub = lm.translate('shop_unlock_by_badge').replaceAll('{badge}', lm.translate(item.badgeKey!));
+      subColor = AppColors.textDim;
+    } else if (!item.bonus.isZero) {
+      sub = lm.translate('bonus_coin').replaceAll('{n}', '${(item.bonus.coin * 100).round()}');
+      subColor = AppColors.up;
+    } else {
+      sub = null;
+      subColor = AppColors.textDim;
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.text, width: 1.5), // 입어 보는 중 = 흰 테두리(카드와 같은 규칙)
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(color: AppColors.surface2, borderRadius: BorderRadius.circular(12)),
+            child: item.art,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                OneLineText(item.label, style: AppTextStyles.text(14, weight: FontWeight.w800)),
+                if (sub != null) ...[
+                  const SizedBox(height: 2),
+                  Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.text(11, color: subColor, weight: FontWeight.w700, height: 1.25)),
                 ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (item.buy != null)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _buyPicked,
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: can ? AppColors.coin : AppColors.surface2,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CoinIcon(size: 14),
+                    const SizedBox(width: 5),
+                    Text(formatCount(item.price),
+                        style: AppTextStyles.display(13, color: can ? AppColors.on(AppColors.coin) : AppColors.textDim)),
+                    const SizedBox(width: 7),
+                    Text(lm.translate('shop_buy'),
+                        style: AppTextStyles.text(13,
+                            color: can ? AppColors.on(AppColors.coin) : AppColors.textDim, weight: FontWeight.w800)),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
-
-  /// 미리보기에 함께 그릴 꾸미기 — 잔상·오라(고른 게 있으면 그것, 아니면 착용 중인 것)
-  /// 지금 미리 보고 있는 아바타 한 벌 — 착용 중인 것 위에 '입어 보는 중'을 얹는다(avatar.dart)
-  Avatar get _previewAvatar {
-    return Avatar(
-      characterId: _previewCharId,
-      skinId: _skinId,
-      trailId: _previewCos(CosmeticKind.trail),
-      auraId: _previewCos(CosmeticKind.aura),
-      gearByZone: {_gearZone: _previewGear(_gearZone)},
-    );
-  }
-
-  String _previewCos(CosmeticKind kind) =>
-      _tryOn[Cosmetics.kindKey(kind)] ?? CoinStore.equipped(Cosmetics.kindKey(kind), Cosmetics.defaultOf(kind));
-
-  /// 지금 입은(또는 미리 입어 보는) 몸통 스킨
-  String get _skinId =>
-      _tryOn[Cosmetics.kindKey(CosmeticKind.skin)] ?? CoinStore.equipped(Cosmetics.kindKey(CosmeticKind.skin), Cosmetics.defaultSkin);
-
-  /// 장비를 보는 존
-  String _gearZone = 'cyber';
-
-  /// 미리 골라 둔 것 — 슬롯 키(또는 꾸미기 종류 키) → 아이템 id(Gear.none = 벗기)
-  final Map<String, String> _tryOn = {};
-
-  String _wornId(String zone, GearSlot slot) => Gear.wornId(zone, slot, CoinStore.equipped);
-
-  /// 미리보기에 보이는 것 — 고른 게 있으면 그것, 아니면 장착 중인 것
-  String _previewId(String zone, GearSlot slot) => _tryOn[Gear.slotKey(zone, slot)] ?? _wornId(zone, slot);
-
-  List<String> _previewGear(String zone) => [
-        for (final slot in Gear.slotsOf(zone))
-          if (_previewId(zone, slot) != Gear.none) _previewId(zone, slot),
-      ];
-
 }
 
-/// 가방의 칸 — 미리보기 좌우에 놓이는 아이콘 버튼 하나
-class _BagCat {
-  final String id;
-  final IconData icon;
+/// 그리드 한 칸 — 이름 + 물건들
+class _Section {
   final String label;
-  const _BagCat(this.id, this.icon, this.label);
+  final List<_BagItem> items;
+  const _Section(this.label, this.items);
 }
 
-/// 목록에 놓이는 물건 한 개 — 캐릭터·장비·꾸미기·변경권을 같은 모양으로 다룬다
+/// 목록에 놓이는 물건 한 개 — 캐릭터·장비·꾸미기를 같은 모양으로 다룬다
 class _BagItem {
   final String id;
   final String label;
+
+  /// 코인 값. 0 = 기본 또는 뱃지 보상 · -1 = 벗기(맨 앞)
   final int price;
   final bool owned;
+
+  /// 뱃지 보상 장비인데 아직 그 뱃지가 없다 — 살 수 없다
   final bool badgeLocked;
+
+  /// 얽힌 뱃지 — 장비는 필요한 뱃지, 캐릭터는 코인 없이도 여는 뱃지
+  final String? badgeKey;
+
+  /// 입어 보기를 적는 슬롯 키(캐릭터는 null)
+  final String? slotKey;
   final bool equipped;
   final bool previewing;
-  final String? bonus;
-
+  final GearBonus bonus;
   final Widget art;
-  final Color accent;
 
-  /// 카드를 눌렀을 때 — 가진 것은 장착, 아직 없는 것은 미리보기
-  final VoidCallback onPick;
-
-  /// 구매(있으면 목록 머리에 구매 버튼이 뜬다)
+  /// 구매 — null 이면 살 수 없다(벗기 · 뱃지 보상)
   final Future<bool> Function()? buy;
 
-  /// 구매 뒤 장착
-  final Future<void> Function()? equip;
+  /// 장착(구매 뒤에도 이것)
+  final Future<void> Function() equip;
 
   const _BagItem({
     required this.id,
@@ -835,56 +781,13 @@ class _BagItem {
     required this.price,
     required this.owned,
     required this.art,
-    required this.accent,
-    required this.onPick,
+    required this.equip,
     this.badgeLocked = false,
+    this.badgeKey,
+    this.slotKey,
     this.equipped = false,
     this.previewing = false,
-    this.bonus,
+    this.bonus = GearBonus.none,
     this.buy,
-    this.equip,
   });
-}
-
-/// 부위 아이콘 — 카테고리 버튼과 부위 램프가 같은 그림을 쓴다
-IconData slotIcon(GearSlot s) => switch (s) {
-      GearSlot.head => Icons.sports_motorsports_rounded,
-      GearSlot.hands => Icons.back_hand_rounded,
-      GearSlot.feet => Icons.directions_walk_rounded,
-      GearSlot.back => Icons.flight_rounded,
-    };
-
-
-/// 장비 미리보기의 부위 램프 — 입었으면 아이템 그림으로 켜지고, 비었으면 부위 아이콘만 흐리게.
-/// 입어 보는 중(아직 착용 안 함)이면 오른쪽 위에 작은 점.
-class _SlotLamp extends StatelessWidget {
-  final GearSlot slot;
-  final String itemId;
-  final bool trying;
-  final Color accent;
-  final Color base;
-  const _SlotLamp({required this.slot, required this.itemId, required this.trying, required this.accent, required this.base});
-
-  /// 부위 하나의 상태를 한눈에 — **입었으면 꽉 찬 점 + 부위 아이콘**, 비었으면 옅은 테두리만.
-  /// 미리 고른 중이면 초록(장착 = 주황과 같은 규칙).
-  @override
-  Widget build(BuildContext context) {
-    final on = itemId != Gear.none;
-    final color = trying ? AppColors.up : (on ? AppColors.coin : Colors.white.withValues(alpha: 0.35));
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        color: on ? color.withValues(alpha: 0.9) : Colors.black.withValues(alpha: 0.25),
-        shape: BoxShape.circle,
-        border: Border.all(color: on ? color : Colors.white.withValues(alpha: 0.3), width: 1.2),
-      ),
-      child: Icon(
-        slotIcon(slot),
-        size: 11,
-        color: on ? Colors.white : Colors.white.withValues(alpha: 0.5),
-      ),
-    );
-  }
 }

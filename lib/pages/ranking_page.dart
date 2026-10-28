@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../audio_manager.dart';
 import '../avatar.dart';
 import '../design_system.dart';
+import '../haptics.dart';
 import '../friends.dart';
 import '../badges.dart';
 import '../language_manager.dart';
@@ -56,6 +58,31 @@ class _RankingPageState extends State<RankingPage> {
   String _myFlag = '';
   String _myUid = '';
   int _loadSeq = 0;
+
+  /// 마지막으로 존을 바꾼 방향(+1 오른쪽으로 쓸어 다음 존 · -1 이전) — 목록이 그쪽에서 들어온다
+  int _slideDir = 1;
+
+  /// 존 바꾸기 — 탭·스와이프가 같이 쓴다
+  void _selectWorld(String id, {int dir = 1}) {
+    if (id == _worldId) return;
+    setState(() {
+      _slideDir = dir;
+      _worldId = id;
+    });
+    _load();
+  }
+
+  /// 좌우 스와이프 — 왼쪽으로 쓸면 다음 존, 오른쪽으로 쓸면 이전 존. 끝에서는 처음으로 돈다(2026-10-28)
+  void _swipe(DragEndDetails d) {
+    final v = d.primaryVelocity ?? 0;
+    if (v.abs() < 200) return;
+    final worlds = WorldData.worlds;
+    final dir = v < 0 ? 1 : -1;
+    final i = (worlds.indexWhere((w) => w.id == _worldId) + dir) % worlds.length;
+    AudioManager().playSfx(Sfx.click, volume: 0.35);
+    Haptics.tick();
+    _selectWorld(worlds[i].id, dir: dir);
+  }
 
   @override
   void initState() {
@@ -154,8 +181,10 @@ class _RankingPageState extends State<RankingPage> {
               child: StageFilter(
                 selectedId: _worldId,
                 onChanged: (id) {
-                  setState(() => _worldId = id);
-                  _load();
+                  final worlds = WorldData.worlds;
+                  final from = worlds.indexWhere((w) => w.id == _worldId);
+                  final to = worlds.indexWhere((w) => w.id == id);
+                  _selectWorld(id, dir: to > from ? 1 : -1);
                 },
               ),
             ),
@@ -191,8 +220,25 @@ class _RankingPageState extends State<RankingPage> {
               ),
             ),
             const SizedBox(height: 14),
+            // 좌우로 쓸면 존이 바뀐다(스와이프 — 빈 자리·로딩 중에도)
             Expanded(
-              child: _loading
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragEnd: _swipe,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(begin: Offset(_slideDir * 0.08, 0), end: Offset.zero).animate(anim),
+                      child: child,
+                    ),
+                  ),
+                  child: KeyedSubtree(
+                    key: ValueKey('${_worldId}_$_loading'),
+                    child: _loading
                   ? AppLoading(color: accent)
                   : _records.isEmpty
                       ? _empty(lm)
@@ -236,6 +282,9 @@ class _RankingPageState extends State<RankingPage> {
                                 ),
                               ],
                             ),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             _myBar(lm, accent),

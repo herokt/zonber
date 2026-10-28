@@ -129,10 +129,18 @@ void main() {
         }
       }
     });
-    test('무료 기본 장비는 보너스가 없다 · 보너스는 코인 +% 뿐이고 작다(15% 이하)', () {
+    test('코인 보너스는 가격 구간 규칙 하나 — 600 부터 +5% · 1000 부터 +10% · 뱃지 보상은 +10% · 기본은 없음', () {
+      expect(GearBonus.forPrice(0).isZero, isTrue);
+      expect(GearBonus.forPrice(599).isZero, isTrue);
+      expect(GearBonus.forPrice(600).coin, closeTo(0.05, 1e-9));
+      expect(GearBonus.forPrice(999).coin, closeTo(0.05, 1e-9));
+      expect(GearBonus.forPrice(1000).coin, closeTo(0.10, 1e-9));
+      expect(GearBonus.forPrice(1800).coin, closeTo(0.10, 1e-9));
       for (final g in Gear.all) {
+        final want = g.needsBadge != null ? GearBonus.badge : GearBonus.forPrice(g.price);
+        expect(g.bonus.coin, closeTo(want.coin, 1e-9), reason: g.id);
         if (g.price == 0 && g.needsBadge == null) expect(g.bonus.isZero, isTrue, reason: g.id);
-        expect(g.bonus.coin, lessThanOrEqualTo(0.15), reason: g.id);
+        expect(g.bonus.coin, lessThanOrEqualTo(0.10), reason: g.id);
       }
     });
     test('상점에는 판매 종료 장비가 안 보이고, 가진 사람에게만 보인다 · 부위마다 기본 + 코인 2~3개', () {
@@ -206,12 +214,15 @@ void main() {
 
   group('착용 한 벌(Loadout)', () {
     String Function(String, String) eq(Map<String, String> m) => (k, f) => m[k] ?? f;
-    test('장비 + 꾸미기의 코인 보너스를 합친다', () {
-      final e = eq({'gear_cyber_back': 'wings_comet', 'skin': 'skin_silver', 'trail': 'trail_note', 'aura': 'aura_crown'});
+    test('장비 + 꾸미기의 코인 보너스를 합친다(가격 구간 규칙)', () {
+      // wings_comet 650 → 5% · skin_aurora 1000 → 10% · trail_coin 600 → 5% · aura_prism 1000 → 10%
+      final e = eq({'gear_cyber_back': 'wings_comet', 'skin': 'skin_aurora', 'trail': 'trail_coin', 'aura': 'aura_prism'});
       final b = Loadout.bonusOf('cyber', e);
-      expect(b.coin, closeTo(0.1 + 0.03 + 0.02 + 0.05, 1e-9));
+      expect(b.coin, closeTo(0.05 + 0.10 + 0.05 + 0.10, 1e-9));
       // 다른 존의 장비는 세지 않는다
-      expect(Loadout.bonusOf('keeper', e).coin, closeTo(0.03 + 0.02 + 0.05, 1e-9));
+      expect(Loadout.bonusOf('keeper', e).coin, closeTo(0.10 + 0.05 + 0.10, 1e-9));
+      // 싼 것끼리는 0
+      expect(Loadout.bonusOf('cyber', eq({'skin': 'skin_silver', 'trail': 'trail_note', 'aura': 'aura_ring'})).isZero, isTrue);
     });
     test('예전 펫 슬롯이 남아 있으면 그 펫 오라가 이긴다(아직 안 옮긴 남의 문서)', () {
       expect(Loadout.auraOf(eq({'aura': 'aura_star', Pets.legacySlotKey: 'pet_star'})), 'pet_star');
@@ -233,7 +244,7 @@ void main() {
       expect(pets.map((c) => c.price), [600, 800, 1000, 1200, 1500, 1800]);
       for (final c in pets) {
         expect(c.orbits, isTrue, reason: c.id);
-        expect(c.bonus.isZero, isTrue, reason: c.id);
+        expect(c.bonus.coin, closeTo(GearBonus.forPrice(c.price).coin, 1e-9), reason: c.id); // 펫도 같은 가격 규칙
         for (final lang in ['en', 'ko', 'zh', 'ja']) {
           expect(appTranslations[lang]![c.nameKey], isNotNull, reason: '$lang ${c.id}');
         }
@@ -305,10 +316,11 @@ void main() {
         expect(Cosmetics.byId(Cosmetics.defaultOf(k))?.kind, k);
       }
     });
-    test('기본(무료)은 보너스가 없고, 보너스는 코인 +% 뿐이다(12% 이하)', () {
+    test('기본(무료)은 보너스가 없고, 보너스는 장비와 같은 가격 구간 규칙이다(10% 이하)', () {
       for (final c in Cosmetics.all) {
         if (c.price == 0) expect(c.bonus.isZero, isTrue, reason: c.id);
-        expect(c.bonus.coin, lessThanOrEqualTo(0.12), reason: c.id);
+        expect(c.bonus.coin, closeTo(GearBonus.forPrice(c.price).coin, 1e-9), reason: c.id);
+        expect(c.bonus.coin, lessThanOrEqualTo(0.10), reason: c.id);
       }
     });
   });

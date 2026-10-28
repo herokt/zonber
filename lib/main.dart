@@ -281,23 +281,6 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
     });
   }
 
-  Future<void> refreshPurchaseStatus() async {
-    debugPrint('📍 Refreshing purchase status...');
-
-    // Dispose old banner ad
-    _bannerAd?.dispose();
-    _bannerAd = null;
-    _isBannerAdReady = false;
-
-    // Refresh AdManager status
-    await AdManager().refreshAdsStatus();
-
-    // Reload purchase status
-    await _checkAdStatus();
-
-    debugPrint('📍 Purchase status refreshed. Ads removed: $_adsRemoved');
-  }
-
   /// 앱으로 돌아올 때 원격을 다시 읽는다 — 백오피스에서 준 코인·아이템이 여기서 들어온다
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -919,7 +902,7 @@ class _ZonberAppState extends State<ZonberApp> with WidgetsBindingObserver {
         return ShopPage(
           showBack: true, // 머리 통일 — 뒤로 가기는 들어온 화면으로
           onBack: () => _navigateTo(_shopReturn),
-          onPurchaseReset: refreshPurchaseStatus,
+          zoneId: _currentWorldId, // 미리보기·장비 탭은 홈에서 고른 존부터
         );
       case 'Promo':
         return PromoPage(onBack: () => _navigateTo('Menu'));

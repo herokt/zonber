@@ -62,7 +62,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Map<String, String> _profile = {};
   /// 내 아바타 — 고른 캐릭터 + 지금 착용 중인 스킨·장비(avatar.dart)
   Avatar _avatar = Avatar.fallback;
+
+  /// 지금 보고 있는 존(0 ~ 존 수-1)
   late int _index;
+
+  /// PageView 의 실제 페이지 — 존 목록을 [_loops]번 이어 붙여 양쪽으로 끝없이 넘긴다(2026-10-28). 존 = 페이지 % 존 수
+  late int _page;
+  static const int _loops = 400;
+  int get _n => WorldData.worlds.length;
 
   /// 존별 1위 기록 캐시(이 화면이 떠 있는 동안) — 내 기록과 견줘 보라고 카드에 같이 적는다
   final Map<String, _TopTimes> _tops = {};
@@ -82,7 +89,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _index = WorldData.worlds.indexWhere((w) => w.id == widget.selectedWorldId);
     if (_index < 0) _index = 0;
-    _pager = PageController(initialPage: _index, viewportFraction: 0.9);
+    _page = _n * (_loops ~/ 2) + _index; // 한가운데서 시작 — 어느 쪽으로든 한참 넘길 수 있다
+    _pager = PageController(initialPage: _page, viewportFraction: 0.9);
     _loadProfile();
     _loadTops(WorldData.worlds[_index].id);
   }
@@ -139,11 +147,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 지금 보고 있는 존 — 아바타가 이 존 장비를 입고 나온다
   String get _zoneId => WorldData.worlds[_index].id;
 
-  /// 탭·점·옆 카드로 존 이동 — onPageChanged 가 선택을 반영한다
+  /// 탭·점으로 존 이동 — 가까운 쪽으로 돈다(3번째 존에서 1번째로 갈 땐 오른쪽으로 한 장). onPageChanged 가 선택을 반영한다
   void _goTo(int i) {
     if (i == _index) return;
-    _pager.animateToPage(i, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
+    final forward = (i - _index) % _n; // 오른쪽으로 몇 장
+    final target = forward <= _n - forward ? _page + forward : _page - (_n - forward);
+    _goToPage(target);
   }
+
+  void _goToPage(int page) =>
+      _pager.animateToPage(page, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
 
   @override
   Widget build(BuildContext context) {
@@ -321,23 +334,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       );
 
-  // ── 존 캐러셀 (스와이프 · 옆 카드 탭) ──
+  // ── 존 캐러셀 (스와이프 · 옆 카드 탭) — 양쪽으로 끝없이 돈다 ──
   Widget _carousel() => PageView.builder(
         controller: _pager,
-        itemCount: WorldData.worlds.length,
-        onPageChanged: (i) {
-          setState(() => _index = i);
+        itemCount: _n * _loops,
+        onPageChanged: (p) {
+          final i = p % _n;
+          setState(() {
+            _page = p;
+            _index = i;
+          });
           widget.onWorldSelected(WorldData.worlds[i].id);
           _loadTops(WorldData.worlds[i].id);
         },
-        itemBuilder: (context, i) {
-          final w = WorldData.worlds[i];
+        itemBuilder: (context, p) {
+          final w = WorldData.worlds[p % _n];
           return GestureDetector(
             // 옆에 보이는 카드를 누르면 그 존으로 넘어간다
-            onTap: i == _index ? null : () => _goTo(i),
+            onTap: p == _page ? null : () => _goToPage(p),
             child: AnimatedPadding(
               duration: const Duration(milliseconds: 150),
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: i == _index ? 0 : 10),
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: p == _page ? 0 : 10),
               child: _WorldCard(
                 world: w,
                 unlocked: WorldData.isUnlocked(w, widget.bestTimes),

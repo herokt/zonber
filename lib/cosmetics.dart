@@ -11,7 +11,7 @@ import 'pets.dart';
 // 스킨은 캐릭터와 상관없이 몸 전체를 덮는다(그림은 zonber_painter.dart 의 _paintSkin).
 // 존별 장비(날개·머리띠·장갑 등)는 gear.dart. 전부 코드로 그린다 — 펫 오라 6종만 시안 아트(pets.dart). docs/SHOP.md
 //
-// 꾸미기는 외형이다(2026-10-26 전투 능력치 제거 — gear.dart 참고). 비싼 것 일부만 코인 +% 를 준다(GearBonus.coin).
+// 꾸미기는 외형이다(2026-10-26 전투 능력치 제거 — gear.dart 참고). 코인 +% 는 가격 구간 규칙(GearBonus.forPrice) 하나로 정해진다.
 // 펫(2026-10-26)은 따로 데리고 다니지 않는다 — 주위를 도는 오라의 한 종류([Cosmetic.pet])다. 오라 칸에서 하나를 고른다.
 //
 // 그리기 함수는 게임(Player)과 상점 미리보기가 같이 쓴다 — 보이는 그대로 산다.
@@ -24,13 +24,14 @@ class Cosmetic {
   final CosmeticKind kind;
   /// 번역 키: cos_{id} · 펫 오라는 예전 펫 이름 키(= id)
   final int price; // 0 = 기본(무료)
-  /// 보너스 — 코인 +% 뿐
-  final GearBonus bonus;
   /// 캐릭터 주위를 도는 오라(꽃잎·궤도 위성·나비·별무리·펫)
   final bool orbits;
   /// 펫 오라 — 시안 아트 펫이 둘레를 돈다(pets.dart). id 는 예전 펫 id 그대로
   final bool pet;
-  const Cosmetic(this.id, this.kind, this.price, {this.bonus = GearBonus.none, this.orbits = false, this.pet = false});
+  const Cosmetic(this.id, this.kind, this.price, {this.orbits = false, this.pet = false});
+
+  /// 코인 보너스 — 장비와 같은 가격 구간 규칙(GearBonus.forPrice, 2026-10-28). 펫 오라도 같다
+  GearBonus get bonus => GearBonus.forPrice(price);
 
   String get nameKey => pet ? id : 'cos_$id';
 }
@@ -44,30 +45,30 @@ class Cosmetics {
     // 몸통 스킨
     Cosmetic('skin_none', CosmeticKind.skin, 0),
     Cosmetic('skin_cloud', CosmeticKind.skin, 350),
-    Cosmetic('skin_silver', CosmeticKind.skin, 400, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('skin_silver', CosmeticKind.skin, 400),
     Cosmetic('skin_candy', CosmeticKind.skin, 450),
     Cosmetic('skin_sunset', CosmeticKind.skin, 450),
-    Cosmetic('skin_ice', CosmeticKind.skin, 500, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('skin_ice', CosmeticKind.skin, 500),
     Cosmetic('skin_ocean', CosmeticKind.skin, 550),
-    Cosmetic('skin_neon', CosmeticKind.skin, 600, bonus: GearBonus(coin: 0.03)),
-    Cosmetic('skin_gold', CosmeticKind.skin, 650, bonus: GearBonus(coin: 0.08)),
+    Cosmetic('skin_neon', CosmeticKind.skin, 600),
+    Cosmetic('skin_gold', CosmeticKind.skin, 650),
     Cosmetic('skin_lava', CosmeticKind.skin, 700),
-    Cosmetic('skin_galaxy', CosmeticKind.skin, 750, bonus: GearBonus(coin: 0.05)),
-    Cosmetic('skin_rainbow', CosmeticKind.skin, 900, bonus: GearBonus(coin: 0.08)),
-    Cosmetic('skin_aurora', CosmeticKind.skin, 1000, bonus: GearBonus(coin: 0.1)),
-    Cosmetic('skin_crystal', CosmeticKind.skin, 1200, bonus: GearBonus(coin: 0.1)),
+    Cosmetic('skin_galaxy', CosmeticKind.skin, 750),
+    Cosmetic('skin_rainbow', CosmeticKind.skin, 900),
+    Cosmetic('skin_aurora', CosmeticKind.skin, 1000),
+    Cosmetic('skin_crystal', CosmeticKind.skin, 1200),
     // 이동 잔상
     Cosmetic('trail_basic', CosmeticKind.trail, 0),
     Cosmetic('trail_sparkle', CosmeticKind.trail, 200),
     Cosmetic('trail_bubble', CosmeticKind.trail, 250),
-    Cosmetic('trail_note', CosmeticKind.trail, 250, bonus: GearBonus(coin: 0.02)),
+    Cosmetic('trail_note', CosmeticKind.trail, 250),
     Cosmetic('trail_heart', CosmeticKind.trail, 300),
     Cosmetic('trail_petal', CosmeticKind.trail, 300),
-    Cosmetic('trail_snow', CosmeticKind.trail, 350, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('trail_snow', CosmeticKind.trail, 350),
     Cosmetic('trail_flame', CosmeticKind.trail, 350),
-    Cosmetic('trail_bolt', CosmeticKind.trail, 450, bonus: GearBonus(coin: 0.03)),
+    Cosmetic('trail_bolt', CosmeticKind.trail, 450),
     Cosmetic('trail_rainbow', CosmeticKind.trail, 500),
-    Cosmetic('trail_coin', CosmeticKind.trail, 600, bonus: GearBonus(coin: 0.12)),
+    Cosmetic('trail_coin', CosmeticKind.trail, 600),
     Cosmetic('trail_comet', CosmeticKind.trail, 700),
     // 오라
     Cosmetic('aura_none', CosmeticKind.aura, 0),
@@ -78,10 +79,10 @@ class Cosmetics {
     Cosmetic('aura_halo', CosmeticKind.aura, 500),
     Cosmetic('aura_butterfly', CosmeticKind.aura, 550, orbits: true),
     Cosmetic('aura_flame', CosmeticKind.aura, 600),
-    Cosmetic('aura_crown', CosmeticKind.aura, 700, bonus: GearBonus(coin: 0.05)),
+    Cosmetic('aura_crown', CosmeticKind.aura, 700),
     Cosmetic('aura_star', CosmeticKind.aura, 800, orbits: true),
     Cosmetic('aura_frost', CosmeticKind.aura, 900),
-    Cosmetic('aura_prism', CosmeticKind.aura, 1000, bonus: GearBonus(coin: 0.05)),
+    Cosmetic('aura_prism', CosmeticKind.aura, 1000),
     // 펫 오라(2026-10-26 펫을 오라로 합쳤다 — id·가격은 예전 펫 그대로라 산 사람은 그대로 가진다)
     Cosmetic('pet_star', CosmeticKind.aura, 600, orbits: true, pet: true),
     Cosmetic('pet_slime', CosmeticKind.aura, 800, orbits: true, pet: true),

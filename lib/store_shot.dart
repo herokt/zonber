@@ -1,3 +1,5 @@
+import 'season.dart';
+
 // ─────────────────────────────────────────────────────────────
 // 스토어 스크린샷 모드 — `--dart-define=STORE_SHOT=true` 로 빌드했을 때만 켜진다(보통 빌드에서는 상수 false 라
 // 관련 코드가 빠진다). 켜지면 앱이 언어 4개 × 화면 10개(갤럭시·피구·프리킥 플레이 · 결과 · 이 기록 깨러 가기 · 랭킹 · 가방 · 뱃지 · 이벤트 · 홈)를 차례로 띄우고
@@ -68,6 +70,28 @@ class StoreShot {
             'gear': const <String>[],
             if (_badges[i % _badges.length] != null) 'badge': _badges[i % _badges.length],
           },
+      ];
+
+  /// 명예의 전당을 비워 둔다(빈 상태 미리보기)
+  static bool hallEmpty = false;
+
+  /// 명예의 전당(가짜) — 끝난 시즌 둘(연간, 최신이 앞). 존별 TOP 3 는 랭킹 가짜 기록의 위 셋
+  static List<HallOfFameSeason> hallOfFame() => hallEmpty ? const [] : [
+        for (final (id, n, year) in [('2026', 2, 2026), ('2025', 1, 2025)])
+          HallOfFameSeason(
+            id: id,
+            number: n,
+            mode: SeasonMode.year,
+            start: DateTime.utc(year, 1, 1),
+            end: DateTime.utc(year + 1, 1, 1),
+            zones: {
+              for (final z in const ['cyber', 'dodgeball', 'keeper'])
+                z: [
+                  for (final r in records(z, limit: 3))
+                    {...r, 'survivalTime': double.parse(((r['survivalTime'] as double) * (n == 2 ? 1 : 0.91)).toStringAsFixed(3))},
+                ],
+            },
+          ),
       ];
 
   /// 올해 상위 기록 시간(내림차순) — 목표선·세계 신기록
