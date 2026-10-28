@@ -1,4 +1,4 @@
-# ZONBER — App Store 소개 문구 (2.2.0)
+# ZONBER — App Store 소개 문구 (2.2.0 · 새로운 기능 2.3.0)
 
 App Store Connect › 앱 › 배포 탭 › 해당 언어에 붙여 넣으면 된다. 괄호 안은 글자 수 제한. 스크린샷은 `store/screenshots/{en,ko,ja,zh}/{iphone,ipad}/` (index.html 로 한눈에 보기) — 중국어는 간체(zh-Hans).
 
@@ -62,14 +62,11 @@ ZONBER: 탄막 피하기 생존게임
 서바이벌,하이퍼캐주얼,골키퍼,페널티킥,랭킹,아케이드,원터치,반응속도,회피,존버,캐주얼게임,슈팅,축구,총알피하기,똥피하기,시간때우기,한손게임,미니게임,킬링타임,피지컬
 
 ### 이번 버전의 새로운 기능 (4000자)
-ZONBER 2.2.0
-• 랭킹이 시즌제로 — 시즌이 끝나면 존별 TOP 3가 명예의 전당에 올라요
-• 장비·꾸미기는 외형만, 랭킹은 순수 실력 경쟁
-• 펫이 오라로 — 오라 칸에서 골라요
-• 첫 판 안내, 홈 ? 버튼으로 게임 방법
-• 로그인 없이도 최고 기록·코인이 기기에 남아요
-• 210초가 지나도 조금씩 더 어려워져요
-• 닉네임은 30일에 한 번 무료로 바꿀 수 있어요
+ZONBER 2.3.0
+• 명예의 전당이 트로피 홀로 — 시즌이 끝나면 존별 1·2·3위를 금·은·동 상패로 남겨요
+• 내 가방을 새로 꾸몄어요 — 고르고 입어 보기가 더 쉬워졌어요
+• 홈에서 존을 고를 때 양쪽으로 끝없이 넘어가요
+• 랭킹에서 좌우로 밀어 존을 바꿔요
 
 ---
 
@@ -124,14 +121,11 @@ Beat yesterday by just one more second.
 danmaku,shmup,dodgeball,goalkeeper,penalty,soccer,football,freekick,reflex,casual,avoid,ranking
 
 ### What's New (4000)
-ZONBER 2.2.0
-• Rankings now run by season — each season's top 3 per zone enter the Hall of Fame
-• Gear and cosmetics are looks only — rankings are pure skill
-• Pets are now auras — pick them in the aura slot
-• First-run tips, and How to Play from the ? on the home screen
-• Your best times and coins stay on your device even without logging in
-• After 210 seconds the game keeps getting a little harder
-• Change your nickname free once every 30 days
+ZONBER 2.3.0
+• The Hall of Fame is now a trophy hall — when a season ends, each zone's top 3 get gold, silver and bronze plaques
+• My bag is redesigned — easier to browse and try things on
+• The zone picker on the home screen loops endlessly both ways
+• Swipe left or right on the rankings to switch zones
 
 ---
 
@@ -186,14 +180,11 @@ ZONBER: 弾幕よけサバイバル
 弾幕,避けゲー,よける,カジュアル,ゴールキーパー,アーケード,反射神経,サッカー,ボール,フリーキック,暇つぶし,ハイパーカジュアル,シューティング,ランキング,片手,ミニゲーム,弾避け
 
 ### このバージョンの新機能 (4000)
-ZONBER 2.2.0
-• ランキングがシーズン制に — シーズン終了時、ゾーンごとのTOP 3が殿堂入り
-• 装備・着せ替えは見た目だけ、ランキングは純粋な腕くらべ
-• ペットはオーラに — オーラ枠から選べます
-• はじめてのプレイにガイド、ホームの？で遊び方
-• ログインしなくても最高記録とコインが端末に残ります
-• 210秒を過ぎても少しずつ難しくなります
-• ニックネームは30日に1回、無料で変更できます
+ZONBER 2.3.0
+• 殿堂がトロフィーホールに — シーズンが終わると各ゾーンの上位3人を金・銀・銅のプレートで残す
+• マイバッグを一新 — 選びやすく、試着しやすく
+• ホームのゾーン選びが左右どちらにも途切れずループ
+• ランキングを左右にスワイプしてゾーン切り替え
 
 ---
 
@@ -248,11 +239,8 @@ ZONBER：躲弹幕生存挑战
 弹幕,躲避,休闲,守门员,街机,反应,足球,球类,任意球,闪避,单指,小游戏,排行榜,射击,解压,打发时间,手速,反应力,躲球,单机,躲子弹,极限,硬核
 
 ### 此版本的新增内容 (4000)
-ZONBER 2.2.0
-• 排行榜改为赛季制——赛季结束时，各区域前三名进入名人堂
-• 装备和装扮只改外观，排行榜比的是纯实力
-• 宠物变为光环——在光环栏中选择
-• 首局新手引导，主页“？”按钮查看玩法
-• 无需登录，最佳纪录和金币也会保存在设备上
-• 坚持超过 210 秒后，难度仍会缓慢提升
-• 昵称每 30 天可免费修改一次
+ZONBER 2.3.0
+• 名人堂升级为奖杯大厅——赛季结束后，各区域前三名以金、银、铜奖牌永久留名
+• 我的背包全新设计——浏览和试穿更方便
+• 主页选择区域时左右无限循环
+• 在排行榜左右滑动即可切换区域

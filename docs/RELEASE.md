@@ -17,15 +17,15 @@
 - 체크: 번역 키 539 네 언어 · `flutter test` 92 · `flutter analyze lib test`(info 2 기존)
 - 빌드: `flutter build appbundle --release` — Claude 의 Bash 샌드박스에서는 Gradle 데몬이 "Unable to establish loopback connection" 으로 실패한다 → 샌드박스 없이(PowerShell) 돌리면 된다. 결과 88MB, 복사본 `build/zonber-2.3.0-219.aab`
 - **Android**: 2026-10-28 같은 번들로 **비공개 테스트 - Alpha**(테스터 미지정 경고) + **프로덕션 100%** 두 건을 게시 개요에서 검토 제출. 출시 노트 ko/en/ja/zh 4개 언어. 브라우저 도구는 10MB 넘는 파일을 못 올려 AAB 는 Play Console 에 사람이 끌어다 놓았다(Play API 서비스 계정은 없음)
-- **iOS**: 아직(2.2.0(218) 심사 중)
-- 심사 통과 뒤 할 일: 백오피스 › 앱 버전 에 Android 2.3.0
+- **iOS**: 2.3.0 (219) 2026-10-28 TestFlight 업로드(Admin 키 `xcodebuild -exportArchive`) → 같은 날 심사 제출(App Store Connect API), 승인 후 자동 출시. 새로운 기능 ko/en/ja/zh 4개 언어(`store/app_store_listing.md`). 설명·스크린샷은 2.2.0 그대로. 심사 메모 = 아동 대상 광고 · ATT 없음 · 개인정보 라벨 "기타 진단 데이터" 한 항목 설명
+- 심사 통과 뒤 할 일: 백오피스 › 앱 버전 에 Android 2.3.0 · iOS 2.3.0 · App Store 개인정보 라벨 "기타 진단 데이터"를 추적 아니요로(`store/data_safety.md`)
 
 ### 2.2.0 (218) — 2026-10-27
 - 내용: 시즌제 랭킹(주·월·올해 제거) + 명예의 전당 · 장비·꾸미기는 외형만(코인 +% 만) · 펫 → 오라 · 첫 판 안내 · 홈 ? 게임 방법 · 게스트 최고 기록·코인 기기 저장 · 210초 뒤 완만한 난이도 상승 · 닉네임 30일에 한 번 무료 · 뱃지 41종
 - 체크: 번역 키 · `flutter test` 92 · `flutter analyze`(info 2 기존) · functions 9 · 규칙 시험 125 통과
 - **서버 먼저** 2026-10-26 `deploy_admin.bat` — 규칙·색인(`config/season` · `hall_of_fame`) · 함수(`seasonTick` 새로 만듦) · 백오피스 · 호스팅
 - **Android**: 프로덕션 100%(모든 국가) · 2026-10-27 검토 제출(게시 개요 13건 = 버전 + ko/en/ja/zh 자세한 설명 · 휴대전화 스크린샷 8장). Play Console 계정 = Chrome 의 mycrewdeveloper@ (개발자 계정 ToyDream)
-- **iOS**: 2.2.0 (218) 2026-10-27 심사 제출 — 4개 언어 설명 · 새로운 기능 · 스크린샷(iPhone 6.9" · iPad 13" 각 10장), 승인 후 자동 출시. 제출 때 연령 등급 설문에 새 필수 질문(소셜 미디어 · 13세 미만 소셜 미디어 비활성화)이 생겨 둘 다 "아니요"로 답함(피드·게시물·채팅 없음, 등급 4+ 그대로)
+- **iOS**: 2.2.0 (218) 2026-10-27 심사 제출(2026-10-28 확인: 출시됨) — 4개 언어 설명 · 새로운 기능 · 스크린샷(iPhone 6.9" · iPad 13" 각 10장), 승인 후 자동 출시. 제출 때 연령 등급 설문에 새 필수 질문(소셜 미디어 · 13세 미만 소셜 미디어 비활성화)이 생겨 둘 다 "아니요"로 답함(피드·게시물·채팅 없음, 등급 4+ 그대로)
 - 스크린샷은 기기 없이 웹 빌드로 찍었다(`scripts/store_shots_web.mjs` — `store/play_store_listing.md` 머리). 시즌 칩은 `StoreShot.seasonNow`(시즌 1 안)
 - 심사 통과 뒤 할 일: 백오피스 › 앱 버전 에 Android 2.2.0 (iOS 는 출시 뒤 따로)
 
