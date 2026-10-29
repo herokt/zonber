@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'admin_gate.dart';
 import 'backoffice_home.dart';
 import 'bo_common.dart';
@@ -30,6 +31,10 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    // 회사망·보안 프로그램이 스트리밍 응답을 붙잡아 두면 Firestore 실시간 연결(WebChannel)이
+    // "Could not reach Cloud Firestore backend" 로 오프라인이 되어 화면이 비거나 멈춘다 — 백오피스는 롱 폴링으로만 붙는다.
+    // Firestore 를 처음 쓰기 전에 정해야 한다.
+    FirebaseFirestore.instance.settings = const Settings(webExperimentalForceLongPolling: true);
     debugPrint("Backoffice: Firebase Initialized");
   } catch (e) {
     debugPrint("Backoffice: Initialization/Auth Error: $e");

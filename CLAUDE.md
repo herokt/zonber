@@ -124,6 +124,7 @@ node scripts/test_rules.mjs           # firestore.rules 시험 (gcloud auth logi
 Firebase Hosting `/secret_admin/` 경로로 배포됨 (`firebase.json` 참고) — 주소 `https://stayzone-88364.web.app/secret_admin/`.
 배포는 `deploy_admin.bat` 하나로: 백오피스 웹 번들 + **Firestore 규칙·색인** + **서버 함수**(`functions/` — 푸시 발송 `sendPushCampaign` · 친구 `friends.js` · 탈퇴 정리 · 시즌 `season.js`(매시간 — 마감 전 푸시·명예의 전당), us-central1. `cd functions && npm test`)까지 같이 올린다.
 규칙·색인을 빼먹으면 플레이 기록(`users/{uid}/runs` 쓰기 · collection group 읽기)이 조용히 막힌다.
+백오피스 Firestore 는 **롱 폴링으로만** 붙는다(2026-10-29 `main_backoffice.dart` — 회사망·보안 프로그램이 스트리밍 응답을 붙잡으면 "Could not reach Cloud Firestore backend" 로 오프라인이 되어 화면이 빈다).
 백오피스 카탈로그(`bo_catalog.dart`)는 캐릭터·장비·꾸미기 목록을 **게임 파일에서 그대로 읽는다** — 목록을 베껴 두지 않는다(아이템이 늘면 저절로 따라온다).
 **처음엔 요약, 자세한 건 눌러서**(2026-10-27): 화면을 열 때 users 전체·긴 기간 runs 를 읽지 않는다. 숫자는 서버 집계(`usersCount` · `runsCount` — count, 문서를 읽지 않음), 목록은 최근 N개(`latestUsers` · `latestRuns`), 이름표는 `BoData.lookup`(보이는 사람만 한 건씩). users 전체(`BoData.users()`, 캐시)는 대시보드 [상세보기] · 유저 검색·정렬 · 경제 · 앱 버전 · 유저 ID 없는 기록처럼 꼭 필요한 곳에서만. 로딩 표시는 `BoLoading`/`BoSpinner`(= 디자인 시스템 `AppSpinner`) · 오래 걸리는 동작은 `runBusy`.
 - `dashboard_page.dart` — **요약**: 전체 회원 · 신규 가입(오늘·7일) · 오늘/7일 판 수 + 신규 가입자 최근 8명 + 최근 플레이 10판. **[상세보기]** 를 눌러야 회원 전체 + 7일 판(최대 5,000)을 읽어 DAU/WAU · 일별 플레이 · 스테이지별 비교 · 존별 끝난 레벨 분포 · 신규 가입 추이 · 캐릭터 사용 · 보유 코인을 보여 준다(접으면 사라짐)
